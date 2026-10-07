@@ -1,0 +1,156 @@
+{
+  "source": "Google Stitch MCP (list_projects / list_screens / get_screen)",
+  "export_status": "PARTIAL - owner-exported HTML x5 (code.html) + sign-in PNG; 4 screenshots pending (`get_screen_image` returned `<FIFE Image failed to fetch>`); admin-portal + draft-variant screens not exported. Retry the FIFE screens while logged in.",
+  "local_artifacts": {
+    ".artifacts/stitch/sign_in_athenaeum_library/": [
+      "screen.png",
+      "code.html"
+    ],
+    ".artifacts/stitch/catalog_browser_athenaeum_library/": [
+      "code.html"
+    ],
+    ".artifacts/stitch/book_detail_dune_athenaeum_library/": [
+      "code.html"
+    ],
+    ".artifacts/stitch/my_library_athenaeum_library/": [
+      "code.html"
+    ],
+    ".artifacts/stitch/ai_librarian_athenaeum_library/": [
+      "code.html"
+    ],
+    ".artifacts/stitch/modern_scholarly_wayfinding/": [
+      "DESIGN.md"
+    ]
+  },
+  "project": {
+    "name": "projects/4345961817697568978",
+    "title": "Athenaeum: Smart Library System",
+    "type": "TEXT_TO_UI_PRO",
+    "deviceType": "DESKTOP",
+    "theme": {
+      "colorMode": "LIGHT",
+      "headlineFont": "INTER",
+      "bodyFont": "INTER",
+      "labelFont": "JETBRAINS_MONO",
+      "roundness": "ROUND_FOUR",
+      "primarySeed": "#2563eb",
+      "secondaryOverride": "#f59e0b",
+      "tertiaryOverride": "#16a34a",
+      "neutralOverride": "#71717a"
+    }
+  },
+  "fetched": "2026-10-07",
+  "export_runbook": "docs/12-ui-design.md #711-stitch-mcp-tool-verification--export-runbook",
+  "export_note": "Signed download URLs (screenshot + htmlCode) require the owner's authenticated Google session. Unauthenticated curl/webfetch redirects to accounts.google.com. Screens were inspected via Stitch MCP metadata (title, dimensions, deviceType) only; visual content verification is deferred. Open each HTML URL in a logged-in browser to export, then save under .artifacts/stitch/{NN-name}/ using the folder names in docs/12-ui-design.md.",
+  "screens": [
+    {
+      "id": "b6e00ec93bff4f7dbabfeefcaad1166e",
+      "title": "Sign In - Athenaeum Library",
+      "route": "/login",
+      "deviceType": "DESKTOP",
+      "size": {
+        "width": 2560,
+        "height": 2536
+      },
+      "screenshot_url": "https://lh3.googleusercontent.com/aida/AEtjO1VuOcsKaO2XEfkVgCaLu-dsTY5L7FF2n79Hh0dsE0M783-mfryoGvziV0pGRw-JNcVpilkerP4s9X2iMPvslX81xf-R-6tltbcL6L6Wsj_v1uH3bGI9IFLgQYhhS90xqob6E5UvOOtEkoYr6jO9CUHwf1fQFw9FVS45p3qacuVZg-M3r4rBXnW5YI9j-yqD9vQTpD3ReETG8wQdVPVE_H_u8R6DT_CiZSqvyiDkLDE",
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmRmODNiZTBhMjA0NzljOWRhMTYxYjkzMTESCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "e9f24637e3da43c68aa771390938f8c4",
+      "title": "Catalog Browser - Athenaeum Library",
+      "route": "/catalog",
+      "deviceType": "DESKTOP",
+      "size": {
+        "width": 2560,
+        "height": 3068
+      },
+      "screenshot_url": "https://lh3.googleusercontent.com/aida/AEtjO1X7AvmkNyWMvXvw6-89cTDsAInM95TxXwT_PKqR9Nur3S5GSDsuQOR7HUvAbMU6_GScVlT3UX3yXHJ7ols3NCYwMKBLyFzvmoCW0h-4VkhQCm0FD_BTSFUB3TqQ8e_Vkgrp-hGVYEIbUTHnBQ1NzlqCz6TurR7kglLnLuuX30a4ghdEBfAlua5-IbxZwx2GtT3AoHkuze40L-SSioPnlr6g0kdmUjo_c5ylg5ifHCRO",
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmRkMTQ2NmY5NTA0NGY1ZmI2NDMwNThkNjYSCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "723960ca2605417eb085f6e17a579bd2",
+      "title": "Book Detail: Dune - Athenaeum Library",
+      "route": "/books/[id]",
+      "deviceType": "DESKTOP",
+      "size": {
+        "width": 2560,
+        "height": 4884
+      },
+      "screenshot_url": "https://lh3.googleusercontent.com/aida/AEtjO1WloXDP2JVl_DOivVX7eICqtvJUvLKPAxqRkadcVBJGqtQkZD3WwjOE1Qi7mhFl25kE5FGlyMRy9myua74Mu-wr-2CyHyWBG9gOsxocK9I4CQmZ8lU2r__5zr2d2Dj1Elj1ToUaPk9kXapSKJMNLFRacYIuBLaZ6ovRSxLZmegr8vDeA9c3LD1dcltl30gkSdthqOY0adBsIC7fxgQDsQzOsS1i1z96Z0ot_pZhda0",
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmRkMzBlOGIzZTAyM2JmOTllYzMzNTgyNjkSCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "9cee348492a04f3a98ab9ddb2c791258",
+      "title": "My Library - Athenaeum Library",
+      "route": "/library",
+      "deviceType": "DESKTOP",
+      "size": {
+        "width": 2560,
+        "height": 3358
+      },
+      "screenshot_url": "https://lh3.googleusercontent.com/aida/AEtjO1UK7OUW7ePye68qMZHwOlikCC_fMonifEdZQ4YDgLjk93k1S7rBm4Cv4RCys3vjncs74Fn6GEMkPENmNbY-JejYBtHj1BwwnPCDhhyKdk2_Mi41mLC4RiMTxv2JEpD15fjgNMat4gbvbn2VvPOwlbeu1Z55EUuxfHQ3tyHAQGS-RnFwaA9kb00nOibyR796QEzDiET9v9Wts58wuDejW5_TVC0RX7fQe6EZCACV6pI",
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmRkNWE0NTIyNDA1ZjEzM2VhZTQwNTJmNjISCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "70530f16d81642aa8d5784fe09076e11",
+      "title": "AI Librarian - Athenaeum Library",
+      "route": "/chat",
+      "deviceType": "DESKTOP",
+      "size": {
+        "width": 2560,
+        "height": 2186
+      },
+      "screenshot_url": "https://lh3.googleusercontent.com/aida/AEtjO1WAHrSHRFvsS7qUszKIlenjMgJumpIeFfL9_olFsJWATzdRs6Xre8gydJ_PTDXw9WLFti1y9OJ-e51I5UgF9HKJZZCUoHkbAP3B2dFi028enV-F-SsKIoJqSmtD7XNc5mcD9RcpQJIzUXVDJnbeMTk8p038RiHS2F9ffsDo8Gu3KF-0b-b3EYK7h98pi5xDfCIyx-G3-2TQmhpXmmG8rNuini7QAI3gUf99koW2_uuE",
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmRkMTJiOWMxYjA0NzljODgyOWYzN2JmNTYSCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "3177da5282a94617b61e9333d4446237",
+      "title": "Admin Portal - Athenaeum Library",
+      "route": "/admin, /admin/layout",
+      "deviceType": "DESKTOP",
+      "size": {
+        "width": 2560,
+        "height": 4182
+      },
+      "screenshot_url": "https://lh3.googleusercontent.com/aida/AEtjO1W4ACWFQgVaQ2Jfo0hG6mF-qeOSSlT4a99eQXjxbQrWxJ2a2pU0tVLliMmvd9-Aq8EeymPcr9PjlHl3C7wUL9U9fwJQ-dcc5ywx18jNlTkqy86U4rLins85ShvIVvVosMwos4XWA3NYPAbs1CK7QNXKZPrhw-35JphMUsRuWTrulQnnVQ864Bsv__KTIHtW7dBU4HAXIvaDnIhZyBIxzh-1gI9dVrZAMEUAgGkfghI_",
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmRlNTUzNmM5YjAyM2JlMWIzMDAwYWUwN2YSCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "77ccd1faf39d423cbbae00544f8f04b9",
+      "title": "Athenaeum Library Catalog & Wayfinding System",
+      "route": null,
+      "deviceType": "DESKTOP",
+      "size": {
+        "width": 1280,
+        "height": 1024
+      },
+      "note": "Early draft screen without screenshot; superseded by the dedicated catalog browser screen. Kept for provenance.",
+      "screenshot_url": null,
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMzRmMTkyNGQ0NDAyMDc5ZTM4YjIyNDAwYjQSCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "bcca77dc5b244943b33f01c821adf480",
+      "title": "Book Library UI Specification",
+      "route": null,
+      "type": "DOCUMENT_ARTIFACT",
+      "screenshot_url": null,
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmRhNDEwMjFmNTA3YzRkMjI1NGIzZGIwMmESCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "57e409fd895047a28cdd3da1e959ccdf",
+      "title": "DESIGN.md - Athenaeum Library Design System",
+      "route": null,
+      "type": "DOCUMENT_ARTIFACT",
+      "screenshot_url": null,
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmUwMzM1N2ExMzA1ZjEzM2VhZTQwNTJmNjISCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    },
+    {
+      "id": "f1b260d6e3794cf4a81ecb973f93e6ae",
+      "title": "Athenaeum Library - Product Requirements Document (PRD)",
+      "route": null,
+      "type": "DOCUMENT_ARTIFACT",
+      "screenshot_url": null,
+      "html_url": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJxEgxzdGl0Y2hfZmlsZXMaYQosc3RpdGNoX2h0bWxfMDAwNjVkMmRmYzk2ZjgzNTAyM2JlMWIzMDAwYWUwN2YSCxIHELXDuM-6FxgBkgEjCgpwcm9qZWN0X2lkEhVCEzQzNDU5NjE4MTc2OTc1Njg5Nzg&filename=&opi=89354086"
+    }
+  ]
+}

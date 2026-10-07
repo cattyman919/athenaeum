@@ -1,0 +1,251 @@
+# Frontend (Next.js)
+
+> The `web/` package: App Router page map, per-page breakdowns mapped 1:1 to Stitch screen IDs, ShadCN component usage, auth context, SSE chat client, admin pages, and loading/empty/error conventions — endpoints in [03-api-spec.md](./03-api-spec.md), design system in [12-ui-design.md](./12-ui-design.md).
+
+## Contents
+
+1. [Stack & Folder Layout](#1-stack--folder-layout)
+2. [Page Map](#2-page-map)
+3. [Stitch Route Mapping](#3-stitch-route-mapping)
+4. [Auth Context & Guards](#4-auth-context--guards)
+5. [Data-fetching Conventions](#5-data-fetching-conventions)
+6. [Chat Streaming Client](#6-chat-streaming-client)
+7. [Page Breakdowns](#7-page-breakdowns)
+8. [ShadCN Component Usage](#8-shadcn-component-usage)
+9. [Loading, Empty & Error States](#9-loading-empty--error-states)
+
+## 1. Stack & Folder Layout
+
+Next.js 15 (App Router, React 19), TypeScript, Tailwind CSS + ShadCN UI, Lucide
+icons, `barcode-detector` ([11](./11-barcode-scanning.md)). Package manager: pnpm.
+Design tokens land in `tailwind.config.ts` + `globals.css`
+([12 §tokens](./12-ui-design.md#3-design-tokens)).
+
+```bash
+web/
+├── app/
+│   ├── layout.tsx                # AppShell: top nav + footer (12 §app shell)
+│   ├── page.tsx                  # redirect → /catalog (or /login)
+│   ├── login/page.tsx            # screen 1 — no shell
+│   ├── catalog/page.tsx          # screen 2
+│   ├── books/[id]/page.tsx       # screen 3
+│   ├── library/page.tsx          # screen 4
+│   ├── chat/page.tsx             # screen 5
+│   ├── admin/page.tsx            # screen 6a
+│   └── admin/layout/page.tsx     # screen 6b
+├── components/
+│   ├── ui/                       # ShadCN primitives
+│   ├── book-card.tsx             # domain composites (12 §component hierarchy)
+│   ├── book-location-card.tsx
+│   ├── ai-citation-card.tsx
+│   ├── library-row-item.tsx
+│   ├── building-tree-browser.tsx
+│   ├── real-time-audit-stream.tsx
+│   ├── command-palette.tsx       # ⌘K
+│   └── isbn-scanner/             # dialog + scanner tab (11)
+├── lib/{api-server.ts, api-client.ts, auth.ts, sse.ts}
+├── hooks/{use-chat-stream.ts, use-barcode-scanner.ts}
+├── providers/{auth-provider.tsx, theme-provider.tsx}
+├── middleware.ts
+└── package.json
+```
+
+## 2. Page Map
+
+```mermaid
+flowchart LR
+    ROOT["/"] -->|"no session"| LOGIN["/login<br/>screen 1"]
+    ROOT -->|"session"| CATALOG["/catalog<br/>screen 2"]
+    LOGIN -->|"auth ok"| CATALOG
+    CATALOG --> BOOK["/books/{id}<br/>screen 3"]
+    CATALOG --> LIB["/library<br/>screen 4"]
+    CATALOG --> CHAT["/chat<br/>screen 5"]
+    BOOK --> LIB
+    BOOK --> CHAT
+    NAV["top nav (shell)"] --> CATALOG
+    NAV --> LIB
+    NAV --> CHAT
+    NAV -->|"role=admin only"| ADMIN["/admin<br/>screen 6a"]
+    ADMIN --> ADMINL["/admin/layout<br/>screen 6b"]
+```
+
+Route guard (`web/middleware.ts`): missing `athenaeum_at` + `athenaeum_rt` cookies →
+302 `/login?next={path}`; authenticated users requesting `/login` → `/catalog`.
+Token expiry mid-session: single refresh retry ([04-auth.md](04-auth.md#7-roles--route-protection)).
+
+## 3. Stitch Route Mapping
+
+Source manifest: `.artifacts/stitch/stitch-manifest.json` (project
+`projects/4345961817697568978` — "Athenaeum: Smart Library System"). Visual specs +
+embedded gallery: [12-ui-design.md](./12-ui-design.md#7-stitch-screen-gallery).
+
+| Route | Stitch screen ID | Stitch title | Export |
+| --- | --- | --- | --- |
+| `/login` | `b6e00ec93bff4f7dbabfeefcaad1166e` | Sign In - Athenaeum Library | ✅ [screen.png + code.html](../.artifacts/stitch/sign_in_athenaeum_library/) |
+| `/catalog` | `e9f24637e3da43c68aa771390938f8c4` | Catalog Browser - Athenaeum Library | ✅ [code.html](../.artifacts/stitch/catalog_browser_athenaeum_library/) (PNG pending) |
+| `/books/[id]` | `723960ca2605417eb085f6e17a579bd2` | Book Detail: Dune - Athenaeum Library | ✅ [code.html](../.artifacts/stitch/book_detail_dune_athenaeum_library/) (PNG pending) |
+| `/library` | `9cee348492a04f3a98ab9ddb2c791258` | My Library - Athenaeum Library | ✅ [code.html](../.artifacts/stitch/my_library_athenaeum_library/) (PNG pending) |
+| `/chat` | `70530f16d81642aa8d5784fe09076e11` | AI Librarian - Athenaeum Library | ✅ [code.html](../.artifacts/stitch/ai_librarian_athenaeum_library/) (PNG pending) |
+| `/admin` + `/admin/layout` | `3177da5282a94617b61e9333d4446237` | Admin Portal - Athenaeum Library | ⚠️ not exported (signed URLs in manifest) |
+| (early variant, unused route) | `77ccd1faf39d423cbbae00544f8f04b9` | Athenaeum Library Catalog & Wayfinding System | ⚠️ not exported — provenance only |
+
+Export state: HTML exported for all five patron-facing screens (`.artifacts/stitch/*_athenaeum_library/code.html`), sign-in PNG included; Admin Portal + draft variant + four screenshots pending (export notes: [12 §7.1.1](12-ui-design.md#711-stitch-mcp-tool-verification--export-runbook)).
+
+Discrepancy notes (Stitch = visual source of truth; DESIGN.md = spec source; verified against exported HTML):
+
+- **Admin**: Stitch produced ONE screen (Admin Portal) covering both `/admin` and
+  `/admin/layout` patterns; implement as two pages reusing the same components.
+  > ⚠️ TODO: Verify against DESIGN.md — split confirmed at implementation time.
+- **Login**: role-switcher tabs + `disabled` WeChat button verified in the export;
+  the Shibboleth/SAML SSO row survives only as an HTML comment in the export —
+  render nothing for it (scope: [10](10-roadmap.md)).
+- **Catalog**: availability facet wording in the export is "In Building"
+  (DESIGN.md: "Only Available in Building") — same behavior, implement the
+  `availability=available` filter ([03 §5.1](03-api-spec.md#51-get-apibookssearch)).
+
+## 4. Auth Context & Guards
+
+- `providers/auth-provider.tsx` fetches `GET /api/auth/me` on mount and exposes
+  `{ user, isAdmin, loading, signOut() }`; shell renders conditionally (screens
+  2–6) vs the bare login layout (screen 1).
+- `lib/api-server.ts` — server components: read `athenaeum_at` from
+  `next/headers`, forward as `Cookie` to the API base URL (`API_BASE_URL` env).
+- `lib/api-client.ts` — client `fetch` wrapper: same-origin `/api/*` proxy;
+  single 401→`POST /api/auth/refresh` retry →
+  on second 401 `router.push('/login?reason=expired')`.
+- Admin routes (`/admin*`) render `FORBIDDEN` state instead of nav link when
+  `user.role !== 'admin'` (server middleware re-checks; [04 §7](04-auth.md#7-roles--route-protection)).
+
+## 5. Data-fetching Conventions
+
+| Concern | Decision |
+| --- | --- |
+| Initial page data | Server Components `fetch()` (books, library, admin tree) |
+| Client mutations | plain `fetch` in handlers + `router.refresh()` |
+| Search state | URL query params are the state (shareable `/catalog?q=…&mode=hybrid`) |
+| Global store | none — React context only for auth + theme |
+| Polling | audit stream `GET /api/admin/copy-events?since=…` every 3 s (WebSockets out of scope — [10](./10-roadmap.md)) |
+| Keys/exports | `lib/api-client.ts` exports typed functions mirroring [03-api-spec.md](./03-api-spec.md) route-for-route |
+
+## 6. Chat Streaming Client
+
+`EventSource` cannot POST — use `fetch` + `ReadableStream` parser in
+`hooks/use-chat-stream.ts` (event contract: [06 §6](06-ai-rag.md#6-sse-event-contract)).
+
+```ts
+const res = await fetch("/api/chat", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ conversation_id, message }),
+});
+const reader = res.body!.getReader();
+const decoder = new TextDecoder();
+let buf = "";
+while (true) {
+  const { value, done } = await reader.read();
+  if (done) break;
+  buf += decoder.decode(value, { stream: true });
+  for (const evt of parseSSE(buf)) {        // splits on \n\n, parses event:/data:
+    if (evt.event === "token") appendToken(evt.data.text);
+    else if (evt.event === "citations") setCitations(evt.data.citations);
+    else if (evt.event === "done") finalize(evt.data);
+    else if (evt.event === "error") showError(evt.data);
+  }
+  buf = "";
+}
+```
+
+## 7. Page Breakdowns
+
+Stitch IDs above; payload contracts listed in [03-api-spec.md](./03-api-spec.md).
+All routes except `/login` render inside the app shell ([12 §app shell](12-ui-design.md#6-app-shell--navigation)).
+
+### /login — screen 1 (Stitch `b6e00ec9…`)
+
+Role switcher tabs (Patron/Faculty/Staff — visual only, all open the same form),
+email input with inline validation beacon, password field, Google SSO anchor
+(`GET /api/auth/google`), disabled WeChat button, spotlight preview card linking to
+`/catalog` preview data. Success → `?next` param or `/catalog`
+([04-auth.md](04-auth.md#2-emailpassword-flow)).
+
+### /catalog — screen 2 (Stitch `e9f24637…`)
+
+Tri-modal search switcher (Keyword/Semantic/Hybrid — `mode` param), faceted
+sidebar (sections [02 §5](02-data-model.md#5-indexes), availability toggle, era
+buckets), `BookCard` 2:3 grid with availability beacons, `⌘K`
+`command-palette.tsx` calling the same search endpoint. URL params drive state.
+
+### /books/[id] — screen 3 (Stitch `723960ca…`)
+
+40/60 split: jacket + Ask-AI link (`/chat?prefill={title}`) + bibliographic
+metadata; tri-state availability banner; `BookLocationCard` ladder
+([05 §5](05-building-layout.md#5-book-detail-screen-stitch)); copy manifest table;
+`neighbors` affinity carousel; waitlist join on the banner's suggested_actions
+([03 §6.3](03-api-spec.md#63-waitlist)).
+
+### /library — screen 4 (Stitch `9cee3484…`)
+
+4 KPI cards (In Collection / Currently Reading / Completed / Bookmarks & AI),
+reading-stage tabs (All/Reading/Read/Want to Read/Favorites/Holds & Waitlists —
+`GET /api/library?status=…`), `LibraryRowItem` rows (shelf coordinates, progress,
+rating), hold rows from `GET /api/waitlist`, AI cross-reference banner →
+`/chat?prefill=my-library`.
+
+### /chat — screen 5 (Stitch `70530f16…`)
+
+Two-pane: conversations drawer (`GET /api/chat/conversations`, create/delete) +
+active stream. `AICitationCard`s render `citations` events; telemetry meta bar
+shows model + latency; quota meter consumes `meta`/`done` rate data — daily limit
+50 ([03 §2](03-api-spec.md#2-rate-limiting)). SSE client: [§6](#6-chat-streaming-client).
+
+### /admin — screen 6a (Stitch `3177da52…`)
+
+Executive KPI grid (`GET /api/admin/data`), recent `copy_events` via
+`RealTimeAuditStream` (3 s poll), quick nav to layout manager and Add Book dialog
+(scanner tab — [11](./11-barcode-scanning.md#5-nextjs-integration)).
+
+### /admin/layout — screen 6b (Stitch `3177da52…`)
+
+`BuildingTreeBrowser` tree (GET `/api/admin/tree` — drill-down to shelf), right
+`shelf manifest inspector` panel (GET `/api/admin/shelves/{id}`, slot occupancy
+meter, quick-assign input for barcodes — mutates `PATCH /api/admin/copies/{id}`),
+floor mini-map (simple SVG grid highlighting the selected aisle).
+
+## 8. ShadCN Component Usage
+
+Primitive mapping synonyms listed in [12 §ShadCN mapping](12-ui-design.md#11-shadcn-mapping).
+Usage per page:
+
+| Component | Pages | Purpose |
+| --- | --- | --- |
+| `Button` (primary/secondary/ghost/destructive) | all | CTAs, tabs submit |
+| `Input`, `Label`, `Form` | login, admin forms, quick-assign | validation per [03 §9](03-api-spec.md#9-error-catalog) |
+| `Tabs` + `TabsList` | login role switcher, catalog modes, library stages, Add-Book dialog | segmented switchers |
+| `Card` | everywhere | surfaces w/ `shadow-sm border` |
+| `Badge` | status beacons, section dots, call-number mono chips | [12 §badges](12-ui-design.md#3-design-tokens) |
+| `Alert` | tri-state banner, waitlist notices | destructive/warning/success variants |
+| `Command` (+Dialog) | ⌘K palette | client-only quick search |
+| `Dialog` / `Sheet` | Add-Book dialog, citation card details, shelf inspector | focus-trapped (Radix) |
+| `Table` | copy manifest, admin books/users | mono numerics |
+| `Skeleton` | loading states ([§9](#9-loading-empty--error-states)) | shimmer |
+| `Toast` (sonner) | mutations, 409 waitlist hints | error surface |
+| `Select` / `Slider` | era buckets, per_page, rating | |
+
+## 9. Loading, Empty & Error States
+
+| State | Convention |
+| --- | --- |
+| Initial load | server component skeletons (`Skeleton`) per section — no spinners |
+| Empty search | pill-style "No volumes matched" + suggested nearby sections |
+| Empty library tab | CTA card → `/catalog` |
+| Empty chat history | prompt chips (seeded sample questions) |
+| 401 → refresh fail | redirect `/login?reason=expired` (toast) |
+| 403 | inline FORBIDDEN panel |
+| 404 book | full-page "Not in this building's catalog" + back to catalog |
+| 409 `BOOK_NOT_AVAILABLE` | banner swaps to waitlist CTA (suggested_actions rendered literally) |
+| 429 | toast with remaining time from `X-RateLimit-Reset` |
+| 5xx / SSE `error` event | toast + retry affordance; streaming keeps partial tokens on screen |
+| Offline | navigator.onLine banner (best effort) |
+
+> ⚠️ TODO: Playwright e2e coverage for the six routes is not in v1 scope
+> ([09 §testing](09-development.md#8-testing-strategy); revisit in [10-roadmap.md](10-roadmap.md)).

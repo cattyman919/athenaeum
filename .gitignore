@@ -1,0 +1,25 @@
+# Go
+api/bin/
+api/coverage.out
+api/*.test
+
+# Node / Next.js
+web/node_modules/
+web/.next/
+web/out/
+web/coverage/
+
+# Env & secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Docker volumes
+.docker/
+
+# Editors / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
