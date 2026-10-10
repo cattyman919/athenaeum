@@ -54,8 +54,8 @@ Refs: [docs/README.md §5](docs/README.md#5-monorepo-layout), [docs/09](docs/09-
 - [x] `.gitignore`, `.env.example`, root `README.md`, `AGENTS.md`, `TODO.md`
 - [x] All 14 docs written + cross-link audit clean
 - [x] First commit of docs + scaffolding
-- [ ] Root `Makefile` with targets from [docs/09 §5](docs/09-development.md#5-common-commands)
-- [ ] `docker-compose.yml` at root (per [docs/09 §2](docs/09-development.md#2-docker-compose))
+- [x] Root `Makefile` with targets from [docs/09 §5](docs/09-development.md#5-common-commands)
+- [x] `docker-compose.yml` at root (per [docs/09 §2](docs/09-development.md#2-docker-compose))
 - [ ] `api/Dockerfile` + `web/Dockerfile` ([docs/09 §3](docs/09-development.md#3-dockerfiles))
 
 ## 4. Phase 1 — Infrastructure & DB

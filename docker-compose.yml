@@ -1,0 +1,37 @@
+# Verbatim from docs/09-development.md §2; api + web sit behind the `app` profile so
+# `make up` starts only the infra services (`make compose` adds the app containers).
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment: { POSTGRES_USER: athenaeum, POSTGRES_PASSWORD: athenaeum, POSTGRES_DB: athenaeum }
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U athenaeum"], interval: 5s }
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: [redisdata:/data]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 5s }
+  ollama:
+    image: ollama/ollama
+    ports: ["11434:11434"]
+    volumes: [ollamadata:/root/.ollama]
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest   # faster-whisper HTTP server
+    environment: { ASR_ENGINE: faster_whisper, ASR_MODEL: small }
+    ports: ["9000:9000"]
+    volumes: [whisperdata:/data]
+    healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s }
+  api:
+    profiles: [app]
+    build: { context: ./api, dockerfile: Dockerfile }
+    environment: { DATABASE_URL: "postgres://athenaeum:athenaeum@postgres:5432/athenaeum?sslmode=disable", REDIS_ADDR: "redis:6379", OLLAMA_BASE_URL: "http://ollama:11434", WHISPER_BASE_URL: "http://whisper:9000" }
+    ports: ["8080:8080"]
+    depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
+  web:
+    profiles: [app]
+    build: { context: ./web, dockerfile: Dockerfile }
+    environment: { API_BASE_URL: "http://api:8080", WEB_ORIGIN: "http://localhost:3000" }
+    ports: ["3000:3000"]
+    depends_on: [api]
+volumes: { pgdata: {}, redisdata: {}, ollamadata: {}, whisperdata: {} }

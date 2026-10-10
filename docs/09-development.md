@@ -66,6 +66,9 @@ services:
 volumes: { pgdata: {}, redisdata: {}, ollamadata: {}, whisperdata: {} }
 ```
 
+`api` and `web` carry `profiles: [app]`, so `make up` starts only the infra services and
+`make compose` (`docker compose --profile app up -d --build`) adds the app containers.
+
 One-command startup (compose dev profile built the same way; pull the models once):
 
 ```bash
