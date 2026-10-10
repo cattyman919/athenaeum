@@ -29,7 +29,7 @@ func do(t *testing.T, h http.Handler, method, path string, hdr map[string]string
 }
 
 func TestHealth(t *testing.T) {
-	r := server.NewRouter(config.Config{WebOrigin: "http://localhost:3000"}, logging.Discard())
+	r := server.NewRouter(server.Deps{Config: config.Config{WebOrigin: "http://localhost:3000"}, Log: logging.Discard()})
 	rec := do(t, r, http.MethodGet, "/api/health", nil)
 	if rec.Code != 200 {
 		t.Fatalf("status %d", rec.Code)
@@ -47,7 +47,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestRequestIDPassthrough(t *testing.T) {
-	r := server.NewRouter(config.Config{}, logging.Discard())
+	r := server.NewRouter(server.Deps{Log: logging.Discard()})
 	rec := do(t, r, http.MethodGet, "/api/health", map[string]string{"X-Request-Id": "abc-123"})
 	if got := rec.Header().Get("X-Request-Id"); got != "abc-123" {
 		t.Fatalf("got %q", got)
@@ -55,7 +55,7 @@ func TestRequestIDPassthrough(t *testing.T) {
 }
 
 func TestNotFoundEnvelope(t *testing.T) {
-	r := server.NewRouter(config.Config{}, logging.Discard())
+	r := server.NewRouter(server.Deps{Log: logging.Discard()})
 	rec := do(t, r, http.MethodGet, "/api/nope", nil)
 	if rec.Code != 404 {
 		t.Fatalf("status %d", rec.Code)
@@ -68,7 +68,7 @@ func TestNotFoundEnvelope(t *testing.T) {
 }
 
 func TestCORS(t *testing.T) {
-	r := server.NewRouter(config.Config{WebOrigin: "http://localhost:3000"}, logging.Discard())
+	r := server.NewRouter(server.Deps{Config: config.Config{WebOrigin: "http://localhost:3000"}, Log: logging.Discard()})
 	rec := do(t, r, http.MethodOptions, "/api/health", map[string]string{"Origin": "http://localhost:3000"})
 	if rec.Code != 204 || rec.Header().Get("Access-Control-Allow-Origin") != "http://localhost:3000" {
 		t.Fatalf("preflight: %d %v", rec.Code, rec.Header())

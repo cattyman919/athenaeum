@@ -193,6 +193,7 @@ Loaded by `internal/config` via `caarlos0/env` into a typed `Config` struct (no 
 | `ACCESS_TTL` | `15m` | access token ([04-auth.md](04-auth.md#5-token-model)) |
 | `REFRESH_TTL` | `168h` | 7-day refresh |
 | `GOOGLE_OAUTH_CLIENT_ID/SECRET` | — | SSO ([04-auth.md](04-auth.md#3-google-sso)) |
+| `GOOGLE_OAUTH_ISSUER` | `https://accounts.google.com` | OIDC issuer; overridable for tests (fake provider) |
 | `OPENROUTER_API_KEY` | — | required for chat; absent → `/api/chat` returns 503 |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | |
 | `OPENROUTER_MODEL` | `anthropic/claude-3.5-sonnet` | |

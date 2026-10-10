@@ -12,34 +12,87 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/handler"
 	"github.com/cattyman919/athenaeum/api/internal/middleware"
 	"github.com/cattyman919/athenaeum/api/internal/model"
+	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
+	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 )
 
+// Deps are the collaborators wired in cmd/api (manual DI, docs/01 §2).
+// Optional members may be nil in tests: nil JWT/Auth skip identity and auth
+// routes, nil Limiter disables rate limiting.
+type Deps struct {
+	Config  config.Config
+	Log     *slog.Logger
+	JWT     *jwt.Manager
+	Auth    *auth.Service
+	Limiter *middleware.RateLimiter
+}
+
+// specificBucketRoutes shadow the general 120/min bucket (docs/03 §2).
+var specificBucketRoutes = map[string]bool{
+	"POST /api/auth/login":       true,
+	"POST /api/auth/register":    true,
+	"GET /api/books/search":      true,
+	"POST /api/chat":             true,
+	"POST /api/chat/transcribe":  true,
+	"POST /api/books/fetch-isbn": true,
+}
+
+func isSpecific(c *gin.Context) bool {
+	return specificBucketRoutes[c.Request.Method+" "+c.FullPath()]
+}
+
 // NewRouter builds the engine with the shared middleware chain and all routes.
-func NewRouter(cfg config.Config, log *slog.Logger) *gin.Engine {
-	if cfg.IsProd() {
+func NewRouter(d Deps) *gin.Engine {
+	if d.Config.IsProd() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	r := gin.New()
 	r.Use(
 		middleware.RequestID(),
-		middleware.Recover(log),
-		middleware.AccessLog(log),
-		middleware.CORS(cfg.WebOrigin),
+		middleware.Recover(d.Log),
+		middleware.AccessLog(d.Log),
+		middleware.CORS(d.Config.WebOrigin),
 	)
+	if d.JWT != nil {
+		r.Use(middleware.Identify(d.JWT))
+	}
 	r.NoRoute(func(c *gin.Context) {
 		handler.RespondError(c, model.New(model.CodeNotFound, "Route not found."))
 	})
 
 	api := r.Group("/api")
+	if d.Limiter != nil {
+		api.Use(d.Limiter.Limit(middleware.BucketGeneral, handler.RespondError, isSpecific))
+	}
 	api.GET("/health", handler.Health)
+
+	requireAuth := middleware.RequireAuth(handler.RespondError)
+
+	if d.Auth != nil {
+		ah := handler.NewAuthHandler(d.Auth, d.Config.IsProd(), d.Config.WebOrigin, []byte(d.Config.JWTRefreshSecret))
+		ag := api.Group("/auth")
+		limit := func(b middleware.Bucket) gin.HandlerFunc {
+			if d.Limiter == nil {
+				return func(c *gin.Context) { c.Next() }
+			}
+			return d.Limiter.Limit(b, handler.RespondError, nil)
+		}
+		ag.POST("/register", limit(middleware.BucketRegister), ah.Register)
+		ag.POST("/login", limit(middleware.BucketLogin), ah.Login)
+		ag.POST("/refresh", ah.Refresh)
+		ag.POST("/logout", requireAuth, ah.Logout)
+		ag.GET("/me", requireAuth, ah.Me)
+		ag.GET("/google", ah.GoogleStart)
+		ag.GET("/google/callback", ah.GoogleCallback)
+	}
 	return r
 }
 
-// New returns the http.Server for the configured port.
-func New(cfg config.Config, log *slog.Logger, addr string) *http.Server {
+// New returns the http.Server for the given address.
+func New(d Deps, addr string) *http.Server {
 	return &http.Server{
 		Addr:              addr,
-		Handler:           NewRouter(cfg, log),
+		Handler:           NewRouter(d),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 }

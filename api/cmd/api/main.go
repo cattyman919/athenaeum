@@ -12,26 +12,71 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
+
 	"github.com/cattyman919/athenaeum/api/internal/config"
 	"github.com/cattyman919/athenaeum/api/internal/logging"
+	"github.com/cattyman919/athenaeum/api/internal/middleware"
+	"github.com/cattyman919/athenaeum/api/internal/oauth"
+	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
+	"github.com/cattyman919/athenaeum/api/internal/repository"
 	"github.com/cattyman919/athenaeum/api/internal/server"
+	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 )
 
 const shutdownTimeout = 10 * time.Second
 
 func main() {
-	cfg, err := config.Load()
-	if err != nil {
+	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+}
+
+func run() error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
 	}
 	log := logging.New(cfg.IsProd())
 	slog.SetDefault(log)
 
-	srv := server.New(cfg, log, fmt.Sprintf(":%d", cfg.APIPort))
+	jm, err := jwt.NewManager(cfg.JWTAccessSecret, cfg.AccessTTL)
+	if err != nil {
+		return fmt.Errorf("JWT_ACCESS_SECRET is required (copy .env.example to .env): %w", err)
+	}
+	if cfg.JWTRefreshSecret == "" {
+		return errors.New("JWT_REFRESH_SECRET is required (copy .env.example to .env)")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("database: %w", err)
+	}
+	defer pool.Close()
+
+	rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr, Password: cfg.RedisPassword})
+	defer func() { _ = rdb.Close() }()
+
+	var google auth.Google
+	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
+		google = oauth.NewGoogle(cfg.GoogleIssuer, cfg.GoogleClientID, cfg.GoogleClientSecret,
+			cfg.WebOrigin+"/api/auth/google/callback")
+	}
+	authSvc := auth.New(repository.NewUserRepository(pool), repository.NewTokenRepository(pool),
+		jm, google, cfg.RefreshTTL, log)
+
+	srv := server.New(server.Deps{
+		Config:  cfg,
+		Log:     log,
+		JWT:     jm,
+		Auth:    authSvc,
+		Limiter: middleware.NewRateLimiter(rdb, log),
+	}, fmt.Sprintf(":%d", cfg.APIPort))
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -42,16 +87,15 @@ func main() {
 	select {
 	case err := <-errCh:
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Error("server failed", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("server failed: %w", err)
 		}
 	case <-ctx.Done():
 		log.Info("shutting down", "timeout", shutdownTimeout)
 		shutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := srv.Shutdown(shutCtx); err != nil {
-			log.Error("graceful shutdown failed", "err", err)
-			os.Exit(1)
+			return fmt.Errorf("graceful shutdown failed: %w", err)
 		}
 	}
+	return nil
 }

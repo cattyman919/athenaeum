@@ -110,6 +110,11 @@ sequenceDiagram
   the `"linked": true` audit log.
 - New SSO accounts get `role='user'`; `users.password_hash` stays NULL.
 - Bad code/expired state → 302 `{web}/login?error=sso`.
+- Implementation notes: the state cookie (`athenaeum_oauth_state`, path `/api/auth/google`,
+  10 min, single use) carries `nonce.next.exp.hmac` signed with `JWT_REFRESH_SECRET`; `next`
+  must be a same-site relative path (else `/catalog`); the redirect URI is
+  `{WEB_ORIGIN}/api/auth/google/callback`; the issuer is overridable via
+  `GOOGLE_OAUTH_ISSUER` so tests can use a fake OIDC provider.
 
 ## 4. WeChat Placeholder
 

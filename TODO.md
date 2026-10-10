@@ -78,11 +78,11 @@ Refs: [docs/04](docs/04-auth.md); endpoints [docs/03 §4](docs/03-api-spec.md#4-
 
 - [x] `pkg/hash` argon2id (m=65536,t=3,p=2, PHC format — [docs/04 §6](docs/04-auth.md#6-password-hashing))
 - [x] `pkg/jwt` HS256 claims helper ([docs/04 §5](docs/04-auth.md#5-token-model))
-- [ ] register / login / me handlers + typed errors (`EMAIL_TAKEN`, `INVALID_CREDENTIALS`)
-- [ ] refresh-token rotation + replay detection (`REUSED_TOKEN`), logout
-- [ ] Google SSO redirect flow (`/api/auth/google` + callback, state cookie)
-- [ ] `requireAuth` / `requireAdmin` middleware; role guard tests
-- [ ] Redis rate limiter middleware + all buckets from [docs/03 §2](docs/03-api-spec.md#2-rate-limiting) + headers
+- [x] register / login / me handlers + typed errors (`EMAIL_TAKEN`, `INVALID_CREDENTIALS`)
+- [x] refresh-token rotation + replay detection (`REUSED_TOKEN`), logout
+- [x] Google SSO redirect flow (`/api/auth/google` + callback, state cookie) — verified only against a fake OIDC server; manual Google check pending credentials
+- [x] `requireAuth` / `requireAdmin` middleware; role guard tests
+- [x] Redis rate limiter middleware + all buckets from [docs/03 §2](docs/03-api-spec.md#2-rate-limiting) + headers
 - [ ] `web/`: pnpm init, ShadCN + tokens in `tailwind.config.ts`/`globals.css` ([docs/12 §3](docs/12-ui-design.md#3-design-tokens))
 - [ ] `web/` AuthProvider + middleware guard + refresh retry ([docs/07 §4](docs/07-frontend.md#4-auth-context--guards))
 - [ ] `/login` page per Stitch screen 1 (role tabs, disabled WeChat — no SAML row) · [docs/12 §8 screen 1](docs/12-ui-design.md#screen-1--login-institution-gateway)

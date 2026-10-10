@@ -29,6 +29,7 @@ type Config struct {
 
 	GoogleClientID     string `env:"GOOGLE_OAUTH_CLIENT_ID"`
 	GoogleClientSecret string `env:"GOOGLE_OAUTH_CLIENT_SECRET"`
+	GoogleIssuer       string `env:"GOOGLE_OAUTH_ISSUER" envDefault:"https://accounts.google.com"`
 
 	OpenRouterAPIKey  string `env:"OPENROUTER_API_KEY"`
 	OpenRouterBaseURL string `env:"OPENROUTER_BASE_URL" envDefault:"https://openrouter.ai/api/v1"`
