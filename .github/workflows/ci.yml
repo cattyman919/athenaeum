@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        if: hashFiles('api/go.mod') != ''
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - name: gofmt
+        if: hashFiles('api/go.mod') != ''
+        working-directory: api
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - name: vet
+        if: hashFiles('api/go.mod') != ''
+        working-directory: api
+        run: go vet ./...
+      - uses: golangci/golangci-lint-action@v6
+        if: hashFiles('api/go.mod') != ''
+        with:
+          working-directory: api
+      - name: test
+        if: hashFiles('api/go.mod') != ''
+        working-directory: api
+        run: go test ./...
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        if: hashFiles('web/package.json') != ''
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        if: hashFiles('web/package.json') != ''
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: install
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: lint
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: pnpm lint
+      - name: unit
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: pnpm test
+      - name: build
+        if: hashFiles('web/package.json') != ''
+        working-directory: web
+        run: pnpm build
+
+  # The Playwright E2E job is added in milestone M4 (docs/09 §8.1).

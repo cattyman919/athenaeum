@@ -195,8 +195,8 @@ Refs: [docs/15](docs/15-voice-input.md).
 
 Refs: [docs/09 §8–9](docs/09-development.md#8-testing-strategy).
 
-- [ ] `commitlint.config.js` (type/scope vocabulary) + `lefthook.yml` (`pre-commit` + `commit-msg`) ([docs/09 §9](docs/09-development.md#9-git-workflow))
-- [ ] First commit = scaffolding (`chore: …`); one branch per task, squash-merged ([docs/09 §9](docs/09-development.md#9-git-workflow))
+- [x] `commitlint.config.js` (type/scope vocabulary) + `lefthook.yml` (`pre-commit` + `commit-msg`) ([docs/09 §9](docs/09-development.md#9-git-workflow))
+- [x] First commit = scaffolding (`chore: …`); one branch per task, squash-merged ([docs/09 §9](docs/09-development.md#9-git-workflow))
 - [ ] `web/playwright.config.ts` + `web/e2e/` specs: route smoke ×6 + login guard, three search modes, 409 waitlist, library tabs, chat SSE turn, admin gate, i18n toggle, voice composer ([docs/09 §8](docs/09-development.md#8-testing-strategy))
 - [ ] Test harness: fake ChatModel + Whisper stub via env; `storageState` auth; `make e2e` ([docs/15 §9](docs/15-voice-input.md#9-testing))
 - [ ] `.github/workflows/ci.yml` (lint + vet + unit + e2e); the docs/09 §8 CI `> ⚠️ TODO:` removed
