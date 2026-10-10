@@ -31,7 +31,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     getCurrentUser(),
   ]);
   return (
-    <html lang={locale} className={`${inter.variable} ${mono.variable} ${notoSc.variable}`}>
+    // suppressHydrationWarning: browser extensions (translators, dark-mode tools) add attributes
+    // to <html> before React hydrates; this only silences that one element, not its children.
+    <html
+      lang={locale}
+      className={`${inter.variable} ${mono.variable} ${notoSc.variable}`}
+      suppressHydrationWarning
+    >
       <body className="min-h-screen font-sans">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <AuthProvider initialUser={user}>{children}</AuthProvider>

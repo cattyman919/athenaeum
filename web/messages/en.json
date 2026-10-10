@@ -455,6 +455,8 @@
       "unknown": "— / {limit}"
     },
     "thread": {
+      "copy": "Copy reply",
+      "copied": "Copied",
       "label": "Conversation with the AI Librarian",
       "you": "You",
       "librarian": "AI Librarian",

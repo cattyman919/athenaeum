@@ -17,6 +17,57 @@ const PIXEL = Buffer.from(
   "base64",
 );
 
+test.describe("AI reply markdown", () => {
+  test("renders headings, lists, bold, code and tables; escapes raw HTML", async ({ page }) => {
+    const md = [
+      "## Where to look",
+      "",
+      "*Dune* is on **Floor 3**:",
+      "",
+      "- Aisle `A-1`",
+      "- Shelf S-2",
+      "",
+      "| Copy | State |",
+      "| --- | --- |",
+      "| C01 | available |",
+      "",
+      "<script>window.__pwned = true</script>",
+      "",
+      "[Open the catalog](/catalog)",
+    ].join("\n");
+    const sse = [
+      `event: meta\ndata: ${JSON.stringify({ conversation_id: "11111111-1111-4111-8111-111111111111", turn: 1, model: "stub", locale: "en" })}\n\n`,
+      `event: token\ndata: ${JSON.stringify({ text: md })}\n\n`,
+      `event: citations\ndata: ${JSON.stringify({ citations: [] })}\n\n`,
+      `event: done\ndata: ${JSON.stringify({ message_id: "22222222-2222-4222-8222-222222222222", tokens_in: 1, tokens_out: 1, finish_reason: "stop" })}\n\n`,
+    ].join("");
+    await page.route("**/api/chat", (route) =>
+      route.request().method() === "POST"
+        ? route.fulfill({ status: 200, contentType: "text/event-stream", body: sse })
+        : route.fallback(),
+    );
+    await gotoReady(page, "/chat");
+    await page.getByTestId("chat-composer").fill("markdown please");
+    await page.getByTestId("chat-send").click();
+
+    const msg = page.getByTestId("chat-assistant-message");
+    await expect(msg.getByRole("heading", { name: "Where to look" })).toBeVisible();
+    await expect(msg.locator("strong")).toHaveText("Floor 3");
+    await expect(msg.locator("li")).toHaveCount(2);
+    await expect(msg.locator("code")).toHaveText("A-1");
+    await expect(msg.getByRole("table")).toBeVisible();
+    await expect(msg.getByRole("cell", { name: "available" })).toBeVisible();
+    await expect(msg.getByRole("link", { name: "Open the catalog" })).toHaveAttribute(
+      "href",
+      "/catalog",
+    );
+    expect(
+      await page.evaluate(() => (window as unknown as { __pwned?: boolean }).__pwned),
+    ).toBeUndefined();
+    await expect(page.getByTestId("chat-copy")).toBeVisible();
+  });
+});
+
 test.describe("AI Librarian chat", () => {
   test("streams tokens, tool activity and a citation card (en)", async ({ page }) => {
     await page.route("https://covers.openlibrary.org/**", (route) =>

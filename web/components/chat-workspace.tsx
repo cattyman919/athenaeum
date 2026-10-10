@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import {
   BookOpenCheck,
+  Check,
+  Copy,
   Loader2,
   MessageSquarePlus,
   Mic,
@@ -19,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { AICitationCard } from "@/components/ai-citation-card";
 import { ChatTelemetry } from "@/components/chat-telemetry";
+import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import { useChatStream } from "@/hooks/use-chat-stream";
 import { useVoiceInput } from "@/hooks/use-voice-input";
@@ -28,6 +31,33 @@ import type { Locale } from "@/lib/locale";
 import type { ConversationSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatElapsed, mergeTranscript, type VoiceError } from "@/lib/voice";
+
+function CopyReplyButton({ text }: { text: string }) {
+  const t = useTranslations("chat.thread");
+  const [copied, setCopied] = React.useState(false);
+  React.useEffect(() => {
+    if (!copied) return;
+    const id = window.setTimeout(() => setCopied(false), 1_800);
+    return () => window.clearTimeout(id);
+  }, [copied]);
+  return (
+    <button
+      type="button"
+      data-testid="chat-copy"
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => setCopied(true));
+      }}
+      className="mt-2 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {copied ? (
+        <Check className="h-3 w-3" aria-hidden />
+      ) : (
+        <Copy className="h-3 w-3" aria-hidden />
+      )}
+      <span aria-live="polite">{copied ? t("copied") : t("copy")}</span>
+    </button>
+  );
+}
 
 const KNOWN_TOOLS = [
   "search_catalog",
@@ -596,15 +626,18 @@ function TurnView({
           {(turn.text || streaming) && (
             <div className="rounded-lg rounded-tl-sm border border-border bg-background px-4 py-3 text-sm leading-relaxed">
               {turn.text ? (
-                <p className="whitespace-pre-wrap" data-testid="chat-assistant-message">
-                  {turn.text}
-                  {streaming && (
-                    <span
-                      aria-hidden
-                      className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary/60 align-text-bottom motion-reduce:animate-none"
-                    />
-                  )}
-                </p>
+                <>
+                  <div data-testid="chat-assistant-message">
+                    <Markdown>{turn.text}</Markdown>
+                    {streaming && (
+                      <span
+                        aria-hidden
+                        className="ml-0.5 inline-block h-4 w-1.5 animate-pulse bg-primary/60 align-text-bottom motion-reduce:animate-none"
+                      />
+                    )}
+                  </div>
+                  {!streaming && <CopyReplyButton text={turn.text} />}
+                </>
               ) : (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Loader2
