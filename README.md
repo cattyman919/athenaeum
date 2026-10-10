@@ -14,6 +14,13 @@ documentation lives in [`docs/README.md`](./docs/README.md).
 Quickstart (details: [docs/09-development.md](./docs/09-development.md)):
 
 ```bash
-cp .env.example .env
-docker compose up -d postgres redis ollama
+cp .env.example .env          # set OPENROUTER_API_KEY for real AI chat
+make up                       # postgres, redis, ollama, whisper
+docker compose exec ollama ollama pull nomic-embed-text
+make db-migrate && make seed && make reindex
+make api                      # terminal 1 (http://localhost:8080)
+make web                      # terminal 2 (http://localhost:3000)
 ```
+
+Sign in as `demo@athenaeum.dev` (patron) or `admin@athenaeum.dev` (admin) with `athenaeum-demo`.
+Quality gates: `make lint`, `make test`, `make e2e` (see docs/09).
