@@ -52,19 +52,17 @@ Rules for any AI session (or human) continuing this project:
 **Source of truth for order of work:** `.kilo/plans/1791614343948-athenaeum-v1-implementation-plan.md` (milestones M0–M12).
 Docs in `docs/` are the contract; deviations were edited into the owning doc in the same commit.
 
-**State at last session (2026-10-10):** `main` is pushed; M0–M6 complete, **M7 partial**, M8–M12 not started.
-CI was green through the M6 push; the M7 run (library/waitlist) was still in flight — check `gh run list`.
+**State at last session (2026-10-10, session 2):** `main` is pushed; M0–M11 complete, **M12 (polish) not started**.
+Local `make e2e` = 56 passing. Check `gh run list` for CI on the latest push.
 
 **Next actions, in order**
-1. Finish M7 web: book-detail "Add to My Library" menu (status/favorite/rating/remove), 409 `BOOK_NOT_AVAILABLE`
-   dialog (join waitlist / add anyway → `?force=true`), banner waitlist CTA (`waitlist.*`, `bookActions.*` keys already
-   exist in both catalogs), inline `/library` row editing. Add Playwright for the 409 → waitlist journey on a zero-copy book.
-2. **Wayfinding i18n fix** (Phase 11 task; spec in [docs/14 §6.1](docs/14-localization.md#61-wayfinding-vocabulary)):
-   ladder, section chips and shelf lines are English in zh-CN today. Needs additive `wayfinding.parts` /
-   `copies[].location.parts` in `GET /api/books/{id}` + `wayfinding.*` catalog keys + tests.
-3. M8 chat → M9 voice → M10 scanner → M11 admin → M12 polish (see plan). Chat/voice need `api/cmd/e2e-stubs`
-   (fake ChatModel + Whisper) wired into `web/playwright.config.ts` `webServer` (not built yet).
-4. Also still open: `Externalize strings on screens 1–5` (screens 4–5 partly), CJK/locale for chat, zh RAG note.
+1. M12: loading/empty/error states (docs/07 §9); clean-volume `docker compose up --build` demo; bilingual QA; README quickstart check;
+   `grep -n "> ⚠️ TODO" docs/*.md` registry re-grep; `pnpm build` check for the `barcode-detector` WASM bundle.
+2. Open decisions: `copy_events` rows cascade-delete with a copy (docs/03 §8.3 says audit keeps its last row); new/edited books
+   are not re-embedded until `cmd/reindex`; `fetch-isbn` is admin-only (docs/03 §3 table says any user); `/api/library` rating
+   missing from book detail `my_library_entry`.
+3. Still English in zh-CN: catalog section filters. Externalize remaining strings on screens 4–5; zh RAG note.
+4. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.
 
 **Implemented surface (for orientation)**
 - API (`api/`): config, slog, middleware (request-id, recover, CORS, Redis rate limiter with all docs/03 buckets),
@@ -97,7 +95,8 @@ profile `app`; web Dockerfile installs pnpm via npm (no corepack in Node 26); E2
 - Git flow: one branch per task, fast-forward to `main`, `git push origin main`, then `gh run list`. Do not commit `.env`.
 - `golangci-lint` v2 is installed locally (`brew`); web lint is `eslint . && tsc --noEmit`.
 
-**Manual verification still owed (no credentials in session)**
+**Manual verification still owed (no credentials / working mic in session)**
+- Real microphone + real Whisper dictation (dev Mac mic hardware is broken; automated tests use Chromium fake media + stub).
 - Google SSO against a real client (only a fake OIDC server was used).
 - One real OpenRouter chat turn in en + zh-CN (M8/M12). `OPENROUTER_API_KEY` is expected from the user.
 - Stitch export of the Admin screen `3177da52…` (retry in M11; registry item stays open if it fails).
@@ -174,7 +173,7 @@ Refs: [docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid), [docs/05 §3–5](
 
 - [x] `GET /api/books/{id}`: copies + `book_locations` join + `neighbors` carousel data
 - [x] `BookLocationCard` wayfinding ladder (`MAIN/3F/SF/A-1/S-2` display format)
-- [ ] (banner done; waitlist CTA lands with M7) Tri-state availability banner + waitlist CTA on zero-available ([§9 below](#9-phase-6--personal-library--waitlist))
+- [x] Tri-state availability banner + waitlist CTA on zero-available ([§9 below](#9-phase-6--personal-library--waitlist))
 - [x] `/books/[id]` page (40/60 split, per Stitch screen 3)
 
 ## 9. Phase 6 — Personal Library & Waitlist
@@ -189,34 +188,34 @@ Refs: [docs/03 §6](docs/03-api-spec.md#6-personal-library--waitlist).
 
 Refs: [docs/06](docs/06-ai-rag.md); HTTP shell [docs/03 §7](docs/03-api-spec.md#7-chat-sse).
 
-- [ ] OpenRouter ACL `ChatModel` adapter + Ollama embedder ([docs/06 §5](docs/06-ai-rag.md#5-provider-configuration-acl))
-- [ ] 4 tools (JSON schemas in [docs/06 §4](docs/06-ai-rag.md#4-tool-definitions)) backed by existing services
-- [ ] Eino React agent loop (iter ≤ 4, 5 s tool budget, 8K window)
-- [ ] `POST /api/chat` SSE writer: `meta`/`tool_call`/`tool_result`/`token`/`citations`/`done`/`error` + heartbeat
-- [ ] Guardrails: rate buckets (5/min, 50/day), 40-msg cap, system prompt from [docs/06 §8](docs/06-ai-rag.md#8-guardrails)
-- [ ] Conversation persistence (`conversations`/`messages`, titles from first message)
-- [ ] `hooks/use-chat-stream.ts` fetch-stream parser ([docs/07 §6](docs/07-frontend.md#6-chat-streaming-client))
-- [ ] `/chat` page: two panes, `AICitationCard`, meta bar, quota meters
+- [x] OpenRouter ACL `ChatModel` adapter + Ollama embedder ([docs/06 §5](docs/06-ai-rag.md#5-provider-configuration-acl))
+- [x] 4 tools (JSON schemas in [docs/06 §4](docs/06-ai-rag.md#4-tool-definitions)) backed by existing services
+- [x] Eino React agent loop (iter ≤ 4, 5 s tool budget, 8K window)
+- [x] `POST /api/chat` SSE writer: `meta`/`tool_call`/`tool_result`/`token`/`citations`/`done`/`error` + heartbeat
+- [x] Guardrails: rate buckets (5/min, 50/day), 40-msg cap, system prompt from [docs/06 §8](docs/06-ai-rag.md#8-guardrails)
+- [x] Conversation persistence (`conversations`/`messages`, titles from first message)
+- [x] `hooks/use-chat-stream.ts` fetch-stream parser ([docs/07 §6](docs/07-frontend.md#6-chat-streaming-client))
+- [x] `/chat` page: two panes, `AICitationCard`, meta bar, quota meters
 
 ## 11. Phase 8 — Barcode Scanner
 
 Refs: [docs/11](docs/11-barcode-scanning.md).
 
-- [ ] `barcode-detector` hook (`formats:["ean_13"]`, getUserMedia + cleanup) ([docs/11 §5](docs/11-barcode-scanning.md#5-nextjs-integration))
-- [ ] `POST /api/books/fetch-isbn` + `pkg/checkdigit` EAN-13 validation ([docs/11 §9](docs/11-barcode-scanning.md#9-backend-validation))
-- [ ] `ISBNScanner` component: overlay, torch, flip, haptics/beep, 1.5 s cooldown
-- [ ] Add-Book dialog (Manual / ISBN / Scan tabs) + error handling table ([docs/11 §8](docs/11-barcode-scanning.md#8-error-handling))
+- [x] `barcode-detector` hook (`formats:["ean_13"]`, getUserMedia + cleanup) ([docs/11 §5](docs/11-barcode-scanning.md#5-nextjs-integration))
+- [x] `POST /api/books/fetch-isbn` + `pkg/checkdigit` EAN-13 validation ([docs/11 §9](docs/11-barcode-scanning.md#9-backend-validation))
+- [x] `ISBNScanner` component: overlay, torch, flip, haptics/beep, 1.5 s cooldown
+- [x] Add-Book dialog (Manual / ISBN / Scan tabs) + error handling table ([docs/11 §8](docs/11-barcode-scanning.md#8-error-handling))
 
 ## 12. Phase 9 — Admin Screens
 
 Refs: [docs/03 §8](docs/03-api-spec.md#8-admin), [docs/07 §7 admin](docs/07-frontend.md#admin--screen-6a-stitch-3177da52).
 
-- [ ] `GET /api/admin/data` KPIs + `GET /api/admin/copy-events` poll audit
-- [ ] Admin books/copies CRUD (barcode auto-gen, `copy_events` append)
-- [ ] `GET /api/admin/tree` + `GET /api/admin/shelves/{id}` inspector
-- [ ] Admin users list + role change
-- [ ] `/admin` KPI grid + `RealTimeAuditStream` (3 s poll)
-- [ ] `/admin/layout`: `BuildingTreeBrowser`, shelf inspector, quick-assign input, SVG mini-map
+- [x] `GET /api/admin/data` KPIs + `GET /api/admin/copy-events` poll audit
+- [x] Admin books/copies CRUD (barcode auto-gen, `copy_events` append)
+- [x] `GET /api/admin/tree` + `GET /api/admin/shelves/{id}` inspector
+- [x] Admin users list + role change
+- [x] `/admin` KPI grid + `RealTimeAuditStream` (3 s poll)
+- [x] `/admin/layout`: `BuildingTreeBrowser`, shelf inspector, quick-assign input, SVG mini-map
 - [ ] > ⚠️ TODO: verify `/admin` vs `/admin/layout` split against DESIGN.md
 > ([docs/07 §3](docs/07-frontend.md#3-stitch-route-mapping)) at implementation time
 
@@ -285,6 +284,7 @@ Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
+| 2026-10-10 | Kilo (kilo-auto/frontier), parallel subagents | M7 web (library menu, 409 waitlist dialog, inline editing); wayfinding i18n (`parts`); M8 chat (OpenRouter adapter, 4 tools, Eino agent, SSE, `/chat`, e2e-stubs); M9 voice (Whisper adapter, `/api/chat/transcribe`, mic hook); M10 scanner (`fetch-isbn`, Add-Book dialog); M11 admin (13 endpoints, KPI grid, audit stream, stacks manager, users); e2e 56 green | M12 polish (see §2a) | Real OpenRouter turn, real Whisper, Google SSO, Stitch admin export still unverified |
 | 2026-10-10 | Kilo (kilo-auto/frontier) | Milestones M0–M7 partial (M7: library+waitlist API, 48h sweeper, demo library seed, read-only /library page with KPIs/tabs/holds + leave; STILL OPEN for M7: book-detail "Add to My Library"/favorite/rating controls, 409 → waitlist dialog, banner waitlist CTA, inline row editing; M6: book detail API + /books/[id] page with wayfinding ladder, banner, manifest, neighbors; M5: tri-modal search API + /catalog UI + ⌘K + e2e vs real embeddings; Next 15.5 note: a route-level loading.tsx froze soft navigation in prod, so skeletons use in-page Suspense; M4: Next 15 web scaffold, i18n, auth guard + refresh, /login, Playwright harness w/ real-Ollama e2e DB, CI e2e job; M3: mock fixtures with docs/13 parity, ResolvePath, olbooks, cmd/seed, Ollama embedder + cmd/reindex, barcodes C01 doc fix; M2: auth backend: argon2id, JWT, register/login/refresh/logout/me, Google OIDC vs fake provider, role guards, Redis rate limiter): commitlint/lefthook, Makefile, compose, CI skeleton; Go 1.27 / Node 26 pins (docs updated); API skeleton (config, slog, middleware, error mapper, `/api/health`, Dockerfile); migrations 0001–0005 + testcontainers harness (`internal/testutil/pgtest`); `make db-migrate` verified; docs/02 index DDL fixed (double parens); compose infra up + `nomic-embed-text` pulled | Finish M7 web interactions (messages `bookActions.*`/`waitlist.*` already in catalogs), then M8 AI chat | Google SSO can only be verified against a fake `httptest` OAuth server (no Google client): manual verification pending user credentials |
 | 2026-10-09 | Kilo (kilo-auto/efficient) | Grilled + documented 4 scope additions (voice input, EN/zh-CN localization, git workflow, Playwright E2E/CI); authored `docs/14-localization.md` + `docs/15-voice-input.md`; updated README/roadmap/AGENTS/TODO + cross-links (01/03/06/07/09/12, `.env.example`); added Phases 11–13 + registry/session rows | Phase 11 (localization) → Phase 12 (voice) → Phase 13 (git/CI), interleaved with Phase 1 infra | None (docs-only; no code yet) |
 | 2026-10-07 | Kilo (kilo-auto/efficient) | git init; monorepo skeleton; all 14 docs; Stitch MCP discovery (project `4345961817697568978`); artifact reorg + verification pass; `TODO.md` | Phase 0 leftovers → Phase 1 infra | Stitch PNG re-export for 5 screens (FIFE auth failure) |
