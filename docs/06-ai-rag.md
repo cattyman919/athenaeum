@@ -225,7 +225,7 @@ stateDiagram-v2
 | System prompt scope | "recommend only books that exist in the Athenaeum catalog (use search_catalog); cite only retrieved shelf paths; do not invent titles, barcodes, or racks" |
 | PII | never stored in `messages` beyond the conversation itself; log sampling excludes message bodies ([09](09-development.md#7-logging)) |
 | Non-library questions | agent deflects politely without tool use |
-| Reply language | answer in the request `locale` (`en` / `zh-CN`); tool use and citation rules unchanged ([14 §10](14-localization.md#10-ai-reply-language)) |
+| Reply language | answer in the request `locale` (`en` / `zh-CN`); tool use and citation rules unchanged ([14 §10](14-localization.md#10-ai-reply-language)); citation cards render shelf lines through the localized wayfinding vocabulary ([14 §6.1](14-localization.md#61-wayfinding-vocabulary)) |
 | Spam/abuse | 429 via rate limits (single line of defense, chatty patterns out of scope) |
 
 ## 9. Chat Screen (Stitch)

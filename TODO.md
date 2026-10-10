@@ -181,6 +181,7 @@ Refs: [docs/14](docs/14-localization.md).
 - [ ] Externalize strings on screens 1–5 + shell; zh enum display-label maps (DONE: shell, login, enum maps; remaining screens land with their milestones) ([docs/14 §6](docs/14-localization.md#6-enum-display-label-maps))
 - [x] CJK font fallback (Noto Sans SC) + `<html lang>` ([docs/14 §8](docs/14-localization.md#8-typography--fonts))
 - [x] `LanguageToggle` in top nav + `/login` ([docs/14 §9](docs/14-localization.md#9-language-toggle))
+- [ ] **Wayfinding i18n (bug found in review: `/books/[id]` ladder stays English in zh-CN)** — add structured `wayfinding.parts` + `copies[].location.parts` to `GET /api/books/{id}` ([docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid)); add `wayfinding.*` keys (building, floor, section, tier slug, step templates, shelfLine) to both catalogs with parity + coverage tests ([docs/14 §6.1](docs/14-localization.md#61-wayfinding-vocabulary)); compose localized ladder in `BookLocationCard`, copy manifest, `/library` shelf coordinates, catalog facet + book-page section chips, and chat citation cards; Playwright zh-CN spec asserts Chinese steps while the `MAIN/…` path token stays unchanged
 - [ ] Chat `locale` field + system-prompt directive + `meta.locale` ([docs/14 §10](docs/14-localization.md#10-ai-reply-language), [docs/06 §6/§8](docs/06-ai-rag.md#6-sse-event-contract))
 - [ ] zh RAG limitation recorded ([docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline))
 
@@ -215,6 +216,7 @@ Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after chang
 | [docs/04 §4](docs/04-auth.md#4-wechat-placeholder) | WeChat SSO | deferred feature |
 | [docs/04 §8](docs/04-auth.md#8-identity-edge-cases) | password reset · Shibboleth/SAML · WeChat | deferred features |
 | [docs/10 §2](docs/10-roadmap.md#2-out-of-scope--deferred) | full deferral table (observability, TLS, RFID, fines, multi-building, email, WebSocket, roles>2, zh-TW, cloud STT, multilingual embeddings, …) | deferred |
+| [docs/14 §6.1](docs/14-localization.md#61-wayfinding-vocabulary) | not a deferral: wayfinding vocabulary open task (see Phase 11) — admin-added floors/sections/tiers fall back to English until catalogued | tracked task |
 | [docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline) | multilingual embeddings / query translation for zh semantic search | deferred feature |
 | [docs/14 §1](docs/14-localization.md#1-scope) | Traditional Chinese (`zh-TW`) + extra locales | deferred feature |
 | [docs/15 §1](docs/15-voice-input.md#1-scope) | cloud/streaming STT; voice input outside `/chat` | deferred feature |

@@ -248,7 +248,7 @@ Response 200:
       "location": { "path": "MAIN/3F/SF/A-1/S-2", "ladder": "Athenaeum Main Building (North Stacks) → Floor 3 → Science Fiction & Speculative → Aisle A-1 → Shelf S-2 (Row 4, Eye Level)" }
     }
   ],
-  "wayfinding": { "path": "MAIN/3F/SF/A-1/S-2", "ladder_steps": ["Floor 3 — North Stacks", "Section: Science Fiction & Speculative", "Aisle A-1", "Shelf S-2 — Row 4, Eye Level"] },
+  "wayfinding": { "path": "MAIN/3F/SF/A-1/S-2", "parts": { "building_code": "MAIN", "building_name": "Athenaeum Main Building", "floor_number": 3, "floor_name": "North Stacks", "section_code": "SF", "section_name": "Science Fiction & Speculative", "aisle_code": "A-1", "shelf_code": "S-2", "row_level": 4, "height_tier": "Eye Level" }, "ladder_steps": ["Floor 3 — North Stacks", "Section: Science Fiction & Speculative", "Aisle A-1", "Shelf S-2 — Row 4, Eye Level"] },
   "neighbors": [
     { "id": "b3aa…", "title": "Hyperion", "authors": ["Dan Simmons"], "cover_url": "…" }
   ],
@@ -256,6 +256,10 @@ Response 200:
 }
 ```
 
+- `wayfinding.parts` (and the same object at `copies[].location.parts`) is the **structured** form of
+  the ladder. The web composes localized wayfinding text from it
+  ([14 §6.1](14-localization.md#61-wayfinding-vocabulary)); `ladder`/`ladder_steps` stay English
+  prose for admin screens, tool results and logs.
 - `wayfinding` is `null` when no copy has a shelf; otherwise it describes the **home shelf**: the
   first available shelved copy (by barcode), else the first shelved copy. `copies[].location.ladder`
   uses the [05 §3](05-building-layout.md#3-location-path-tokens) template, built in the service layer.

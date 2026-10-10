@@ -23,7 +23,8 @@
 | In scope | Out of scope |
 | --- | --- |
 | UI strings for screens 1–5 (`/login`, `/catalog`, `/books/[id]`, `/library`, `/chat`) and the app shell | Admin screens 6a/6b — stay English |
-| zh display-label maps for API enums (availability, copy status, reading stage, badges) | Translating catalog records: book titles, authors, descriptions, section names, and the [13](./13-mock-data-reference.md) mock contract stay English |
+| zh display-label maps for API enums (availability, copy status, reading stage, badges) | Translating catalog records: book titles, authors, descriptions, and the [13](./13-mock-data-reference.md) mock contract stay English |
+| **Wayfinding text** — the turn-by-turn ladder, copy-manifest locations, library shelf coordinates, citation shelf lines, section chips/facets (floor names, section names, height tiers; [§6.1](#61-wayfinding-vocabulary)) | Machine tokens: location path `MAIN/3F/SF/A-1/S-2`, barcodes, aisle/shelf codes, Dewey/LOC call numbers — always as stored |
 | AI Librarian answers in the selected language | Spoken/voice output (input only — [15](./15-voice-input.md)) |
 | `en` and `zh-CN` only | `zh-TW`/`zh-HK` or any third locale |
 
@@ -81,7 +82,8 @@ web/
 ## 6. Enum Display-Label Maps
 
 The API keeps returning **English enum values** ([03](./03-api-spec.md)); the web layer
-maps them to localized labels. No backend or data change.
+maps them to localized labels. No data change; the only API addition is the structured
+wayfinding `parts` object ([§6.1](#61-wayfinding-vocabulary)).
 
 | Enum | Source | Examples |
 | --- | --- | --- |
@@ -92,6 +94,40 @@ maps them to localized labels. No backend or data change.
 
 > The mapping table lives beside the component primitives so a new enum value is a
 > single-place edit; unknown values fall back to the raw English string.
+
+### 6.1 Wayfinding vocabulary
+
+Wayfinding prose is a **presentation concern**: the web composes it from structured parts and the
+catalog, so the ladder reads naturally in the active locale. The API keeps English prose
+(`wayfinding.ladder_steps`, `copies[].location.ladder`, `section.name`) as the fallback used by
+admin screens, tool results and logs — the web **does not render those strings** on screens 1–5.
+
+Structured parts (additive field `wayfinding.parts` and `copies[].location.parts`,
+[03 §5.2](03-api-spec.md#52-get-apibooksid)): `building_code`, `building_name`, `floor_number`,
+`floor_name`, `section_code`, `section_name`, `aisle_code`, `shelf_code`, `row_level`, `height_tier`.
+
+Catalog keys (both `messages/en.json` and `messages/zh-CN.json`, parity-tested):
+
+| Namespace | Keyed by | en → zh-CN |
+| --- | --- | --- |
+| `wayfinding.building.<code>` | building code | `MAIN` Athenaeum Main Building → 雅典娜图书馆主楼 |
+| `wayfinding.floor.<n>` | `floor_number` | 1 Reading Hall → 阅览大厅 · 2 West Stacks → 西区书库 · 3 North Stacks → 北区书库 |
+| `wayfinding.section.<code>` | section code | `SCI` Science, Mathematics & Tech → 科学、数学与技术 · `PER` Periodicals & Archives → 期刊与档案 · `HVA` History, Humanities & Arts → 历史、人文与艺术 · `REF` Reference & Special Folios → 参考与特藏 · `SF` Science Fiction & Speculative → 科幻与奇幻 |
+| `wayfinding.tier.<slug>` | `height_tier` slug (`low_stacks`, `mid_stacks`, `eye_level`, `tower_top`) | Low Stacks → 底层书架 · Mid Stacks → 中层书架 · Eye Level → 平视高度 · Tower Top → 顶层书架 |
+| `wayfinding.step.*` | ICU templates | `floor`: "Floor {n} — {name}" → "{n} 楼 — {name}" · `section`: "Section: {name}" → "分区：{name}" · `aisle`: "Aisle {code}" → "{code} 通道" · `shelf`: "Shelf {code} — Row {row}, {tier}" → "书架 {code} — 第 {row} 层，{tier}" |
+| `wayfinding.shelfLine` | ICU template | "Floor {n} • Shelf {code}" → "{n} 楼 • 书架 {code}" (library rows, citation cards) |
+
+Rules:
+
+- Codes (`A-2`, `S-2`), the path token, barcodes and call numbers are **never translated**; they sit
+  inside the translated sentence unchanged.
+- Lookup falls back to the raw English value from the API when a key is missing, so floors, sections
+  or tiers an admin adds after seeding degrade to English until added to the catalogs.
+- Applies to: `BookLocationCard` ladder, copy-manifest location column, catalog facet/section chips
+  and the book-page section chip (names looked up by `section_code`), `/library` rows, and `/chat`
+  `AICitationCard` shelf lines. The admin screens stay English ([§1](#1-scope)).
+- The AI reply language is separate ([§10](#10-ai-reply-language)); when the model quotes a location
+  in prose it follows the reply language, while citation cards use this vocabulary.
 
 ## 7. Formatting
 
@@ -148,7 +184,8 @@ The AI answers in the active locale (decision in [10 §1](./10-roadmap.md#1-in-s
 | Locale resolution | unit: cookie > `Accept-Language` > `en`; invalid value → `en` |
 | Catalog parity | unit: `en.json` and `zh-CN.json` have identical key sets |
 | Enum maps | unit: every enum value used in the UI has a label; unknown falls back |
-| E2E | Playwright: toggle switches and persists across navigation, cookie is set, no literal English leaks ([15 §9](./15-voice-input.md#9-testing) shares the suite) |
+| Wayfinding vocabulary | unit: every building/floor/section/height tier in [13](13-mock-data-reference.md) has an `en` and `zh-CN` entry; ICU placeholders match; unknown values fall back to the raw API string |
+| E2E | Playwright: toggle switches and persists across navigation, cookie is set, no literal English leaks — including the wayfinding ladder, which must read in Chinese while the `MAIN/…` path token stays unchanged ([15 §9](./15-voice-input.md#9-testing) shares the suite) |
 
 ## 13. Traceability
 

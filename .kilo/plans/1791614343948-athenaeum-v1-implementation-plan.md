@@ -77,7 +77,7 @@ milestone ends with the **gate** below.
 Backend: keyword (tsvector), semantic (pgvector top-20), hybrid (RRF k=60), facets, pagination envelope, `availability.state`, `GET /api/books/search` (30/min). Web: `/catalog` (tri-modal switcher, facet sidebar, BookCard grid, skeletons, URL-as-state) and ⌘K `CommandPalette`. E2E: three search modes with relevance assertions from docs/13; route smoke for `/catalog`.
 
 ### M6 — Book detail & wayfinding (Phase 5)
-`GET /api/books/{id}` (copies + `book_locations` + neighbors), `BookLocationCard` ladder (`MAIN/3F/SF/A-1/S-2`), tri-state availability banner, `/books/[id]` 40/60 split. E2E: detail smoke + wayfinding text.
+`GET /api/books/{id}` (copies + `book_locations` + neighbors), `BookLocationCard` ladder (`MAIN/3F/SF/A-1/S-2`), tri-state availability banner, `/books/[id]` 40/60 split. E2E: detail smoke + wayfinding text. **Amendment:** wayfinding prose must be localized (zh-CN) from structured `wayfinding.parts` via the vocabulary in docs/14 §6.1 — tracked in TODO.md Phase 11 as an open fix.
 
 ### M7 — Personal library & waitlist (Phase 6)
 `/api/library` CRUD (upsert, 409 `BOOK_NOT_AVAILABLE`), waitlist join/leave/list + 48h expiry sweep, `/library` (KPI cards, stage tabs, holds tab, AI banner). E2E: 409 → waitlist journey on a zero-copy book; library tabs.

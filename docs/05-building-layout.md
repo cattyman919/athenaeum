@@ -66,6 +66,9 @@ building code / floor / section / aisle / shelf
 - `3F` = `floors.floor_number`; a lobby-only floor would be `0F`.
 - Display ladder for UI (example, Dune copy 1):
   `Main Building (North Stacks) → Floor 3 → Science Fiction & Speculative → Aisle A-1 → Shelf S-2 (Row 4, Eye Level)`.
+- The prose ladder is the **English** rendering; on screens 1–5 the web builds the ladder from structured
+  parts through the localized wayfinding vocabulary, so `zh-CN` users see Chinese floor/section/tier names
+  while the path token and codes stay as stored ([14 §6.1](14-localization.md#61-wayfinding-vocabulary)).
 - `display_ladder` wording template: `{building_name} ({floor_name}) → Floor {n} →
   {section_name} → Aisle {aisle_code} → Shelf {shelf_code} (Row {row_level}, {height_tier})`.
 

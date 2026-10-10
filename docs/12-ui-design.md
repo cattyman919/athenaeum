@@ -259,7 +259,7 @@ Empty/edge states: [07 §9](07-frontend.md#9-loading-empty--error-states).
 
 ### Screen 3 — `/books/[id]` Book Detail & Spatial Wayfinding
 Stitch: **Book Detail: Dune** (`7239…`). 40/60 two-column (jacket, CTA, Dewey/LOC/
-ISBN metadata · tri-state banner, ladder, manifest); turn-by-turn ladder from
+ISBN metadata · tri-state banner, ladder, manifest); turn-by-turn ladder (localized in zh-CN — [14 §6.1](14-localization.md#61-wayfinding-vocabulary)) from
 `book_locations` ([05 §3-4](05-building-layout.md#3-location-path-tokens)); copy
 manifest table of `book_copies` rows; archival affinity carousel (`neighbors` —
 [03 §5.2](03-api-spec.md#52-get-apibooksid)).

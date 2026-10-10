@@ -184,7 +184,7 @@ buckets), `BookCard` 2:3 grid with availability beacons, `⌘K`
 ### /books/[id] — screen 3 (Stitch `723960ca…`)
 
 40/60 split: jacket + Ask-AI link (`/chat?prefill={title}`) + bibliographic
-metadata; tri-state availability banner; `BookLocationCard` ladder
+metadata; tri-state availability banner; `BookLocationCard` ladder (localized from `wayfinding.parts`, [14 §6.1](14-localization.md#61-wayfinding-vocabulary))
 ([05 §5](05-building-layout.md#5-book-detail-screen-stitch)); copy manifest table;
 `neighbors` affinity carousel; waitlist join on the banner's suggested_actions
 ([03 §6.3](03-api-spec.md#63-waitlist)).
