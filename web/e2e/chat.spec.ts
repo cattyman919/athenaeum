@@ -1,0 +1,87 @@
+import { expect, test } from "@playwright/test";
+import { DEMO_STATE } from "./accounts";
+import { gotoReady } from "./helpers";
+
+// AI Librarian chat (docs/06 §6, docs/07 §6–7, docs/14 §10). The API runs the real agent,
+// tools and SSE pipeline against api/cmd/e2e-stubs: the stub model issues one
+// search_catalog call with the longest word of the message, then streams an answer naming
+// the first hit (in Simplified Chinese when the request locale is zh-CN).
+
+test.use({ storageState: DEMO_STATE });
+
+const WEB_URL = "http://localhost:13000";
+
+test.describe("AI Librarian chat", () => {
+  test("streams tokens, tool activity and a citation card (en)", async ({ page }) => {
+    await gotoReady(page, "/chat");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("AI Librarian");
+    await expect(page.getByText("How can I help your research?")).toBeVisible();
+
+    const chatRequest = page.waitForRequest(
+      (r) => r.url().endsWith("/api/chat") && r.method() === "POST",
+    );
+    await page.getByTestId("chat-composer").fill("Recommend Neuromancer please");
+    await page.getByTestId("chat-send").click();
+    expect((await chatRequest).postDataJSON()).toMatchObject({
+      message: "Recommend Neuromancer please",
+      locale: "en",
+    });
+
+    await expect(page.getByTestId("chat-user-message")).toHaveText("Recommend Neuromancer please");
+    await expect(page.getByTestId("chat-assistant-message")).toHaveText(
+      "From the Athenaeum catalog, I recommend Neuromancer.",
+    );
+    await expect(page.getByTestId("tool-chip")).toContainText("Searched the catalog");
+
+    const card = page.getByTestId("citation-card").filter({ hasText: "Neuromancer" });
+    await expect(card).toBeVisible();
+    await expect(card.getByTestId("citation-shelf")).toContainText("Floor 3 • Shelf S-2");
+    await expect(card.getByTestId("citation-path")).toHaveText("MAIN/3F/SF/A-1/S-2");
+    await expect(card).toHaveAttribute("href", /^\/books\/[0-9a-f-]{36}$/);
+
+    // Telemetry meta bar + quota meters (daily bucket from X-RateLimit-* headers).
+    await expect(page.getByTestId("chat-model")).not.toHaveText("Model pending");
+    await expect(page.getByTestId("chat-tokens")).toBeVisible();
+    await expect(page.getByTestId("quota-minute-value")).toHaveText(/^[1-5] \/ 5$/);
+    await expect(page.getByTestId("quota-daily-value")).toHaveText(/^\d+ \/ 50$/);
+    await expect(page.getByTestId("chat-turn-item")).toHaveAttribute("data-status", "done");
+
+    // The new conversation is URL state and shows up in the drawer; reload replays history.
+    await expect(page).toHaveURL(/\/chat\?c=[0-9a-f-]{36}$/);
+    const id = new URL(page.url()).searchParams.get("c")!;
+    const item = page.getByTestId("conversation-list").locator(`a[href="/chat?c=${id}"]`);
+    await expect(item).toHaveText("Recommend Neuromancer please");
+    await expect(item).toHaveAttribute("aria-current", "page");
+    await gotoReady(page, page.url());
+    await expect(page.getByTestId("chat-assistant-message")).toHaveText(
+      "From the Athenaeum catalog, I recommend Neuromancer.",
+    );
+  });
+
+  test("replies in Simplified Chinese with a localized citation shelf line (zh-CN)", async ({
+    page,
+    context,
+  }) => {
+    await context.addCookies([{ name: "athenaeum_lang", value: "zh-CN", url: WEB_URL }]);
+    await gotoReady(page, "/chat");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("AI 图书管理员");
+
+    const chatRequest = page.waitForRequest(
+      (r) => r.url().endsWith("/api/chat") && r.method() === "POST",
+    );
+    await page.getByTestId("chat-composer").fill("推荐 Neuromancer");
+    await page.getByTestId("chat-composer").press("Enter");
+    expect((await chatRequest).postDataJSON()).toMatchObject({ locale: "zh-CN" });
+
+    await expect(page.getByTestId("chat-assistant-message")).toHaveText(
+      "我在 Athenaeum 馆藏中找到了：Neuromancer。",
+    );
+    await expect(page.getByTestId("tool-chip")).toContainText("检索了馆藏目录");
+    const card = page.getByTestId("citation-card").filter({ hasText: "Neuromancer" });
+    await expect(card.getByTestId("citation-shelf")).toContainText("3 楼 • 书架 S-2");
+    await expect(card.getByTestId("citation-shelf")).toContainText("科幻与奇幻");
+    // Machine path token stays untranslated (docs/14 §6.1).
+    await expect(card.getByTestId("citation-path")).toHaveText("MAIN/3F/SF/A-1/S-2");
+    await expect(page.getByText("Searched the catalog")).toHaveCount(0);
+  });
+});

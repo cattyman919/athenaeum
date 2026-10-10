@@ -44,8 +44,8 @@ echo "==> seeding (offline) and reindexing"
 (cd api && OFFLINE_MODE=true go run ./cmd/reindex)
 
 echo "==> clearing rate-limit counters"
-docker compose exec -T redis redis-cli --scan --pattern 'rl:*' | while read -r key; do
-  docker compose exec -T redis redis-cli DEL "${key}" >/dev/null
-done
+# Scan + DEL inside the container: a host-side `while read` loop would let
+# `docker compose exec` swallow the remaining keys from stdin.
+docker compose exec -T redis sh -c "redis-cli --scan --pattern 'rl:*' | xargs -r redis-cli DEL >/dev/null"
 
 echo "==> e2e stack ready (database ${E2E_DB})"
