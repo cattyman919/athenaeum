@@ -1,0 +1,1048 @@
+{
+  "books": [
+    {
+      "title": "Dune",
+      "subtitle": null,
+      "authors": [
+        "Frank Herbert"
+      ],
+      "isbn13": "9780441013593",
+      "publisher": "Ace Books",
+      "published_year": 1965,
+      "description": "Having upset the subtle ecology of the desert planet Arrakis, young Paul Atreides is drawn into a struggle over the spice melange, the substance that makes interstellar travel possible.",
+      "section_code": "SF",
+      "dewey_num": "813.54",
+      "loc_num": "PS3558.E63 D8 1965",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002941-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-1/S-2"
+        },
+        {
+          "barcode": "ATH-002941-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-1/S-2"
+        },
+        {
+          "barcode": "ATH-002941-C03",
+          "status": "available",
+          "condition": "fair",
+          "shelf_path": "MAIN/3F/SF/A-1/S-3"
+        }
+      ]
+    },
+    {
+      "title": "Neuromancer",
+      "subtitle": null,
+      "authors": [
+        "William Gibson"
+      ],
+      "isbn13": "9780441569595",
+      "publisher": "Ace Books",
+      "published_year": 1984,
+      "description": "A washed-up hacker is hired for one last job in cyberspace, a shared hallucination where corporate artificial intelligences guard the world's data.",
+      "section_code": "SF",
+      "dewey_num": "813.54",
+      "loc_num": "PS3557.I2264 N48 1984",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002942-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-1/S-2"
+        },
+        {
+          "barcode": "ATH-002942-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-1/S-2"
+        },
+        {
+          "barcode": "ATH-002942-C03",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Hyperion",
+      "subtitle": null,
+      "authors": [
+        "Dan Simmons"
+      ],
+      "isbn13": "9780553283686",
+      "publisher": "Bantam Spectra",
+      "published_year": 1989,
+      "description": "Seven pilgrims travel to the Time Tombs of Hyperion to confront the Shrike, each telling the story of how they came to the journey.",
+      "section_code": "SF",
+      "dewey_num": "813.54",
+      "loc_num": "PS3569.I47 H96 1989",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002943-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-1/S-3"
+        },
+        {
+          "barcode": "ATH-002943-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-1/S-3"
+        }
+      ]
+    },
+    {
+      "title": "The Left Hand of Darkness",
+      "subtitle": null,
+      "authors": [
+        "Ursula K. Le Guin"
+      ],
+      "isbn13": "9780441478125",
+      "publisher": "Ace Books",
+      "published_year": 1969,
+      "description": "An envoy to the frozen world of Gethen must understand a people with no fixed gender in order to bring them into an interstellar alliance.",
+      "section_code": "SF",
+      "dewey_num": "813.54",
+      "loc_num": "PS3562.E42 L4 1969",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002944-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-1"
+        },
+        {
+          "barcode": "ATH-002944-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Foundation",
+      "subtitle": null,
+      "authors": [
+        "Isaac Asimov"
+      ],
+      "isbn13": "9780553380019",
+      "publisher": "Bantam Spectra",
+      "published_year": 1951,
+      "description": "Mathematician Hari Seldon predicts the fall of the Galactic Empire and founds a colony of scholars to shorten the dark age that follows.",
+      "section_code": "SF",
+      "dewey_num": "813.54",
+      "loc_num": "PS3551.S5 F6 1951",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002945-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-1"
+        },
+        {
+          "barcode": "ATH-002945-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-1"
+        },
+        {
+          "barcode": "ATH-002945-C03",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Snow Crash",
+      "subtitle": null,
+      "authors": [
+        "Neal Stephenson"
+      ],
+      "isbn13": "9780553380958",
+      "publisher": "Bantam Spectra",
+      "published_year": 1992,
+      "description": "Pizza-delivering hacker Hiro Protagonist chases a viral language that crashes both computers and brains in a fragmented America and its online Metaverse.",
+      "section_code": "SF",
+      "dewey_num": "813.54",
+      "loc_num": "PS3569.T3868 S66 1992",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002946-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-2"
+        },
+        {
+          "barcode": "ATH-002946-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-2"
+        },
+        {
+          "barcode": "ATH-002946-C03",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-3"
+        }
+      ]
+    },
+    {
+      "title": "The Three-Body Problem",
+      "subtitle": null,
+      "authors": [
+        "Liu Cixin"
+      ],
+      "isbn13": "9780765382030",
+      "publisher": "Tor Books",
+      "published_year": 2008,
+      "description": "During the Cultural Revolution a secret military project makes contact with an alien civilization whose home world is chaotically unstable.",
+      "section_code": "SF",
+      "dewey_num": "895.13",
+      "loc_num": "PL2886.I9 S3 2008",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002947-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-3"
+        },
+        {
+          "barcode": "ATH-002947-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-2/S-3"
+        }
+      ]
+    },
+    {
+      "title": "Project Hail Mary",
+      "subtitle": null,
+      "authors": [
+        "Andy Weir"
+      ],
+      "isbn13": "9780593135204",
+      "publisher": "Ballantine Books",
+      "published_year": 2021,
+      "description": "A lone astronaut wakes with no memory aboard a spacecraft and must solve an extinction-level problem with help from an unexpected ally.",
+      "section_code": "SF",
+      "dewey_num": "813.6",
+      "loc_num": "PS3623.E36 P76 2021",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002948-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-3/S-1"
+        },
+        {
+          "barcode": "ATH-002948-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-3/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Ender's Game",
+      "subtitle": null,
+      "authors": [
+        "Orson Scott Card"
+      ],
+      "isbn13": "9780812540833",
+      "publisher": "Tor Books",
+      "published_year": 1985,
+      "description": "A gifted child is trained in a zero-gravity battle school to command humanity's fleet against an insectoid alien enemy.",
+      "section_code": "SF",
+      "dewey_num": "813.54",
+      "loc_num": "PS3553.A655 E5 1985",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002949-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-3/S-2"
+        },
+        {
+          "barcode": "ATH-002949-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "Brave New World",
+      "subtitle": null,
+      "authors": [
+        "Aldous Huxley"
+      ],
+      "isbn13": "9780060850524",
+      "publisher": "Harper Perennial",
+      "published_year": 1932,
+      "description": "In a World State of engineered castes and conditioned happiness, a visitor from a reservation challenges the price of stability.",
+      "section_code": "SF",
+      "dewey_num": "823.912",
+      "loc_num": "PR6015.U9 B7 1932",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002950-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-4/S-1"
+        },
+        {
+          "barcode": "ATH-002950-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/3F/SF/A-4/S-1"
+        }
+      ]
+    },
+    {
+      "title": "The Pragmatic Programmer",
+      "subtitle": null,
+      "authors": [
+        "David Thomas",
+        "Andrew Hunt"
+      ],
+      "isbn13": "9780135957059",
+      "publisher": "Addison-Wesley",
+      "published_year": 1999,
+      "description": "A practical guide to software craftsmanship covering tips on tooling, design, testing and taking responsibility for your code.",
+      "section_code": "SCI",
+      "dewey_num": "005.1",
+      "loc_num": "QA76.76.D47 H85 1999",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002951-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-1/S-2"
+        },
+        {
+          "barcode": "ATH-002951-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-1/S-2"
+        },
+        {
+          "barcode": "ATH-002951-C03",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-1/S-3"
+        }
+      ]
+    },
+    {
+      "title": "Structure and Interpretation of Computer Programs",
+      "subtitle": null,
+      "authors": [
+        "Harold Abelson",
+        "Gerald Jay Sussman"
+      ],
+      "isbn13": "9780262510875",
+      "publisher": "MIT Press",
+      "published_year": 1985,
+      "description": "A foundational computer-science text that teaches abstraction, recursion and language design through the Scheme programming language.",
+      "section_code": "SCI",
+      "dewey_num": "005.133",
+      "loc_num": "QA76.6 .A255 1985",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002952-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-1/S-3"
+        },
+        {
+          "barcode": "ATH-002952-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-1/S-3"
+        }
+      ]
+    },
+    {
+      "title": "Gödel, Escher, Bach",
+      "subtitle": null,
+      "authors": [
+        "Douglas Hofstadter"
+      ],
+      "isbn13": "9780465026562",
+      "publisher": "Basic Books",
+      "published_year": 1979,
+      "description": "An exploration of self-reference and emergent meaning that weaves together logic, music and art around the ideas of Gödel, Escher and Bach.",
+      "section_code": "SCI",
+      "dewey_num": "153.4",
+      "loc_num": "QA9.8 .H63 1979",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002953-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-2/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Designing Data-Intensive Applications",
+      "subtitle": null,
+      "authors": [
+        "Martin Kleppmann"
+      ],
+      "isbn13": "9781449373320",
+      "publisher": "O'Reilly Media",
+      "published_year": 2017,
+      "description": "A guide to the principles behind reliable, scalable and maintainable data systems, from storage engines and replication to stream processing.",
+      "section_code": "SCI",
+      "dewey_num": "005.74",
+      "loc_num": "QA76.9.D3 K59 2017",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002954-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-2/S-2"
+        },
+        {
+          "barcode": "ATH-002954-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-2/S-2"
+        },
+        {
+          "barcode": "ATH-002954-C03",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-2/S-2"
+        }
+      ]
+    },
+    {
+      "title": "Clean Code",
+      "subtitle": null,
+      "authors": [
+        "Robert C. Martin"
+      ],
+      "isbn13": "9780132350884",
+      "publisher": "Prentice Hall",
+      "published_year": 2008,
+      "description": "A handbook of agile software craftsmanship describing how to write readable, maintainable code and how to refactor bad code.",
+      "section_code": "SCI",
+      "dewey_num": "005.1",
+      "loc_num": "QA76.76.D47 M3 2008",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002955-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-2/S-3"
+        },
+        {
+          "barcode": "ATH-002955-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-2/S-3"
+        }
+      ]
+    },
+    {
+      "title": "Introduction to Algorithms",
+      "subtitle": null,
+      "authors": [
+        "Thomas H. Cormen",
+        "Charles E. Leiserson",
+        "Ronald L. Rivest",
+        "Clifford Stein"
+      ],
+      "isbn13": "9780262033848",
+      "publisher": "MIT Press",
+      "published_year": 2009,
+      "description": "A comprehensive textbook covering the design and analysis of algorithms, from sorting and graph search to dynamic programming.",
+      "section_code": "SCI",
+      "dewey_num": "005.1",
+      "loc_num": "QA76.6 .I5858 2009",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002956-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-3/S-1"
+        }
+      ]
+    },
+    {
+      "title": "The Elements of Statistical Learning",
+      "subtitle": null,
+      "authors": [
+        "Trevor Hastie",
+        "Robert Tibshirani",
+        "Jerome Friedman"
+      ],
+      "isbn13": "9780387952826",
+      "publisher": "Springer",
+      "published_year": 2009,
+      "description": "A rigorous overview of statistical learning methods, including regression, classification, kernel methods and ensemble learning.",
+      "section_code": "SCI",
+      "dewey_num": "006.31",
+      "loc_num": "Q325.75 .H37 2009",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002957-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "A Brief History of Time",
+      "subtitle": null,
+      "authors": [
+        "Stephen Hawking"
+      ],
+      "isbn13": "9780553380163",
+      "publisher": "Bantam Books",
+      "published_year": 1988,
+      "description": "A popular account of cosmology that explains black holes, the Big Bang and the quest for a unified theory of the universe.",
+      "section_code": "SCI",
+      "dewey_num": "523.1",
+      "loc_num": "QB981 .H377 1988",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002958-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-3/S-2"
+        },
+        {
+          "barcode": "ATH-002958-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "Thinking, Fast and Slow",
+      "subtitle": null,
+      "authors": [
+        "Daniel Kahneman"
+      ],
+      "isbn13": "9780374533557",
+      "publisher": "Farrar, Straus and Giroux",
+      "published_year": 2011,
+      "description": "A Nobel laureate describes two systems of thought, one fast and intuitive, one slow and deliberate, and how they shape our judgments.",
+      "section_code": "SCI",
+      "dewey_num": "153.42",
+      "loc_num": "BF441 .K338 2011",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002959-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "The C Programming Language",
+      "subtitle": null,
+      "authors": [
+        "Brian W. Kernighan",
+        "Dennis M. Ritchie"
+      ],
+      "isbn13": "9780131103627",
+      "publisher": "Prentice Hall",
+      "published_year": 1988,
+      "description": "The classic concise reference to C written by its creators, teaching the language through compact worked examples.",
+      "section_code": "SCI",
+      "dewey_num": "005.133",
+      "loc_num": "QA76.73.C15 K47 1988",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002960-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-3/S-2"
+        },
+        {
+          "barcode": "ATH-002960-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/SCI/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "Sapiens: A Brief History of Humankind",
+      "subtitle": null,
+      "authors": [
+        "Yuval Noah Harari"
+      ],
+      "isbn13": "9780062316097",
+      "publisher": "Harper",
+      "published_year": 2011,
+      "description": "A sweeping history of our species from the Cognitive Revolution to the present, asking how stories and shared myths built civilizations.",
+      "section_code": "HVA",
+      "dewey_num": "909",
+      "loc_num": "GN760 .H37 2011",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002961-C01",
+          "status": "checked_out",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-1/S-2"
+        },
+        {
+          "barcode": "ATH-002961-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-1/S-2"
+        },
+        {
+          "barcode": "ATH-002961-C03",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-1/S-2"
+        }
+      ]
+    },
+    {
+      "title": "Guns, Germs, and Steel",
+      "subtitle": null,
+      "authors": [
+        "Jared Diamond"
+      ],
+      "isbn13": "9780393317558",
+      "publisher": "W. W. Norton",
+      "published_year": 1997,
+      "description": "An argument that geography and environment, not innate differences, explain why some societies came to dominate others.",
+      "section_code": "HVA",
+      "dewey_num": "303.4",
+      "loc_num": "HM206 .D48 1997",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002962-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-1/S-3"
+        }
+      ]
+    },
+    {
+      "title": "1491: New Revelations of the Americas Before Columbus",
+      "subtitle": null,
+      "authors": [
+        "Charles C. Mann"
+      ],
+      "isbn13": "9781400032051",
+      "publisher": "Knopf",
+      "published_year": 2005,
+      "description": "A portrait of the sophisticated, populous societies of the Americas before European contact and the landscapes they shaped.",
+      "section_code": "HVA",
+      "dewey_num": "970.01",
+      "loc_num": "E61 .M26 2005",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002963-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-2/S-1"
+        },
+        {
+          "barcode": "ATH-002963-C02",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-2/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Postwar: A History of Europe Since 1945",
+      "subtitle": null,
+      "authors": [
+        "Tony Judt"
+      ],
+      "isbn13": "9780143037750",
+      "publisher": "Penguin Books",
+      "published_year": 2005,
+      "description": "A magisterial history of Europe from the ruins of the Second World War through the Cold War and the fall of communism.",
+      "section_code": "HVA",
+      "dewey_num": "940.55",
+      "loc_num": "D1051 .J84 2005",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002964-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-2/S-2"
+        }
+      ]
+    },
+    {
+      "title": "The Guns of August",
+      "subtitle": null,
+      "authors": [
+        "Barbara W. Tuchman"
+      ],
+      "isbn13": "9780345476098",
+      "publisher": "Presidio Press",
+      "published_year": 1962,
+      "description": "A narrative account of the first month of the First World War and the decisions that turned a crisis into a continental conflict.",
+      "section_code": "HVA",
+      "dewey_num": "940.4",
+      "loc_num": "D511 .T77 1962",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002965-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-3/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Salt: A World History",
+      "subtitle": null,
+      "authors": [
+        "Mark Kurlansky"
+      ],
+      "isbn13": "9780142001615",
+      "publisher": "Penguin Books",
+      "published_year": 2002,
+      "description": "A history of the world told through a single mineral, from ancient preservation techniques to global trade and politics.",
+      "section_code": "HVA",
+      "dewey_num": "553.6",
+      "loc_num": "GT2870 .K87 2002",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002966-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "The Story of Art",
+      "subtitle": null,
+      "authors": [
+        "E. H. Gombrich"
+      ],
+      "isbn13": "9780714832470",
+      "publisher": "Phaidon Press",
+      "published_year": 1950,
+      "description": "A readable survey of Western art from cave paintings to the modern age, arranged around the people who made it.",
+      "section_code": "HVA",
+      "dewey_num": "709",
+      "loc_num": "N5300 .G63 1950",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002967-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "Ways of Seeing",
+      "subtitle": null,
+      "authors": [
+        "John Berger"
+      ],
+      "isbn13": "9780140135152",
+      "publisher": "Penguin Books",
+      "published_year": 1972,
+      "description": "A short, influential study of how images, advertising and oil painting shape what we see and how we are told to see it.",
+      "section_code": "HVA",
+      "dewey_num": "701.1",
+      "loc_num": "N7430 .B47 1972",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002968-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "Zen and the Art of Motorcycle Maintenance",
+      "subtitle": null,
+      "authors": [
+        "Robert M. Pirsig"
+      ],
+      "isbn13": "9780060589462",
+      "publisher": "Harper Perennial",
+      "published_year": 1974,
+      "description": "A father and son's motorcycle journey becomes an inquiry into values, quality and the divide between technology and humanism.",
+      "section_code": "HVA",
+      "dewey_num": "813.54",
+      "loc_num": "PS3566.I66 Z46 1974",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002969-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "The Name of the Rose",
+      "subtitle": null,
+      "authors": [
+        "Umberto Eco"
+      ],
+      "isbn13": "9780156001311",
+      "publisher": "Harcourt",
+      "published_year": 1980,
+      "description": "A Franciscan friar investigates a series of murders in a fourteenth-century Italian monastery with a labyrinthine library.",
+      "section_code": "HVA",
+      "dewey_num": "853.914",
+      "loc_num": "PQ4865.C6 N613 1980",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002970-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/HVA/A-3/S-2"
+        }
+      ]
+    },
+    {
+      "title": "The Chicago Manual of Style (17th ed.)",
+      "subtitle": null,
+      "authors": [
+        "University of Chicago Press"
+      ],
+      "isbn13": "9780226287058",
+      "publisher": "University of Chicago Press",
+      "published_year": 2017,
+      "description": "The standard reference for American-English editorial style covering manuscript preparation, citation and punctuation.",
+      "section_code": "REF",
+      "dewey_num": "808.027",
+      "loc_num": "Z253 .U69 2017",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002971-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/REF/A-1/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Merriam-Webster's Collegiate Dictionary (11th ed.)",
+      "subtitle": null,
+      "authors": [
+        "Merriam-Webster"
+      ],
+      "isbn13": "9780877798095",
+      "publisher": "Merriam-Webster",
+      "published_year": 2003,
+      "description": "A comprehensive desk dictionary of American English with definitions, etymologies and usage notes.",
+      "section_code": "REF",
+      "dewey_num": "423",
+      "loc_num": "PE1628 .M36 2003",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002972-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/REF/A-1/S-2"
+        }
+      ]
+    },
+    {
+      "title": "The Oxford Guide to Library Research",
+      "subtitle": null,
+      "authors": [
+        "Thomas Mann"
+      ],
+      "isbn13": "9780199931040",
+      "publisher": "Oxford University Press",
+      "published_year": 2005,
+      "description": "A practical manual for scholars on locating books, articles and archival materials using catalogs, indexes and subject headings.",
+      "section_code": "REF",
+      "dewey_num": "025.5",
+      "loc_num": "Z710 .M23 2005",
+      "open_library_key": null,
+      "copies": []
+    },
+    {
+      "title": "The Elements of Style (4th ed.)",
+      "subtitle": null,
+      "authors": [
+        "William Strunk Jr.",
+        "E. B. White"
+      ],
+      "isbn13": "9780205309023",
+      "publisher": "Longman",
+      "published_year": 1999,
+      "description": "A concise guide to the principles of plain English composition, with rules of usage and common errors.",
+      "section_code": "REF",
+      "dewey_num": "808",
+      "loc_num": "PE1408 .S772 1999",
+      "open_library_key": null,
+      "copies": []
+    },
+    {
+      "title": "The Compact Edition of the Oxford English Dictionary",
+      "subtitle": null,
+      "authors": [
+        "Oxford University Press"
+      ],
+      "isbn13": "9780198612582",
+      "publisher": "Oxford University Press",
+      "published_year": 1991,
+      "description": "The complete historical dictionary of English reproduced in micrographic form, with a magnifying glass for reading.",
+      "section_code": "REF",
+      "dewey_num": "423",
+      "loc_num": "PE1625 .O87 1991",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002975-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/REF/A-2/S-1"
+        }
+      ]
+    },
+    {
+      "title": "A Rulebook for Arguments",
+      "subtitle": null,
+      "authors": [
+        "Anthony Weston"
+      ],
+      "isbn13": "9780872209541",
+      "publisher": "Hackett Publishing",
+      "published_year": 1987,
+      "description": "A brief set of rules for building and evaluating arguments, with examples drawn from everyday reasoning.",
+      "section_code": "REF",
+      "dewey_num": "168",
+      "loc_num": "BC177 .W47 1987",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002976-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/2F/REF/A-2/S-1"
+        }
+      ]
+    },
+    {
+      "title": "The Economist Style Guide (12th ed.)",
+      "subtitle": null,
+      "authors": [
+        "The Economist"
+      ],
+      "isbn13": "9781781258446",
+      "publisher": "Profile Books",
+      "published_year": 2018,
+      "description": "The house style guide of a weekly newspaper, with advice on clear writing, usage and the use of numbers.",
+      "section_code": "PER",
+      "dewey_num": "808.06",
+      "loc_num": "PN4783 .E26 2018",
+      "open_library_key": null,
+      "copies": [
+        {
+          "barcode": "ATH-002977-C01",
+          "status": "available",
+          "condition": "good",
+          "shelf_path": "MAIN/1F/PER/A-1/S-1"
+        }
+      ]
+    },
+    {
+      "title": "Athenaeum Annual Report, Vol. 90",
+      "subtitle": null,
+      "authors": [
+        "Athenaeum Press"
+      ],
+      "isbn13": "9788100000021",
+      "publisher": "Athenaeum Press",
+      "published_year": 1974,
+      "description": "The ninetieth annual report of the library, recording acquisitions, readership figures and the trustees' accounts for the year.",
+      "section_code": "PER",
+      "dewey_num": "027.4",
+      "loc_num": "Z678 .A84 1974",
+      "open_library_key": null,
+      "copies": []
+    },
+    {
+      "title": "Nature: Volume 512 Highlights",
+      "subtitle": null,
+      "authors": [
+        "Springer Nature"
+      ],
+      "isbn13": "9788100000045",
+      "publisher": "Springer Nature",
+      "published_year": 2014,
+      "description": "A digest of notable research papers and editorials from volume 512 of the weekly science journal.",
+      "section_code": "PER",
+      "dewey_num": "505",
+      "loc_num": "Q1 .N2 2014",
+      "open_library_key": null,
+      "copies": []
+    },
+    {
+      "title": "Quarterly Bulletin of the Athenaeum, 1952–1953",
+      "subtitle": null,
+      "authors": [
+        "Athenaeum Press"
+      ],
+      "isbn13": "9788100000106",
+      "publisher": "Athenaeum Press",
+      "published_year": 1953,
+      "description": "A bound run of the library's quarterly bulletin covering exhibitions, new accessions and notes for readers from 1952 to 1953.",
+      "section_code": "PER",
+      "dewey_num": "027.4",
+      "loc_num": "Z678 .A842 1953",
+      "open_library_key": null,
+      "copies": []
+    }
+  ]
+}

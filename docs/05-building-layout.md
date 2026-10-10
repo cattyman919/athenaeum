@@ -31,7 +31,7 @@ graph TD
     A1 --> SH1["shelves<br/>S-1..S-k per aisle, ~14 on F1"]
     A2 --> SH2["shelves<br/>~12 on F2"]
     A3 --> SH3["shelves<br/>~14 on F3, incl. A-1/S-2"]
-    SH3 --> CP["book_copies<br/>barcode ATH-002941-C1 → S-2"]
+    SH3 --> CP["book_copies<br/>barcode ATH-002941-C01 → S-2"]
 ```
 
 Concrete counts and all 40 shelves: [13-mock-data-reference.md](./13-mock-data-reference.md#4-shelf-inventory-all-40).
@@ -95,13 +95,13 @@ detail + admin tree APIs return `location.path` to the clients.
 
 Stitch screen **Book Detail: Dune - Athenaeum Library** (ID `723960ca2605417eb085f6e17a579bd2`,
 2560×4884 @2x): 40/60 two-column layout, tri-state availability banner,
-turn-by-turn ladder, physical copy manifest (`ATH-002941-C1..C3`), archival
+turn-by-turn ladder, physical copy manifest (`ATH-002941-C01..C3`), archival
 affinity carousel. Layout spec: [12-ui-design.md](./12-ui-design.md#screen-3--booksid-book-detail--spatial-wayfinding) ·
 route/page: [07-frontend.md](./07-frontend.md#booksid--screen-3-stitch-723960ca).
 
 Exported artifact: `.artifacts/stitch/book_detail_dune_athenaeum_library/code.html`
 (export-verified: ladder = Floor 3 → North Stacks → Aisle A-1, "Row 4, Eye Level",
-copy manifest `ATH-002941-C1/C2/C3` — matching seeded mock data,
+copy manifest `ATH-002941-C01/C2/C3` — matching seeded mock data,
 [13-mock-data-reference.md](./13-mock-data-reference.md#3-copy-status-ledger)).
 
 > ⚠️ TODO: `screen.png` for this screen failed during export

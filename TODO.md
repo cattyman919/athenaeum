@@ -91,13 +91,15 @@ Refs: [docs/04](docs/04-auth.md); endpoints [docs/03 §4](docs/03-api-spec.md#4-
 
 Refs: [docs/08](docs/08-seed-data.md), values [docs/13](docs/13-mock-data-reference.md).
 
-- [ ] `api/mocks/building.json` + `books.json` with the exact fixture values of [docs/13 §2–4](docs/13-mock-data-reference.md#2-book-catalog-all-40)
-- [ ] `internal/service/building.ResolvePath` ([docs/05 §4](docs/05-building-layout.md#4-wayfinding-resolution))
-- [ ] `cmd/seed`: users → tree → books → copies; barcode counter (`ATH-002941-…`, [docs/08 §5](docs/08-seed-data.md#5-barcode-allocation)); deterministic, idempotent, `--reset`
-- [ ] Seed failure-mode tests ([docs/08 §8](docs/08-seed-data.md#8-failure-modes))
-- [ ] Copy ledger parity: 60 copies / 12 `checked_out` / 5 zero-copy verified after seed run
-- [ ] `internal/service/olbooks` Open Library client + fallbacks ([docs/08 §6](docs/08-seed-data.md#6-open-library-fallback))
+- [x] `api/mocks/building.json` + `books.json` with the exact fixture values of [docs/13 §2–4](docs/13-mock-data-reference.md#2-book-catalog-all-40)
+- [x] `internal/service/building.ResolvePath` ([docs/05 §4](docs/05-building-layout.md#4-wayfinding-resolution))
+- [x] `cmd/seed`: users → tree → books → copies; barcode counter (`ATH-002941-…`, [docs/08 §5](docs/08-seed-data.md#5-barcode-allocation)); deterministic, idempotent, `--reset`
+- [x] Seed failure-mode tests ([docs/08 §8](docs/08-seed-data.md#8-failure-modes))
+- [x] Copy ledger parity: 60 copies / 12 `checked_out` / 5 zero-copy verified after seed run
+- [x] `internal/service/olbooks` Open Library client + fallbacks ([docs/08 §6](docs/08-seed-data.md#6-open-library-fallback))
 - [ ] `cmd/reindex` chunker v1 (~300 tok, 50 overlap) + Ollama batch + upsert ([docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline))
+
+- [ ] Demo `user_library` (24 rows) + `waitlist` (2 rows) seeds per [docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library) — lands with Phase 6 (needs those features)
 
 ## 7. Phase 4 — Catalog & Search
 

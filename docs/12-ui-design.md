@@ -171,7 +171,7 @@ manifest-only rows in `.artifacts/stitch/stitch-manifest.json`.
 > four FIFE failures (rows 2–5). HTML is complete for rows 1–5 — export verified:
 > Sign In (WeChat disabled ✓ · role tabs ✓ · SAML row commented ✓ · "EST. 1884" ✓),
 > Catalog (Keyword/Semantic/Hybrid + ⌘K + "In Building" facet ✓), Book Detail
-> (ATH-002941-C1..C3, Floor 3 → Aisle A-1, "Row 4, Eye Level" ✓), My Library
+> (ATH-002941-C01..C3, Floor 3 → Aisle A-1, "Row 4, Eye Level" ✓), My Library
 > (In Collection / Currently Reading / Completed / Bookmarks / Want to Read ✓),
 > AI Librarian ("RAG Engine v2 • Claude 3.5 Sonnet", "/ 5" quota ✓)
 

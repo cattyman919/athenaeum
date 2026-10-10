@@ -92,18 +92,18 @@ Notes:
 
 | Book # | Title | Checked-out barcode |
 | --- | --- | --- |
-| 1 | Dune | `ATH-002941-C1` |
-| 2 | Neuromancer | `ATH-002942-C1` |
-| 5 | Foundation | `ATH-002945-C1` |
-| 11 | The Pragmatic Programmer | `ATH-002951-C1` |
-| 14 | Designing Data-Intensive Applications | `ATH-002954-C1` |
-| 21 | Sapiens: A Brief History of Humankind | `ATH-002961-C1` |
-| 3 | Hyperion | `ATH-002943-C1` |
-| 4 | The Left Hand of Darkness | `ATH-002944-C1` |
-| 7 | The Three-Body Problem | `ATH-002947-C1` |
-| 8 | Project Hail Mary | `ATH-002948-C1` |
-| 15 | Clean Code | `ATH-002955-C1` |
-| 20 | The C Programming Language | `ATH-002960-C1` |
+| 1 | Dune | `ATH-002941-C01` |
+| 2 | Neuromancer | `ATH-002942-C01` |
+| 5 | Foundation | `ATH-002945-C01` |
+| 11 | The Pragmatic Programmer | `ATH-002951-C01` |
+| 14 | Designing Data-Intensive Applications | `ATH-002954-C01` |
+| 21 | Sapiens: A Brief History of Humankind | `ATH-002961-C01` |
+| 3 | Hyperion | `ATH-002943-C01` |
+| 4 | The Left Hand of Darkness | `ATH-002944-C01` |
+| 7 | The Three-Body Problem | `ATH-002947-C01` |
+| 8 | Project Hail Mary | `ATH-002948-C01` |
+| 15 | Clean Code | `ATH-002955-C01` |
+| 20 | The C Programming Language | `ATH-002960-C01` |
 
 No `missing_lost` seeded in v1 — exercised only through admin UI mutations
 ([03 §8.3](03-api-spec.md#83-admin-copies)).
@@ -150,7 +150,7 @@ Row counts: 15 aisles · shelves per cabin: SCI 8, PER 4, HVA 7, REF 3, SF 18 = 
 
 | # | Title | Copies | Distribution |
 | --- | --- | --- | --- |
-| 1 | Dune | 3 | `ATH-002941-C1` `A-1/S-2` (checked_out) · C2 `A-1/S-2` · C3 `A-1/S-3` |
+| 1 | Dune | 3 | `ATH-002941-C01` `A-1/S-2` (checked_out) · C2 `A-1/S-2` · C3 `A-1/S-3` |
 | 2 | Neuromancer | 3 | C1 `A-1/S-2` (checked_out) · C2 `A-1/S-2` · C3 `A-2/S-1` |
 | 5 | Foundation | 3 | C1 (checked_out) · C2/C3 on `A-2/S-1` |
 | 6 | Snow Crash | 3 | C1 `A-2/S-2`, C2 `A-2/S-2`, C3 `A-2/S-3` |

@@ -1,0 +1,337 @@
+{
+  "building": {
+    "code": "MAIN",
+    "name": "Athenaeum Main Building",
+    "address": "1 Arsenal Library Way"
+  },
+  "floors": [
+    {
+      "floor_number": 1,
+      "name": "Reading Hall",
+      "sections": [
+        {
+          "code": "SCI",
+          "name": "Science, Mathematics & Tech",
+          "color": "#10B981",
+          "aisles": [
+            {
+              "code": "A-1",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                },
+                {
+                  "code": "S-3",
+                  "row_level": 2,
+                  "height_tier": "Low Stacks"
+                }
+              ]
+            },
+            {
+              "code": "A-2",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                },
+                {
+                  "code": "S-3",
+                  "row_level": 2,
+                  "height_tier": "Low Stacks"
+                }
+              ]
+            },
+            {
+              "code": "A-3",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "PER",
+          "name": "Periodicals & Archives",
+          "color": "#F59E0B",
+          "aisles": [
+            {
+              "code": "A-1",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                }
+              ]
+            },
+            {
+              "code": "A-2",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "floor_number": 2,
+      "name": "West Stacks",
+      "sections": [
+        {
+          "code": "HVA",
+          "name": "History, Humanities & Arts",
+          "color": "#8B5CF6",
+          "aisles": [
+            {
+              "code": "A-1",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                },
+                {
+                  "code": "S-3",
+                  "row_level": 2,
+                  "height_tier": "Low Stacks"
+                }
+              ]
+            },
+            {
+              "code": "A-2",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                }
+              ]
+            },
+            {
+              "code": "A-3",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "REF",
+          "name": "Reference & Special Folios",
+          "color": "#6B7280",
+          "aisles": [
+            {
+              "code": "A-1",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                }
+              ]
+            },
+            {
+              "code": "A-2",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "floor_number": 3,
+      "name": "North Stacks",
+      "sections": [
+        {
+          "code": "SF",
+          "name": "Science Fiction & Speculative",
+          "color": "#3B82F6",
+          "aisles": [
+            {
+              "code": "A-1",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                },
+                {
+                  "code": "S-3",
+                  "row_level": 2,
+                  "height_tier": "Low Stacks"
+                },
+                {
+                  "code": "S-4",
+                  "row_level": 5,
+                  "height_tier": "Tower Top"
+                }
+              ]
+            },
+            {
+              "code": "A-2",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                },
+                {
+                  "code": "S-3",
+                  "row_level": 2,
+                  "height_tier": "Low Stacks"
+                },
+                {
+                  "code": "S-4",
+                  "row_level": 5,
+                  "height_tier": "Tower Top"
+                }
+              ]
+            },
+            {
+              "code": "A-3",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                },
+                {
+                  "code": "S-3",
+                  "row_level": 2,
+                  "height_tier": "Low Stacks"
+                }
+              ]
+            },
+            {
+              "code": "A-4",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                },
+                {
+                  "code": "S-3",
+                  "row_level": 2,
+                  "height_tier": "Low Stacks"
+                }
+              ]
+            },
+            {
+              "code": "A-5",
+              "shelves": [
+                {
+                  "code": "S-1",
+                  "row_level": 3,
+                  "height_tier": "Mid Stacks"
+                },
+                {
+                  "code": "S-2",
+                  "row_level": 4,
+                  "height_tier": "Eye Level"
+                },
+                {
+                  "code": "S-3",
+                  "row_level": 2,
+                  "height_tier": "Low Stacks"
+                },
+                {
+                  "code": "S-4",
+                  "row_level": 5,
+                  "height_tier": "Tower Top"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

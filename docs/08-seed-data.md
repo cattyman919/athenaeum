@@ -74,11 +74,13 @@ Concrete hierarchy values: [13 §shelf inventory](13-mock-data-reference.md#4-sh
       "published_year": 1965,
       "description": "Having upset the subtle ecology ...",
       "section_code": "SF",
+      "dewey_num": "813.54",
+      "loc_num": "PS3558.E63 D8 1965",
       "open_library_key": null,
       "copies": [
-        { "barcode": "ATH-002941-C1", "status": "available", "condition": "good", "shelf_path": "MAIN/3F/SF/A-1/S-2" },
-        { "barcode": "ATH-002941-C2", "status": "available", "condition": "good", "shelf_path": "MAIN/3F/SF/A-1/S-2" },
-        { "barcode": "ATH-002941-C3", "status": "available", "condition": "fair", "shelf_path": "MAIN/3F/SF/A-1/S-2" }
+        { "barcode": "ATH-002941-C01", "status": "checked_out", "condition": "good", "shelf_path": "MAIN/3F/SF/A-1/S-2" },
+        { "barcode": "ATH-002941-C02", "status": "available", "condition": "good", "shelf_path": "MAIN/3F/SF/A-1/S-2" },
+        { "barcode": "ATH-002941-C03", "status": "available", "condition": "fair", "shelf_path": "MAIN/3F/SF/A-1/S-3" }
       ]
     }
   ]
@@ -87,6 +89,7 @@ Concrete hierarchy values: [13 §shelf inventory](13-mock-data-reference.md#4-sh
 
 | Field | Rules |
 | --- | --- |
+| `dewey_num`, `loc_num` | optional demo classification strings copied to `books.dewey_num` / `books.loc_num` |
 | `isbn13` | optional; when present must pass EAN-13 checkdigit (validated by seed via `pkg/checkdigit`) |
 | `section_code` | must match a seeded section code |
 | `copies[].barcode` | optional — auto-allocated when omitted ([§5](#5-barcode-allocation)); format `ATH-[0-9]{6}-C[0-9]{2}` ([02](02-data-model.md#book_copies)) |
@@ -109,7 +112,7 @@ Concrete hierarchy values: [13 §shelf inventory](13-mock-data-reference.md#4-sh
      b. resolve section_id from section_code; upsert by isbn13 else title+first author
      c. for each copy: resolve shelf_path → shelf_id (unknown path = hard failure,
         see §8); allocate barcode if omitted (§5); INSERT/ON CONFLICT (barcode) DO UPDATE
-     d. append copy_events row per copy (from_status NULL → status, source 'seed')
+     d. append a copy_events row for each newly inserted copy (from_status NULL → status, source 'seed')
 5. print counts: users, books, copies, shelves — expect 2/40/60/40 (docs/13 §1)
 6. remind: 'cd .. && go run ./cmd/reindex' (embeddings, docs/06 §2)
 ```
@@ -122,14 +125,14 @@ Concrete hierarchy values: [13 §shelf inventory](13-mock-data-reference.md#4-sh
 ## 5. Barcode Allocation
 
 Accession numbers are a single building-wide counter so the DESIGN.md example
-(`ATH-002941-C1`, book #1 of the catalog — [13](13-mock-data-reference.md)) stays fixed:
+(`ATH-002941-C01`, book #1 of the catalog — [13](13-mock-data-reference.md)) stays fixed:
 
 ```
 accession(counter) = 002940 + book_index          # book 1 → 002941
 book.book_copies: copy n → ATH-{accession}-C{n}    # n zero-padded to 2
 ```
 
-- Explicit `barcode` in mocks for book #1 Dune (`ATH-002941-C1..C3`) — seed
+- Explicit `barcode` in mocks for book #1 Dune (`ATH-002941-C01..C3`) — seed
   cross-checks generated vs explicit values and errors on drift.
 - Admin-created books continue the same counter (`POST /api/admin/copies` without
   barcode — [03 §8.3](03-api-spec.md#83-admin-copies)).
@@ -183,7 +186,7 @@ Trigger manually after changing `OLLAMA_EMBED_DIM`/model or `chunker_version`
 ## 9. Idempotency & Reset
 
 - Re-running is safe: every upsert is keyed by natural keys, so counts stay
-  identical; only `updated_at` and seeded `copy_events` rows change.
+  identical; only `updated_at` changes. `copy_events` seed rows are written once, when a copy is first inserted.
 - `--reset` truncates `book_copies, copy_events, book_embeddings, user_library,
   waitlist, books, conversations, messages, shelves, aisles, sections, floors,
   buildings` (children first, `users`/`refresh_tokens` untouched) then reseeds.

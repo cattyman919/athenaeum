@@ -241,7 +241,7 @@ Response 200:
   "copies": [
     {
       "id": "b1e3…",
-      "barcode": "ATH-002941-C1",
+      "barcode": "ATH-002941-C01",
       "status": "available",
       "condition": "good",
       "last_state_change": "2026-10-01T09:15:00Z",
@@ -430,7 +430,7 @@ stream" (client-server polling every 3 s; WebSockets out of scope
 { "items": [
   {
     "id": 771,
-    "barcode": "ATH-002941-C2",
+    "barcode": "ATH-002941-C02",
     "book_title": "Dune",
     "from_status": "checked_out",
     "to_status": "available",
@@ -456,7 +456,7 @@ plus `updated_at`).
 
 ### 8.3 Admin copies
 
-- `POST /api/admin/copies` body `{"book_id":"…","barcode?":"ATH-002941-C4","shelf_path":"MAIN/3F/SF/A-1/S-2","status":"available","condition":"fair"}`
+- `POST /api/admin/copies` body `{"book_id":"…","barcode?":"ATH-002941-C04","shelf_path":"MAIN/3F/SF/A-1/S-2","status":"available","condition":"fair"}`
   → 201 row; unknown shelf_path → 404 `NOT_FOUND` (resolution algorithm: [05](./05-building-layout.md#4-wayfinding-resolution)).
 - `PATCH /api/admin/copies/{id}` body `{"status":"checked_out","shelf_id":"…","condition":"missing"}`
   → 200; appends `copy_events` row (`from_status ≠ to_status` recorded). Barcode is
@@ -482,7 +482,7 @@ Barcode state machine semantics: [12-ui-design.md](./12-ui-design.md#10-copy-sta
   "height_tier": "Eye Level",
   "occupancy": { "occupied": 38, "total": 45 },
   "copies": [
-    { "id": "b1e3…", "barcode": "ATH-002941-C1", "status": "available", "book_id": "8c14…", "title": "Dune" }
+    { "id": "b1e3…", "barcode": "ATH-002941-C01", "status": "available", "book_id": "8c14…", "title": "Dune" }
   ]
 }
 ```

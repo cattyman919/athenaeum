@@ -250,7 +250,7 @@ CREATE UNIQUE INDEX books_isbn13_key ON books (isbn13) WHERE isbn13 IS NOT NULL;
 CREATE TABLE book_copies (
   id               UUID PRIMARY KEY,
   book_id          UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
-  barcode          TEXT NOT NULL CHECK (barcode ~ '^ATH-[0-9]{6}-C[0-9]{2}$'),  -- ATH-002941-C1
+  barcode          TEXT NOT NULL CHECK (barcode ~ '^ATH-[0-9]{6}-C[0-9]{2}$'),  -- ATH-002941-C01 (copy numbers are 2-digit)
   status           TEXT NOT NULL DEFAULT 'available'
                    CHECK (status IN ('available','checked_out','reserved_waitlist','missing_lost')),
   condition        TEXT NOT NULL DEFAULT 'good',
