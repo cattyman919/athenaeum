@@ -4,13 +4,16 @@ import { getTranslations } from "next-intl/server";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { AvailabilityBanner } from "@/components/availability-banner";
 import { BookCover } from "@/components/book-cover";
+import { BookLibraryActions } from "@/components/book-library-actions";
+import { WaitlistCta, type HoldState } from "@/components/waitlist-cta";
 import { BookLocationCard } from "@/components/book-location-card";
 import { CopyManifest } from "@/components/copy-manifest";
 import { NeighborCarousel } from "@/components/neighbor-carousel";
 import { buttonVariants } from "@/components/ui/button";
 import { apiServer } from "@/lib/api-server";
-import type { BookDetail } from "@/lib/types";
+import type { BookDetail, WaitlistItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { sectionLabel } from "@/lib/wayfinding";
 
 async function loadBook(id: string): Promise<BookDetail> {
   const res = await apiServer(`/api/books/${encodeURIComponent(id)}`);
@@ -19,15 +22,32 @@ async function loadBook(id: string): Promise<BookDetail> {
   return (await res.json()) as BookDetail;
 }
 
+/** The caller's active hold on this book, from GET /api/waitlist (docs/03 §6.3). */
+async function loadHold(id: string): Promise<HoldState | null> {
+  try {
+    const res = await apiServer("/api/waitlist");
+    if (!res.ok) return null;
+    const { items } = (await res.json()) as { items: WaitlistItem[] };
+    const h = items.find((w) => w.book.id === id);
+    return h ? { status: h.status, position: h.position, expires_at: h.expires_at } : null;
+  } catch {
+    return null;
+  }
+}
+
 // Screen 3 — Stitch 723960ca… Book Detail (docs/07 §7, docs/05 §5, docs/12 screen 3).
 export default async function BookPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [book, t, tRecord] = await Promise.all([
+  const [book, t, tRecord, hold] = await Promise.all([
     loadBook(id),
     getTranslations("book"),
     getTranslations("book.record"),
+    loadHold(id),
   ]);
   const none = tRecord("none");
+  // Section chip/breadcrumb in the active locale (docs/14 §6.1); raw name is the fallback.
+  const tWay = await getTranslations("wayfinding");
+  const sectionName = book.section ? sectionLabel(tWay, book.section.code, book.section.name) : "";
 
   const record: Array<[string, string | number | null]> = [
     [tRecord("isbn13"), book.isbn13],
@@ -51,7 +71,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
           <>
             <ChevronRight className="h-3 w-3" aria-hidden />
             <Link href={`/catalog?section=${book.section.code}`} className="hover:text-foreground">
-              {book.section.name}
+              {sectionName}
             </Link>
           </>
         )}
@@ -115,7 +135,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
                     style={{ backgroundColor: book.section.color }}
                     aria-hidden
                   />
-                  {book.section.name}
+                  {sectionName}
                 </span>
               )}
               {book.published_year && (
@@ -131,7 +151,17 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
             </p>
           </header>
 
-          <AvailabilityBanner availability={book.availability} />
+          <BookLibraryActions bookId={book.id} entry={book.my_library_entry} />
+
+          <AvailabilityBanner availability={book.availability}>
+            {book.availability.available_copies === 0 && (
+              <WaitlistCta
+                key={hold ? `${hold.status}:${hold.position}` : "none"}
+                bookId={book.id}
+                hold={hold}
+              />
+            )}
+          </AvailabilityBanner>
 
           <BookLocationCard wayfinding={book.wayfinding} />
 

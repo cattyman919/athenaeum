@@ -3,6 +3,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { BookOpen, Sparkles } from "lucide-react";
 import { BookCover } from "@/components/book-cover";
 import { LeaveWaitlistButton } from "@/components/leave-waitlist-button";
+import { LibraryRowActions } from "@/components/library-row-actions";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { apiServer } from "@/lib/api-server";
@@ -156,7 +157,7 @@ export default async function LibraryPage({
               key={it.book.id}
               data-testid="library-row"
               data-title={it.book.title}
-              className="flex items-center gap-4 rounded-lg border border-border bg-card p-4"
+              className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-card p-4 md:flex-nowrap"
             >
               <div className="w-12 shrink-0">
                 <BookCover src={it.book.cover_url} alt={it.book.title} title={it.book.title} />
@@ -185,7 +186,6 @@ export default async function LibraryPage({
                       {t("row.progress", { pct: it.progress_pct })}
                     </span>
                   )}
-                  {it.rating !== null && <span>{t("row.rating", { stars: it.rating })}</span>}
                   {it.is_favorite && (
                     <span className="font-medium text-accent" data-testid="row-favorite">
                       ★ {enumLabel(tEnums, "readingStage", "favorites")}
@@ -193,6 +193,13 @@ export default async function LibraryPage({
                   )}
                 </div>
               </div>
+              <LibraryRowActions
+                bookId={it.book.id}
+                title={it.book.title}
+                status={it.status}
+                isFavorite={it.is_favorite}
+                rating={it.rating}
+              />
             </li>
           ))}
         </ul>

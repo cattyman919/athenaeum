@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { enumLabel } from "@/lib/enum-labels";
 import type { CopyDetail } from "@/lib/types";
+import { shelfLine } from "@/lib/wayfinding";
 
 const VARIANT: Record<string, "available" | "out" | "unavailable"> = {
   available: "available",
@@ -13,9 +14,10 @@ const VARIANT: Record<string, "available" | "out" | "unavailable"> = {
 
 /** Physical copy manifest: one row per `book_copies` row (docs/05 §5). */
 export async function CopyManifest({ copies }: { copies: CopyDetail[] }) {
-  const [t, tEnums, format] = await Promise.all([
+  const [t, tEnums, tWay, format] = await Promise.all([
     getTranslations("book.manifest"),
     getTranslations("enums"),
+    getTranslations("wayfinding"),
     getFormatter(),
   ]);
   return (
@@ -57,8 +59,21 @@ export async function CopyManifest({ copies }: { copies: CopyDetail[] }) {
                         {enumLabel(tEnums, "copyStatus", c.status)}
                       </Badge>
                     </td>
-                    <td className="mono-label py-3 pr-4 text-muted-foreground">
-                      {c.location?.path ?? t("unshelved")}
+                    <td className="py-3 pr-4 text-muted-foreground">
+                      {c.location ? (
+                        <div className="flex flex-col gap-0.5">
+                          {c.location.parts && (
+                            <span className="text-sm text-foreground" data-testid="copy-shelf-line">
+                              {shelfLine(tWay, c.location.parts)}
+                            </span>
+                          )}
+                          <span className="mono-label" data-testid="copy-path">
+                            {c.location.path}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="mono-label">{t("unshelved")}</span>
+                      )}
                     </td>
                     <td className="py-3 text-xs text-muted-foreground">
                       {format.dateTime(new Date(c.last_state_change), { dateStyle: "medium" })}

@@ -48,6 +48,7 @@ test.describe("/books/[id] — screen 3 (docs/05 §5, docs/07 §7)", () => {
     await expect(rows.nth(0).getByTestId("copy-status")).toHaveText("Checked Out");
     await expect(rows.nth(1).getByTestId("copy-status")).toHaveText("Available");
     await expect(rows.nth(2)).toContainText("MAIN/3F/SF/A-1/S-3");
+    await expect(rows.nth(2).getByTestId("copy-shelf-line")).toHaveText("Floor 3 • Shelf S-3");
 
     // Affinity carousel + Ask-AI deep link.
     await expect(
@@ -102,6 +103,20 @@ test.describe("/books/[id] — screen 3 (docs/05 §5, docs/07 §7)", () => {
       "已借出",
     );
     await expect(page.getByTestId("wayfinding-path")).toHaveText("MAIN/3F/SF/A-1/S-2"); // machine strings stay
+    // Wayfinding is composed from structured parts in Chinese; codes stay as stored (docs/14 §6.1).
+    await expect(page.getByTestId("ladder-steps").getByRole("listitem")).toHaveText([
+      "13 楼 — 北区书库",
+      "2分区：科幻与奇幻",
+      "3A-1 通道",
+      "4书架 S-2 — 第 4 层，平视高度",
+    ]);
+    await expect(page.getByTestId("book-section")).toHaveText("科幻与奇幻");
+    const firstCopy = page.getByTestId("copy-row").first();
+    await expect(firstCopy.getByTestId("copy-shelf-line")).toHaveText("3 楼 • 书架 S-2");
+    await expect(firstCopy.getByTestId("copy-path")).toHaveText("MAIN/3F/SF/A-1/S-2");
+    for (const leak of ["North Stacks", "Eye Level", "Science Fiction & Speculative"]) {
+      await expect(page.getByTestId("book-detail").getByText(leak)).toHaveCount(0);
+    }
     await page.getByTestId("lang-en").click();
     await expect(page.getByTestId("availability-banner")).toContainText("Available in Building");
   });

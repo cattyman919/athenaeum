@@ -1,6 +1,8 @@
 // Browser API client (docs/07 §4–5): same-origin /api/* proxy, single 401 → refresh retry,
 // typed functions mirroring docs/03 route-for-route.
 
+import type { ConversationDetail, ConversationPage, ConversationSummary } from "./types";
+
 export interface User {
   id: string;
   email: string;
@@ -29,7 +31,8 @@ export interface ClientOptions {
   onExpired?: () => void;
 }
 
-async function toError(res: Response): Promise<ApiError> {
+/** Parses a docs/03 JSON error envelope into an ApiError. */
+export async function toError(res: Response): Promise<ApiError> {
   let body: Record<string, unknown> | undefined;
   try {
     body = (await res.json()) as Record<string, unknown>;
@@ -96,7 +99,67 @@ export function createApiClient(opts: ClientOptions = {}) {
         body: JSON.stringify({ name, email, password }),
       }).then((r) => r.user),
     logout: () => json<void>("/api/auth/logout", { method: "POST" }),
+
+    // Personal library (docs/03 §6.2). `force` bypasses the soft 409 BOOK_NOT_AVAILABLE.
+    addToLibrary: (bookId: string, status?: ReadingStatus, opts: { force?: boolean } = {}) =>
+      json<LibraryEntry>(`/api/library${opts.force ? "?force=true" : ""}`, {
+        method: "POST",
+        body: JSON.stringify(status ? { book_id: bookId, status } : { book_id: bookId }),
+      }),
+    patchLibrary: (bookId: string, patch: LibraryPatch) =>
+      json<LibraryEntry>(`/api/library/${encodeURIComponent(bookId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    removeFromLibrary: (bookId: string) =>
+      json<void>(`/api/library/${encodeURIComponent(bookId)}`, { method: "DELETE" }),
+
+    // Waitlist (docs/03 §6.3).
+    joinWaitlist: (bookId: string) =>
+      json<WaitlistJoin>(`/api/books/${encodeURIComponent(bookId)}/waitlist`, { method: "POST" }),
+    leaveWaitlist: (bookId: string) =>
+      json<void>(`/api/books/${encodeURIComponent(bookId)}/waitlist`, { method: "DELETE" }),
+
+    // AI Librarian conversations (docs/03 §7). The SSE turn lives in hooks/use-chat-stream.ts.
+    listConversations: (perPage = 50) =>
+      json<ConversationPage>(`/api/chat/conversations?per_page=${perPage}`),
+    createConversation: (title?: string) =>
+      json<ConversationSummary>("/api/chat/conversations", {
+        method: "POST",
+        body: JSON.stringify(title ? { title } : {}),
+      }),
+    getConversation: (id: string) =>
+      json<ConversationDetail>(`/api/chat/conversations/${encodeURIComponent(id)}`),
+    deleteConversation: (id: string) =>
+      json<void>(`/api/chat/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
   };
+}
+
+export type ReadingStatus = "want_to_read" | "reading" | "read";
+
+export interface LibraryPatch {
+  status?: ReadingStatus;
+  is_favorite?: boolean;
+  progress_pct?: number | null;
+  rating?: number | null;
+}
+
+export interface LibraryEntry {
+  status: ReadingStatus;
+  is_favorite: boolean;
+  progress_pct: number | null;
+  rating: number | null;
+}
+
+export interface WaitlistJoin {
+  id: string;
+  status: "waiting" | "ready";
+  position: number;
+}
+
+/** True for the soft 409 raised when a zero-copy book is first marked `reading`. */
+export function isBookNotAvailable(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 409 && err.code === "BOOK_NOT_AVAILABLE";
 }
 
 function expireRedirect() {

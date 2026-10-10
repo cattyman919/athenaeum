@@ -187,6 +187,36 @@
     "hint": "Type to search",
     "close": "Close"
   },
+  "wayfinding": {
+    "building": {
+      "MAIN": "Athenaeum Main Building"
+    },
+    "floor": {
+      "1": "Reading Hall",
+      "2": "West Stacks",
+      "3": "North Stacks"
+    },
+    "section": {
+      "SCI": "Science, Mathematics & Tech",
+      "PER": "Periodicals & Archives",
+      "HVA": "History, Humanities & Arts",
+      "REF": "Reference & Special Folios",
+      "SF": "Science Fiction & Speculative"
+    },
+    "tier": {
+      "low_stacks": "Low Stacks",
+      "mid_stacks": "Mid Stacks",
+      "eye_level": "Eye Level",
+      "tower_top": "Tower Top"
+    },
+    "step": {
+      "floor": "Floor {n} — {name}",
+      "section": "Section: {name}",
+      "aisle": "Aisle {code}",
+      "shelf": "Shelf {code} — Row {row}, {tier}"
+    },
+    "shelfLine": "Floor {n} • Shelf {code}"
+  },
   "book": {
     "breadcrumb": {
       "catalog": "Catalog"
@@ -314,6 +344,7 @@
     "favorite": "Favorite",
     "unfavorite": "Remove favorite",
     "remove": "Remove",
+    "rate": "Your rating",
     "added": "Added to your library",
     "updated": "Library updated",
     "removed": "Removed from your library",
@@ -329,10 +360,95 @@
   "waitlist": {
     "join": "Join waitlist",
     "leave": "Leave waitlist",
+    "hint": "We'll hold the next returned copy for you (in-app notice, 48 h to collect).",
     "position": "You are #{position} in the waitlist queue",
     "ready": "Your copy is ready — collect it by {date}",
     "joined": "You joined the waitlist",
     "left": "You left the waitlist",
     "error": "We couldn't update the waitlist. Please try again."
+  },
+  "chat": {
+    "title": "AI Librarian",
+    "subtitle": "Research assistant grounded in the Athenaeum catalog",
+    "conversations": {
+      "heading": "Conversations",
+      "new": "New conversation",
+      "empty": "No conversations yet",
+      "untitled": "New conversation",
+      "delete": "Delete conversation “{title}”",
+      "deleted": "Conversation deleted",
+      "deleteError": "We couldn't delete the conversation. Please try again.",
+      "loadError": "We couldn't load this conversation."
+    },
+    "telemetry": {
+      "label": "Telemetry",
+      "engine": "RAG Engine v2",
+      "modelPending": "Model pending",
+      "latency": "Latency",
+      "latencyValue": "{first} ms first token · {total} ms total",
+      "tokens": "Tokens",
+      "tokensValue": "{in} in · {out} out",
+      "turn": "Turn {n}"
+    },
+    "quota": {
+      "label": "Research quota",
+      "minute": "Per minute",
+      "daily": "Today",
+      "value": "{used} / {limit}",
+      "unknown": "— / {limit}"
+    },
+    "thread": {
+      "label": "Conversation with the AI Librarian",
+      "you": "You",
+      "librarian": "AI Librarian",
+      "thinking": "Consulting the catalog…",
+      "streaming": "The librarian is responding…",
+      "complete": "Response complete",
+      "stopped": "Response stopped",
+      "dailyExhausted": "Today's research quota is used up — the librarian will be back tomorrow."
+    },
+    "tools": {
+      "label": "Tool activity",
+      "running": "running…",
+      "search_catalog": "Searched the catalog",
+      "get_book_location": "Located a shelf",
+      "check_availability": "Checked availability",
+      "recommend_similar": "Found nearby books",
+      "unknown": "Used {name}"
+    },
+    "citations": {
+      "heading": "Sources",
+      "open": "Open {title}",
+      "match": "Match {pct}%",
+      "noShelf": "No shelf location on record",
+      "pathLabel": "Shelf path"
+    },
+    "composer": {
+      "label": "Message the AI Librarian",
+      "placeholder": "Ask about a topic, a title, or where to find a book…",
+      "send": "Send",
+      "stop": "Stop",
+      "hint": "Enter to send · Shift+Enter for a new line"
+    },
+    "empty": {
+      "title": "How can I help your research?",
+      "body": "Ask in plain language — answers cite real shelves in this building.",
+      "suggestions": {
+        "babylonian": "Where can I find books on Babylonian mathematics?",
+        "scifi": "Recommend a classic science fiction novel like Dune",
+        "availability": "Is Designing Data-Intensive Applications on the shelf?"
+      }
+    },
+    "errors": {
+      "generic": "The librarian couldn't finish this answer.",
+      "rateLimited": "Rate limit reached — try again {when}.",
+      "rateLimitedSoon": "Rate limit reached — try again shortly.",
+      "cap": "This conversation reached its {limit}-message limit. Start a new conversation.",
+      "upstream": "The AI service is unavailable right now.",
+      "network": "Connection lost before the answer finished.",
+      "interrupted": "The answer stream was interrupted.",
+      "retry": "Retry",
+      "startNew": "Start a new conversation"
+    }
   }
 }

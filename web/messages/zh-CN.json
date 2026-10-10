@@ -187,6 +187,36 @@
     "hint": "输入以搜索",
     "close": "关闭"
   },
+  "wayfinding": {
+    "building": {
+      "MAIN": "雅典娜图书馆主楼"
+    },
+    "floor": {
+      "1": "阅览大厅",
+      "2": "西区书库",
+      "3": "北区书库"
+    },
+    "section": {
+      "SCI": "科学、数学与技术",
+      "PER": "期刊与档案",
+      "HVA": "历史、人文与艺术",
+      "REF": "参考与特藏",
+      "SF": "科幻与奇幻"
+    },
+    "tier": {
+      "low_stacks": "底层书架",
+      "mid_stacks": "中层书架",
+      "eye_level": "平视高度",
+      "tower_top": "顶层书架"
+    },
+    "step": {
+      "floor": "{n} 楼 — {name}",
+      "section": "分区：{name}",
+      "aisle": "{code} 通道",
+      "shelf": "书架 {code} — 第 {row} 层，{tier}"
+    },
+    "shelfLine": "{n} 楼 • 书架 {code}"
+  },
   "book": {
     "breadcrumb": {
       "catalog": "馆藏目录"
@@ -314,6 +344,7 @@
     "favorite": "收藏",
     "unfavorite": "取消收藏",
     "remove": "移除",
+    "rate": "你的评分",
     "added": "已加入你的书架",
     "updated": "书架已更新",
     "removed": "已从书架移除",
@@ -329,10 +360,95 @@
   "waitlist": {
     "join": "加入候补",
     "leave": "退出候补",
+    "hint": "归还的下一本将为你保留（站内通知，48 小时内领取）。",
     "position": "你在候补队列中排第 {position} 位",
     "ready": "你的副本已就绪 — 请在 {date} 前领取",
     "joined": "已加入候补",
     "left": "已退出候补",
     "error": "无法更新候补，请重试。"
+  },
+  "chat": {
+    "title": "AI 图书管理员",
+    "subtitle": "基于雅典娜馆藏的研究助手",
+    "conversations": {
+      "heading": "对话",
+      "new": "新建对话",
+      "empty": "暂无对话",
+      "untitled": "新对话",
+      "delete": "删除对话“{title}”",
+      "deleted": "对话已删除",
+      "deleteError": "无法删除对话，请重试。",
+      "loadError": "无法加载此对话。"
+    },
+    "telemetry": {
+      "label": "运行信息",
+      "engine": "RAG 引擎 v2",
+      "modelPending": "模型待定",
+      "latency": "延迟",
+      "latencyValue": "首字 {first} 毫秒 · 共 {total} 毫秒",
+      "tokens": "令牌",
+      "tokensValue": "输入 {in} · 输出 {out}",
+      "turn": "第 {n} 轮"
+    },
+    "quota": {
+      "label": "研究配额",
+      "minute": "每分钟",
+      "daily": "今日",
+      "value": "{used} / {limit}",
+      "unknown": "— / {limit}"
+    },
+    "thread": {
+      "label": "与 AI 图书管理员的对话",
+      "you": "你",
+      "librarian": "AI 图书管理员",
+      "thinking": "正在查询馆藏…",
+      "streaming": "图书管理员正在回复…",
+      "complete": "回复完成",
+      "stopped": "回复已停止",
+      "dailyExhausted": "今日研究配额已用完，请明天再来。"
+    },
+    "tools": {
+      "label": "工具调用",
+      "running": "进行中…",
+      "search_catalog": "检索了馆藏目录",
+      "get_book_location": "定位了书架",
+      "check_availability": "查询了在架情况",
+      "recommend_similar": "找到了邻近图书",
+      "unknown": "使用了 {name}"
+    },
+    "citations": {
+      "heading": "引用来源",
+      "open": "打开《{title}》",
+      "match": "匹配度 {pct}%",
+      "noShelf": "暂无书架位置记录",
+      "pathLabel": "书架路径"
+    },
+    "composer": {
+      "label": "向 AI 图书管理员提问",
+      "placeholder": "询问主题、书名或图书位置…",
+      "send": "发送",
+      "stop": "停止",
+      "hint": "Enter 发送 · Shift+Enter 换行"
+    },
+    "empty": {
+      "title": "需要什么研究帮助？",
+      "body": "用自然语言提问——回答会引用本馆真实书架。",
+      "suggestions": {
+        "babylonian": "哪里可以找到关于巴比伦数学的书？",
+        "scifi": "推荐一部类似《沙丘》的经典科幻小说",
+        "availability": "《数据密集型应用系统设计》在架吗？"
+      }
+    },
+    "errors": {
+      "generic": "图书管理员未能完成此回答。",
+      "rateLimited": "已达到频率限制，请{when}再试。",
+      "rateLimitedSoon": "已达到频率限制，请稍后再试。",
+      "cap": "此对话已达到 {limit} 条消息上限，请新建对话。",
+      "upstream": "AI 服务暂时不可用。",
+      "network": "回答完成前连接已断开。",
+      "interrupted": "回答流已中断。",
+      "retry": "重试",
+      "startNew": "新建对话"
+    }
   }
 }

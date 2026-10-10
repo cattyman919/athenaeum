@@ -38,13 +38,27 @@ export interface SearchResponse {
   meta: PageMeta;
 }
 
+/** Structured shelf location (docs/03 §5.2); localized via `wayfinding.*` (docs/14 §6.1). */
+export interface LocationParts {
+  building_code: string;
+  building_name: string;
+  floor_number: number;
+  floor_name: string;
+  section_code: string;
+  section_name: string;
+  aisle_code: string;
+  shelf_code: string;
+  row_level: number;
+  height_tier: string;
+}
+
 export interface CopyDetail {
   id: string;
   barcode: string;
   status: string;
   condition: string;
   last_state_change: string;
-  location: { path: string; ladder: string } | null;
+  location: { path: string; ladder: string; parts: LocationParts } | null;
 }
 
 export interface Neighbor {
@@ -70,9 +84,14 @@ export interface BookDetail {
   section: SectionRef | null;
   availability: { total_copies: number; available_copies: number; state: string };
   copies: CopyDetail[];
-  wayfinding: { path: string; ladder_steps: string[] } | null;
+  wayfinding: { path: string; parts: LocationParts; ladder_steps: string[] } | null;
   neighbors: Neighbor[];
-  my_library_entry: { status: string; is_favorite: boolean } | null;
+  // `rating` is read when present (forward-compatible); docs/03 §5.2 lists status + is_favorite.
+  my_library_entry: {
+    status: "want_to_read" | "reading" | "read";
+    is_favorite: boolean;
+    rating?: number | null;
+  } | null;
 }
 
 export interface LibraryItem {
@@ -100,4 +119,78 @@ export interface WaitlistItem {
   ready_at?: string;
   expires_at?: string;
   book: { id: string; title: string; cover_url: string | null; authors: string[] };
+}
+
+// AI Librarian chat (docs/03 §7, SSE payloads docs/06 §6).
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  updated_at: string;
+}
+
+export interface ConversationPage {
+  items: ConversationSummary[];
+  meta: PageMeta;
+}
+
+export type ChatRole = "system" | "user" | "assistant" | "tool";
+
+/** messages.tool_meta for tool rows: {tool_call_id, name, args, result} (docs/06 §7). */
+export interface ChatToolMeta {
+  tool_call_id: string;
+  name: string;
+  args: unknown;
+  result: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: ChatRole;
+  content: string | null;
+  tool_meta: ChatToolMeta | null;
+  created_at: string;
+}
+
+export interface ConversationDetail {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+}
+
+export interface ChatCitation {
+  book_id: string;
+  title: string;
+  path: string | null;
+  snippet: string;
+  score: number;
+}
+
+export interface ChatMetaEvent {
+  conversation_id: string;
+  turn: number;
+  model: string;
+  locale: string;
+}
+
+export interface ChatToolCallEvent {
+  id: string;
+  name: string;
+  args: unknown;
+}
+
+export interface ChatToolResultEvent {
+  id: string;
+  summary: string;
+}
+
+export interface ChatDoneEvent {
+  message_id: string;
+  tokens_in: number;
+  tokens_out: number;
+  finish_reason: "stop" | "rate_limited_daily";
+}
+
+export interface ChatErrorEvent {
+  code: string;
+  message: string;
 }
