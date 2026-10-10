@@ -6,6 +6,7 @@
 
 1. [How to Use This File](#1-how-to-use-this-file)
 2. [Current State](#2-current-state)
+   - [2a. Handoff Brief](#2a-handoff-brief-read-first-when-resuming)
 3. [Phase 0 — Repo & Scaffolding](#3-phase-0--repo--scaffolding)
 4. [Phase 1 — Infrastructure & DB](#4-phase-1--infrastructure--db)
 5. [Phase 2 — Auth](#5-phase-2--auth)
@@ -45,6 +46,61 @@ Rules for any AI session (or human) continuing this project:
 | Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); re-exports pending + chat-screen regen for the mic ([§17](#17-open-todo-registry-from-docs)) |
 | Stack pins | Go 1.27 · Next.js 15 · Postgres 16 + pgvector · Redis 7 · Ollama `nomic-embed-text` (768) · OpenRouter Claude 3.5 Sonnet · faster-whisper `small` · next-intl · Playwright |
 | Demo accounts | `admin@` / `demo@athenaeum.dev` · password `athenaeum-demo` ([docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library)) |
+
+## 2a. Handoff Brief (read first when resuming)
+
+**Source of truth for order of work:** `.kilo/plans/1791614343948-athenaeum-v1-implementation-plan.md` (milestones M0–M12).
+Docs in `docs/` are the contract; deviations were edited into the owning doc in the same commit.
+
+**State at last session (2026-10-10):** `main` is pushed; M0–M6 complete, **M7 partial**, M8–M12 not started.
+CI was green through the M6 push; the M7 run (library/waitlist) was still in flight — check `gh run list`.
+
+**Next actions, in order**
+1. Finish M7 web: book-detail "Add to My Library" menu (status/favorite/rating/remove), 409 `BOOK_NOT_AVAILABLE`
+   dialog (join waitlist / add anyway → `?force=true`), banner waitlist CTA (`waitlist.*`, `bookActions.*` keys already
+   exist in both catalogs), inline `/library` row editing. Add Playwright for the 409 → waitlist journey on a zero-copy book.
+2. **Wayfinding i18n fix** (Phase 11 task; spec in [docs/14 §6.1](docs/14-localization.md#61-wayfinding-vocabulary)):
+   ladder, section chips and shelf lines are English in zh-CN today. Needs additive `wayfinding.parts` /
+   `copies[].location.parts` in `GET /api/books/{id}` + `wayfinding.*` catalog keys + tests.
+3. M8 chat → M9 voice → M10 scanner → M11 admin → M12 polish (see plan). Chat/voice need `api/cmd/e2e-stubs`
+   (fake ChatModel + Whisper) wired into `web/playwright.config.ts` `webServer` (not built yet).
+4. Also still open: `Externalize strings on screens 1–5` (screens 4–5 partly), CJK/locale for chat, zh RAG note.
+
+**Implemented surface (for orientation)**
+- API (`api/`): config, slog, middleware (request-id, recover, CORS, Redis rate limiter with all docs/03 buckets),
+  auth (argon2id, HS256 JWT cookies `athenaeum_at`/`athenaeum_rt`, refresh rotation + replay detection, Google OIDC),
+  catalog (`/api/books/search` keyword/semantic/hybrid, `/api/books/{id}`), library + waitlist (+5-min sweeper),
+  seed (`cmd/seed`), reindex (`cmd/reindex`), migrations 0001–0005. Layering: handler → service (defines repo
+  interfaces) → repository; manual DI in `cmd/api/main.go`. Test helpers: `internal/testutil/{pgtest,memauth}`.
+- Web (`web/`): Next 15.5 App Router, Tailwind 3.4 tokens, next-intl (cookie `athenaeum_lang`, no URL prefix),
+  middleware guard with refresh rotation, pages `/login`, `/catalog`, `/books/[id]`, `/library` (read-only so far);
+  `/chat` is a placeholder, `/admin` does not exist.
+- Mock data: `api/mocks/{building,books,library}.json` (docs/13 parity enforced by tests).
+
+**Decisions / deviations already recorded in docs** (do not re-litigate): Go 1.27 + Node 26; barcodes use 2-digit copy
+numbers (`ATH-002941-C01`); `users_email_lower_key` DDL needs double parens; hybrid search returns the union of both
+rankings; demo favorites list uses *Designing Data-Intensive Applications* instead of *Zen…* (24/7 totals hold);
+`/api/library` response has additive `counts` and `kind`; `GOOGLE_OAUTH_ISSUER` env added; compose `api`/`web` sit behind
+profile `app`; web Dockerfile installs pnpm via npm (no corepack in Node 26); E2E uses real Ollama, chat/Whisper stubbed.
+
+**Gotchas that cost time**
+- Run **one simple shell command per call**; parallel tool calls that depend on each other race (e.g. `go mod tidy` vs `go test`).
+- Docker Desktop must be running (`open -a Docker`) for compose, testcontainers and E2E; tests skip pgtest if Docker is absent.
+- `make e2e` → `scripts/e2e-prepare.sh` (isolated DB `athenaeum_e2e`, schema reset, offline seed, real reindex, clears `rl:*`).
+  Login bucket is 5/15 min/IP: re-running Playwright locally needs `docker compose exec -T redis redis-cli FLUSHALL`.
+- Playwright: use `gotoReady()` (`web/e2e/helpers.ts`) — it waits for hydration and streamed Suspense swaps; click
+  controlled checkboxes with `.click()` not `.check()`.
+- Next 15.5 prod: a route-level `loading.tsx` froze soft navigation → skeletons use in-page `<Suspense key=…>`; set
+  `prefetch={false}` on result-pagination links. The `/api/*` rewrite target is baked at **build** time
+  (`API_BASE_URL`); building without it points the web at `localhost:8080`.
+- lefthook web job runs from `web/` (`root: web/`); commitlint scopes: api, web, db, infra, docs, chat, voice, i18n.
+- Git flow: one branch per task, fast-forward to `main`, `git push origin main`, then `gh run list`. Do not commit `.env`.
+- `golangci-lint` v2 is installed locally (`brew`); web lint is `eslint . && tsc --noEmit`.
+
+**Manual verification still owed (no credentials in session)**
+- Google SSO against a real client (only a fake OIDC server was used).
+- One real OpenRouter chat turn in en + zh-CN (M8/M12). `OPENROUTER_API_KEY` is expected from the user.
+- Stitch export of the Admin screen `3177da52…` (retry in M11; registry item stays open if it fails).
 
 ## 3. Phase 0 — Repo & Scaffolding
 

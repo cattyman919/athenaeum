@@ -23,6 +23,8 @@ by their definitions, in this order:
 | 16 | [docs/15-voice-input.md](docs/15-voice-input.md) | push-to-talk, Whisper, transcribe endpoint |
 | — | [TODO.md](TODO.md) | cross-session progress tracker — update it, don't skip it |
 
+**Resuming work?** Read [TODO.md §2a Handoff Brief](TODO.md#2a-handoff-brief-read-first-when-resuming) first, then `.kilo/plans/*-athenaeum-v1-implementation-plan.md`.
+
 Ground rules:
 
 - **Monorepo**: Go code in `api/`, Next.js app in `web/`. Docs paths ending in `api/…` are relative to `api/`.
