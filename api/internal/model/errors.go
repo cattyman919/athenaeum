@@ -33,6 +33,9 @@ type Error struct {
 	// Extra holds additional envelope keys (e.g. "suggested_actions").
 	Extra map[string]any
 	Cause error
+	// HTTPStatus overrides the code's default status when non-zero (e.g. chat
+	// unconfigured → 503 with UPSTREAM_ERROR, docs/01 §7).
+	HTTPStatus int
 }
 
 func (e *Error) Error() string {

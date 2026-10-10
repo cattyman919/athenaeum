@@ -23,6 +23,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
 	"github.com/cattyman919/athenaeum/api/internal/repository"
 	"github.com/cattyman919/athenaeum/api/internal/server"
+	"github.com/cattyman919/athenaeum/api/internal/service/ai"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
@@ -86,6 +87,23 @@ func run() error {
 	librarySvc := library.New(libRepo, waitRepo)
 	go waitSvc.RunSweeper(ctx, waitlistSweepInterval, log)
 
+	// Chat (docs/06): without OPENROUTER_API_KEY the engine stays nil → POST /api/chat 503.
+	var engine ai.Engine
+	if cfg.OpenRouterAPIKey != "" {
+		chatModel := ai.NewOpenRouter(ai.OpenRouterConfig{
+			BaseURL: cfg.OpenRouterBaseURL, APIKey: cfg.OpenRouterAPIKey, Model: cfg.OpenRouterModel,
+		})
+		eng, err := ai.NewEinoEngine(ctx, chatModel, catalogSvc)
+		if err != nil {
+			return fmt.Errorf("chat agent: %w", err)
+		}
+		engine = eng
+	} else {
+		log.Warn("OPENROUTER_API_KEY not set; /api/chat will return 503")
+	}
+	chatSvc := ai.New(repository.NewChatRepository(pool), embedder, engine,
+		ai.Config{Enabled: engine != nil, Model: cfg.OpenRouterModel}, log)
+
 	srv := server.New(server.Deps{
 		Config:   cfg,
 		Log:      log,
@@ -94,6 +112,7 @@ func run() error {
 		Catalog:  catalogSvc,
 		Library:  librarySvc,
 		Waitlist: waitSvc,
+		Chat:     chatSvc,
 		Limiter:  middleware.NewRateLimiter(rdb, log),
 	}, fmt.Sprintf(":%d", cfg.APIPort))
 

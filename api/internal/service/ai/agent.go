@@ -1,0 +1,256 @@
+package ai
+
+import (
+	"context"
+	"errors"
+	"io"
+	"sync"
+
+	einomodel "github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/compose"
+	"github.com/cloudwego/eino/flow/agent/react"
+	"github.com/cloudwego/eino/schema"
+	"github.com/google/uuid"
+
+	"github.com/cattyman919/athenaeum/api/internal/model"
+)
+
+// MaxToolIterations caps agent tool rounds per turn (docs/06 §3).
+const MaxToolIterations = 4
+
+// HistoryMessage is one prior user/assistant message fed to the agent.
+type HistoryMessage struct {
+	Role    string // model.MsgRoleUser | model.MsgRoleAssistant
+	Content string
+}
+
+// EngineInput is one agent turn.
+type EngineInput struct {
+	System  string
+	History []HistoryMessage
+	User    string
+}
+
+// EngineResult summarizes a finished turn.
+type EngineResult struct {
+	TokensIn  int
+	TokensOut int
+	Tools     []model.ToolMeta
+	Hits      []Citation // books touched by tools, first-seen order
+}
+
+// Engine runs the agent loop. It calls emit for tool_call/tool_result events and
+// onToken for every raw answer delta. The Eino implementation is EinoEngine; tests
+// may use it with a scripted ToolCallingChatModel.
+type Engine interface {
+	Run(ctx context.Context, userID uuid.UUID, in EngineInput, emit func(Event), onToken func(string)) (EngineResult, error)
+}
+
+// --- per-turn state carried through ctx into tools and the model wrapper ---
+
+type turnKey struct{}
+
+type turnState struct {
+	userID uuid.UUID
+	mu     sync.Mutex
+	emitFn func(Event)
+	tools  []model.ToolMeta
+	hits   []Citation
+	seen   map[uuid.UUID]int
+	in     int
+	out    int
+}
+
+func turnFrom(ctx context.Context) *turnState {
+	if st, ok := ctx.Value(turnKey{}).(*turnState); ok {
+		return st
+	}
+	return &turnState{seen: map[uuid.UUID]int{}} // detached (tools invoked outside a turn)
+}
+
+func (s *turnState) emit(e Event) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.emitFn != nil {
+		s.emitFn(e)
+	}
+}
+
+func (s *turnState) addRecord(m model.ToolMeta) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tools = append(s.tools, m)
+}
+
+func (s *turnState) addHit(c Citation) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if i, ok := s.seen[c.BookID]; ok {
+		h := &s.hits[i]
+		if h.Path == nil {
+			h.Path = c.Path
+		}
+		if c.Score > h.Score {
+			h.Score = c.Score
+		}
+		return
+	}
+	s.seen[c.BookID] = len(s.hits)
+	s.hits = append(s.hits, c)
+}
+
+func (s *turnState) addUsage(u *schema.TokenUsage) {
+	if u == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.in += u.PromptTokens
+	s.out += u.CompletionTokens
+}
+
+// cappedModel enforces MaxToolIterations: once the input holds that many tool rounds
+// the model is called with tool_choice=forbidden so it must answer. It also collects
+// token usage into the turn state.
+type cappedModel struct {
+	inner einomodel.ToolCallingChatModel
+	max   int
+}
+
+func (m *cappedModel) WithTools(tools []*schema.ToolInfo) (einomodel.ToolCallingChatModel, error) {
+	inner, err := m.inner.WithTools(tools)
+	if err != nil {
+		return nil, err
+	}
+	return &cappedModel{inner: inner, max: m.max}, nil
+}
+
+func (m *cappedModel) opts(input []*schema.Message, opts []einomodel.Option) []einomodel.Option {
+	rounds := 0
+	for _, msg := range input {
+		if msg.Role == schema.Assistant && len(msg.ToolCalls) > 0 {
+			rounds++
+		}
+	}
+	if rounds >= m.max {
+		return append(opts, einomodel.WithToolChoice(schema.ToolChoiceForbidden))
+	}
+	return opts
+}
+
+func (m *cappedModel) Generate(ctx context.Context, input []*schema.Message, opts ...einomodel.Option) (*schema.Message, error) {
+	out, err := m.inner.Generate(ctx, input, m.opts(input, opts)...)
+	if err == nil && out != nil && out.ResponseMeta != nil {
+		turnFrom(ctx).addUsage(out.ResponseMeta.Usage)
+	}
+	return out, err
+}
+
+func (m *cappedModel) Stream(ctx context.Context, input []*schema.Message, opts ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
+	sr, err := m.inner.Stream(ctx, input, m.opts(input, opts)...)
+	if err != nil {
+		return nil, err
+	}
+	st := turnFrom(ctx)
+	return schema.StreamReaderWithConvert(sr, func(msg *schema.Message) (*schema.Message, error) {
+		if msg != nil && msg.ResponseMeta != nil {
+			st.addUsage(msg.ResponseMeta.Usage)
+		}
+		return msg, nil
+	}), nil
+}
+
+// anyChunkToolCallChecker scans the whole chunk stream for tool calls: Claude emits
+// text before tool calls, so the first-chunk default is unreliable (Eino docs).
+func anyChunkToolCallChecker(_ context.Context, sr *schema.StreamReader[*schema.Message]) (bool, error) {
+	defer sr.Close()
+	for {
+		msg, err := sr.Recv()
+		if errors.Is(err, io.EOF) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if len(msg.ToolCalls) > 0 {
+			return true, nil
+		}
+	}
+}
+
+// EinoEngine is the Eino ReAct agent (docs/06 §3) over the four catalog tools.
+type EinoEngine struct {
+	agent *react.Agent
+}
+
+// NewEinoEngine compiles the agent graph once; per-turn state travels in ctx.
+func NewEinoEngine(ctx context.Context, chat einomodel.ToolCallingChatModel, cat Catalog) (*EinoEngine, error) {
+	tools, err := newTools(cat, toolTimeout)
+	if err != nil {
+		return nil, err
+	}
+	a, err := react.NewAgent(ctx, &react.AgentConfig{
+		ToolCallingModel:      &cappedModel{inner: chat, max: MaxToolIterations},
+		ToolsConfig:           compose.ToolsNodeConfig{Tools: tools, UnknownToolsHandler: unknownTool},
+		MaxStep:               2*(MaxToolIterations+1) + 2,
+		StreamToolCallChecker: anyChunkToolCallChecker,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &EinoEngine{agent: a}, nil
+}
+
+func unknownTool(_ context.Context, name, _ string) (string, error) {
+	return `{"error":"unknown tool ` + name + `"}`, nil
+}
+
+// Run executes one turn, streaming the final answer deltas to onToken.
+func (e *EinoEngine) Run(ctx context.Context, userID uuid.UUID, in EngineInput, emit func(Event), onToken func(string)) (EngineResult, error) {
+	st := &turnState{userID: userID, emitFn: emit, seen: map[uuid.UUID]int{}}
+	ctx = context.WithValue(ctx, turnKey{}, st)
+
+	msgs := make([]*schema.Message, 0, len(in.History)+2)
+	msgs = append(msgs, schema.SystemMessage(in.System))
+	for _, h := range in.History {
+		if h.Role == model.MsgRoleAssistant {
+			msgs = append(msgs, schema.AssistantMessage(h.Content, nil))
+		} else {
+			msgs = append(msgs, schema.UserMessage(h.Content))
+		}
+	}
+	msgs = append(msgs, schema.UserMessage(in.User))
+
+	sr, err := e.agent.Stream(ctx, msgs)
+	if err != nil {
+		return EngineResult{}, asUpstream(err)
+	}
+	defer sr.Close()
+	for {
+		msg, err := sr.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return EngineResult{}, asUpstream(err)
+		}
+		if msg.Content != "" {
+			onToken(msg.Content)
+		}
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return EngineResult{TokensIn: st.in, TokensOut: st.out, Tools: st.tools, Hits: st.hits}, nil
+}
+
+// asUpstream keeps domain errors (e.g. from the ACL adapter) and maps anything else
+// from the agent graph to UPSTREAM_ERROR.
+func asUpstream(err error) error {
+	if _, ok := model.AsError(err); ok {
+		return err
+	}
+	if errors.Is(err, context.Canceled) {
+		return err
+	}
+	return model.Wrap(model.CodeUpstreamError, "The AI librarian could not complete this answer.", err)
+}

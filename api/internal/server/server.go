@@ -13,6 +13,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/middleware"
 	"github.com/cattyman919/athenaeum/api/internal/model"
 	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
+	"github.com/cattyman919/athenaeum/api/internal/service/ai"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
@@ -30,7 +31,10 @@ type Deps struct {
 	Catalog  *catalog.Service
 	Library  *library.Service
 	Waitlist *waitlist.Service
+	Chat     *ai.Service
 	Limiter  *middleware.RateLimiter
+	// ChatHeartbeat overrides the SSE heartbeat interval (tests); 0 = 15 s.
+	ChatHeartbeat time.Duration
 }
 
 // specificBucketRoutes shadow the general 120/min bucket (docs/03 §2).
@@ -110,6 +114,17 @@ func NewRouter(d Deps) *gin.Engine {
 		wg.POST("/books/:id/waitlist", lh.JoinWaitlist)
 		wg.DELETE("/books/:id/waitlist", lh.LeaveWaitlist)
 		wg.GET("/waitlist", lh.ListWaitlist)
+	}
+
+	if d.Chat != nil {
+		ch := handler.NewChatHandler(d.Chat, d.ChatHeartbeat)
+		cg := api.Group("/chat", requireAuth)
+		// chat_day last: its X-RateLimit-* headers win (daily quota meter, docs/06 §8).
+		cg.POST("", limit(middleware.BucketChatMin), limit(middleware.BucketChatDay), ch.Stream)
+		cg.GET("/conversations", ch.List)
+		cg.POST("/conversations", ch.Create)
+		cg.GET("/conversations/:id", ch.Get)
+		cg.DELETE("/conversations/:id", ch.Delete)
 	}
 	return r
 }

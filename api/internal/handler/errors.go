@@ -44,6 +44,9 @@ func RespondError(c *gin.Context, err error) {
 	if !found {
 		status = http.StatusInternalServerError
 	}
+	if de.HTTPStatus != 0 {
+		status = de.HTTPStatus
+	}
 	body := gin.H{"error": string(de.Code), "message": de.Message}
 	for k, v := range de.Extra {
 		if k != "error" && k != "message" {
