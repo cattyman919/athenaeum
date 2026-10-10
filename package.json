@@ -1,0 +1,9 @@
+{
+  "name": "athenaeum-tooling",
+  "private": true,
+  "description": "Repo-root tooling only (commitlint). App code lives in api/ and web/.",
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0"
+  }
+}
