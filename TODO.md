@@ -52,16 +52,15 @@ Rules for any AI session (or human) continuing this project:
 **Source of truth for order of work:** `.kilo/plans/1791614343948-athenaeum-v1-implementation-plan.md` (milestones M0–M12).
 Docs in `docs/` are the contract; deviations were edited into the owning doc in the same commit.
 
-**State at last session (2026-10-10, session 2):** `main` is pushed; M0–M11 complete, **M12 (polish) not started**.
-Local `make e2e` = 56 passing. Check `gh run list` for CI on the latest push.
+**State at last session (2026-10-10, session 2):** `main` is pushed; M0–M12 code complete; only manual/credentialed verification remains.
+Local `make e2e` = 64 passing. Check `gh run list` for CI on the latest push.
 
 **Next actions, in order**
-1. M12: loading/empty/error states (docs/07 §9); clean-volume `docker compose up --build` demo; bilingual QA; README quickstart check;
-   `grep -n "> ⚠️ TODO" docs/*.md` registry re-grep; `pnpm build` check for the `barcode-detector` WASM bundle.
+1. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
 2. Open decisions: `copy_events` rows cascade-delete with a copy (docs/03 §8.3 says audit keeps its last row); new/edited books
    are not re-embedded until `cmd/reindex`; `fetch-isbn` is admin-only (docs/03 §3 table says any user); `/api/library` rating
    missing from book detail `my_library_entry`.
-3. Still English in zh-CN: catalog section filters. Externalize remaining strings on screens 4–5; zh RAG note.
+3. zh RAG note (docs/06 §2 English-only embeddings) remains a documented deferral.
 4. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.
 
 **Implemented surface (for orientation)**
@@ -221,9 +220,9 @@ Refs: [docs/03 §8](docs/03-api-spec.md#8-admin), [docs/07 §7 admin](docs/07-fr
 
 ## 13. Phase 10 — Polish & Verification
 
-- [ ] Global loading/empty/error states per [docs/07 §9](docs/07-frontend.md#9-loading-empty--error-states)
+- [x] Global loading/empty/error states per [docs/07 §9](docs/07-frontend.md#9-loading-empty--error-states)
 - [ ] One-command demo: fresh `docker compose up --build` + seed + three protocol searches + chat turn ([docs/09 §6](docs/09-development.md#6-local-dev-workflow))
-- [ ] Lint/typecheck/test suites green (`make lint`, `make test`, web build)
+- [x] Lint/typecheck/test suites green (`make lint`, `make test`, web build)
 - [ ] > ⚠️ TODO: axe-core accessibility audit ([docs/12 §12](docs/12-ui-design.md#12-accessibility-requirements))
 - [ ] Playwright E2E + CI are now in v1 scope — tracked in [Phase 13](#16-phase-13--git-workflow-and-ci)
 
