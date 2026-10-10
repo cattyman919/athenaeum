@@ -17,6 +17,33 @@ const PIXEL = Buffer.from(
   "base64",
 );
 
+test.describe("delete conversation confirmation", () => {
+  test("asks first; cancel keeps the chat, confirm deletes it", async ({ page }) => {
+    await gotoReady(page, "/chat");
+    await page.getByTestId("chat-composer").fill("Recommend Hyperion please");
+    await page.getByTestId("chat-send").click();
+    await expect(page.getByTestId("chat-assistant-message")).toBeVisible();
+    const item = page.getByTestId("conversation-item").first();
+    await expect(item).toBeVisible();
+    const before = await page.getByTestId("conversation-item").count();
+
+    const del = item.getByRole("button", { name: /^Delete conversation/ });
+    await item.hover();
+    await del.click();
+    const dialog = page.getByTestId("confirm-dialog");
+    await expect(dialog).toContainText("Delete this conversation?");
+    await page.getByTestId("confirm-cancel").click();
+    await expect(dialog).toBeHidden();
+    await expect(item).toBeVisible();
+
+    await item.hover();
+    await del.click();
+    await page.getByTestId("confirm-accept").click();
+    await expect(page.getByText("Conversation deleted")).toBeVisible();
+    await expect(page.getByTestId("conversation-item")).toHaveCount(before - 1);
+  });
+});
+
 test.describe("AI reply markdown", () => {
   test("renders headings, lists, bold, code and tables; escapes raw HTML", async ({ page }) => {
     const md = [

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { BookmarkPlus, Check, ChevronDown, Heart, Trash2 } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { StarRating } from "@/components/star-rating";
@@ -47,6 +48,8 @@ export function BookLibraryActions({
   const [entry, setEntry] = React.useState<LibraryEntryState | null>(initial);
   const [open, setOpen] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
+  const tConfirm = useTranslations("confirm");
+  const [confirmRemove, setConfirmRemove] = React.useState(false);
   const [unavailable, setUnavailable] = React.useState<string[] | null>(null);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const menuId = React.useId();
@@ -214,7 +217,10 @@ export function BookLibraryActions({
                   type="button"
                   role="menuitem"
                   data-testid="library-remove"
-                  onClick={remove}
+                  onClick={() => {
+                    setOpen(false);
+                    setConfirmRemove(true);
+                  }}
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
@@ -281,6 +287,14 @@ export function BookLibraryActions({
           </div>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title={tConfirm("libraryRemove.title")}
+        description={tConfirm("libraryRemove.description")}
+        confirmLabel={tConfirm("libraryRemove.action")}
+        onConfirm={remove}
+      />
     </section>
   );
 }

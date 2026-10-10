@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { DEMO_STATE } from "./accounts";
-import { gotoReady } from "./helpers";
+import { gotoReady, switchLang } from "./helpers";
 
 test.use({ storageState: DEMO_STATE });
 
@@ -95,7 +95,7 @@ test.describe("/books/[id] — screen 3 (docs/05 §5, docs/07 §7)", () => {
 
   test("banner and manifest labels are localized in zh-CN", async ({ page }) => {
     await openFromCatalog(page, "dune");
-    await page.getByTestId("lang-zh-CN").click();
+    await switchLang(page, "zh-CN");
     await expect(page.getByTestId("availability-banner")).toContainText(
       "馆内可借 — 2 册可立即取书",
     );
@@ -117,7 +117,7 @@ test.describe("/books/[id] — screen 3 (docs/05 §5, docs/07 §7)", () => {
     for (const leak of ["North Stacks", "Eye Level", "Science Fiction & Speculative"]) {
       await expect(page.getByTestId("book-detail").getByText(leak)).toHaveCount(0);
     }
-    await page.getByTestId("lang-en").click();
+    await switchLang(page, "en");
     await expect(page.getByTestId("availability-banner")).toContainText("Available in Building");
   });
 });

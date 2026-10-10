@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { BellRing } from "lucide-react";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api-client";
 import { apiErrorText } from "@/lib/api-errors";
@@ -26,6 +27,8 @@ export function WaitlistCta({ bookId, hold: initial }: { bookId: string; hold: H
   const router = useRouter();
   const [hold, setHold] = React.useState<HoldState | null>(initial);
   const [pending, startTransition] = React.useTransition();
+  const tConfirm = useTranslations("confirm");
+  const [confirmLeave, setConfirmLeave] = React.useState(false);
 
   function join() {
     startTransition(async () => {
@@ -86,11 +89,19 @@ export function WaitlistCta({ bookId, hold: initial }: { bookId: string; hold: H
         size="sm"
         variant="outline"
         disabled={pending}
-        onClick={leave}
+        onClick={() => setConfirmLeave(true)}
         data-testid="waitlist-leave"
       >
         {t("leave")}
       </Button>
+      <ConfirmDialog
+        open={confirmLeave}
+        onOpenChange={setConfirmLeave}
+        title={tConfirm("waitlistLeave.title")}
+        description={tConfirm("waitlistLeave.description")}
+        confirmLabel={tConfirm("waitlistLeave.action")}
+        onConfirm={leave}
+      />
     </div>
   );
 }

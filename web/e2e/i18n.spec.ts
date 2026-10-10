@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { gotoReady } from "./helpers";
+import { gotoReady, switchLang } from "./helpers";
 import { DEMO_STATE } from "./accounts";
 
 test.describe("language toggle (docs/14 §9, §12)", () => {
@@ -11,7 +11,7 @@ test.describe("language toggle (docs/14 §9, §12)", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Welcome back");
 
-    await page.getByTestId("lang-zh-CN").click();
+    await switchLang(page, "zh-CN");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("欢迎回来");
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
     await expect(page.getByTestId("lang-zh-CN")).toHaveAttribute("aria-pressed", "true");
@@ -29,7 +29,7 @@ test.describe("language toggle (docs/14 §9, §12)", () => {
     await expect(page.getByText("WeChat Academic ID")).toHaveCount(0);
     await expect(page.getByText("微信学术身份")).toBeVisible();
 
-    await page.getByTestId("lang-en").click();
+    await switchLang(page, "en");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Welcome back");
   });
 
@@ -51,7 +51,7 @@ test.describe("language persists across navigation inside the shell", () => {
 
   test("shell nav is localized and the choice survives navigation", async ({ page }) => {
     await gotoReady(page, "/catalog");
-    await page.getByTestId("lang-zh-CN").click();
+    await switchLang(page, "zh-CN");
     await expect(page.getByRole("link", { name: "馆藏目录" })).toBeVisible();
     await page.getByRole("link", { name: "我的书架" }).click();
     await expect(page.getByRole("link", { name: "我的书架" })).toHaveAttribute(
@@ -59,7 +59,7 @@ test.describe("language persists across navigation inside the shell", () => {
       "page",
     );
     await expect(page.getByRole("link", { name: "馆藏目录" })).toBeVisible();
-    await page.getByTestId("lang-en").click();
+    await switchLang(page, "en");
     await expect(page.getByRole("link", { name: "Catalog" })).toBeVisible();
   });
 });

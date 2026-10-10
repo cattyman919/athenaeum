@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { DEMO_STATE } from "./accounts";
-import { gotoReady } from "./helpers";
+import { gotoReady, switchLang } from "./helpers";
 
 test.use({ storageState: DEMO_STATE });
 
@@ -118,7 +118,7 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
 
   test("mode labels and section facets are localized in zh-CN", async ({ page }) => {
     await gotoReady(page, "/catalog");
-    await page.getByTestId("lang-zh-CN").click();
+    await switchLang(page, "zh-CN");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("馆藏目录");
     await expect(page.getByTestId("mode-semantic")).toHaveText("语义");
     await expect(page.getByTestId("result-count")).toHaveText("共 40 册");
@@ -127,7 +127,7 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await expect(page.getByTestId("facet-sidebar")).not.toContainText(
       "Science Fiction & Speculative",
     );
-    await page.getByTestId("lang-en").click();
+    await switchLang(page, "en");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Catalog");
   });
 });

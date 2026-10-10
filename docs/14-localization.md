@@ -58,8 +58,8 @@ and deep link ([07 §3](./07-frontend.md#3-stitch-route-mapping)) is language-ag
 - The request config resolves the locale from the cookie/`Accept-Language` per §3 and
   loads the matching catalog (§5).
 - Server components read messages directly; client components use `useTranslations`.
-- Locale changes go through a server action (`setLocale`) that writes the cookie and
-  refreshes server components — see §9.
+- Locale changes write the (non-httpOnly) `athenaeum_lang` cookie in the browser and hard-reload
+  the page — see §9.
 - `app/layout.tsx` sets `<html lang={locale}>` and provides the messages.
 
 ```text
@@ -151,8 +151,9 @@ Rules:
   and also on `/login` so the choice is reachable before auth.
 - Control: a two-state toggle (`EN` ⇄ `中文`) with `aria-label` and `aria-pressed`, keyboard
   operable ([12 §12](./12-ui-design.md#12-accessibility-requirements)).
-- Behavior: posts to the `setLocale` server action, which writes `athenaeum_lang` and
-  refreshes server components. No full navigation, no URL change.
+- Behavior: writes `athenaeum_lang` client-side and reloads the current page (no URL change).
+  A server action + soft refresh was dropped: it lost a race with in-flight link prefetches and
+  intermittently left the page in the old language.
 
 ## 10. AI Reply Language
 

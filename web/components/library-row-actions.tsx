@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Heart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { StarRating } from "@/components/star-rating";
 import { api, type LibraryPatch, type ReadingStatus } from "@/lib/api-client";
 import { apiErrorText } from "@/lib/api-errors";
@@ -38,6 +39,8 @@ export function LibraryRowActions({
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const selectId = React.useId();
+  const tConfirm = useTranslations("confirm");
+  const [confirmRemove, setConfirmRemove] = React.useState(false);
 
   function run(fn: () => Promise<unknown>, done: string) {
     startTransition(async () => {
@@ -102,10 +105,18 @@ export function LibraryRowActions({
         aria-label={t("row.remove")}
         title={t("row.remove")}
         data-testid="row-remove"
-        onClick={() => run(() => api.removeFromLibrary(bookId), t("toast.removed"))}
+        onClick={() => setConfirmRemove(true)}
       >
         <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
       </Button>
+      <ConfirmDialog
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        title={tConfirm("libraryRemove.title")}
+        description={tConfirm("libraryRemove.description")}
+        confirmLabel={tConfirm("libraryRemove.action")}
+        onConfirm={() => run(() => api.removeFromLibrary(bookId), t("toast.removed"))}
+      />
     </div>
   );
 }

@@ -395,6 +395,24 @@
     "left": "已退出候补",
     "error": "无法更新候补，请重试。"
   },
+  "confirm": {
+    "cancel": "取消",
+    "chatDelete": {
+      "title": "删除此对话？",
+      "description": "“{title}”及其所有消息将被永久删除，此操作无法撤销。",
+      "action": "删除"
+    },
+    "libraryRemove": {
+      "title": "从我的书架移除？",
+      "description": "你为这本书设置的阅读状态、收藏和评分将会丢失。",
+      "action": "移除"
+    },
+    "waitlistLeave": {
+      "title": "退出候补队列？",
+      "description": "你将失去这本书的排队位置。",
+      "action": "退出候补"
+    }
+  },
   "voice": {
     "mic": {
       "label": "麦克风",

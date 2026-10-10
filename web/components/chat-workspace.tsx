@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { AICitationCard } from "@/components/ai-citation-card";
 import { ChatTelemetry } from "@/components/chat-telemetry";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import { useChatStream } from "@/hooks/use-chat-stream";
@@ -125,6 +126,9 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
     }
   }, []);
 
+  const [toDelete, setToDelete] = React.useState<{ id: string; title: string } | null>(null);
+  const tConfirm = useTranslations("confirm");
+
   const remove = async (c: ConversationSummary) => {
     try {
       await api.deleteConversation(c.id);
@@ -182,7 +186,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
                 <button
                   type="button"
                   aria-label={t("conversations.delete", { title })}
-                  onClick={() => void remove(c)}
+                  onClick={() => setToDelete({ id: c.id, title })}
                   className="absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
@@ -192,6 +196,18 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           })}
         </ul>
       </aside>
+
+      <ConfirmDialog
+        open={toDelete !== null}
+        onOpenChange={(o) => !o && setToDelete(null)}
+        title={tConfirm("chatDelete.title")}
+        description={tConfirm("chatDelete.description", { title: toDelete?.title ?? "" })}
+        confirmLabel={tConfirm("chatDelete.action")}
+        onConfirm={async () => {
+          const c = list.find((x) => x.id === toDelete?.id);
+          if (c) await remove(c);
+        }}
+      />
 
       <ChatSession
         key={`${props.activeId ?? "new"}:${nonce}`}

@@ -395,6 +395,24 @@
     "left": "You left the waitlist",
     "error": "We couldn't update the waitlist. Please try again."
   },
+  "confirm": {
+    "cancel": "Cancel",
+    "chatDelete": {
+      "title": "Delete this conversation?",
+      "description": "“{title}” and all of its messages will be permanently deleted. This can't be undone.",
+      "action": "Delete"
+    },
+    "libraryRemove": {
+      "title": "Remove from My Library?",
+      "description": "Your reading stage, favorite and rating for this book will be lost.",
+      "action": "Remove"
+    },
+    "waitlistLeave": {
+      "title": "Leave the waitlist?",
+      "description": "You will lose your place in the queue for this book.",
+      "action": "Leave waitlist"
+    }
+  },
   "voice": {
     "mic": {
       "label": "Microphone",

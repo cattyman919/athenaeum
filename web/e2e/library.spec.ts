@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { DEMO_STATE } from "./accounts";
-import { gotoReady } from "./helpers";
+import { gotoReady, switchLang } from "./helpers";
 
 test.use({ storageState: DEMO_STATE });
 
@@ -43,10 +43,10 @@ test.describe("/library — screen 4 (docs/13 §6)", () => {
 
   test("zh-CN localizes the KPI labels and stage names", async ({ page }) => {
     await gotoReady(page, "/library");
-    await page.getByTestId("lang-zh-CN").click();
+    await switchLang(page, "zh-CN");
     await expect(page.getByTestId("kpi-total")).toContainText("馆藏总数");
     await page.getByTestId("tab-reading").click();
     await expect(page.getByTestId("row-stage").first()).toHaveText("在读");
-    await page.getByTestId("lang-en").click();
+    await switchLang(page, "en");
   });
 });

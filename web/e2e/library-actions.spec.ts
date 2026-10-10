@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { ADMIN_STATE } from "./accounts";
-import { gotoReady } from "./helpers";
+import { gotoReady, switchLang } from "./helpers";
 import { resetRateLimits } from "./rate-limit";
 
 // Mutating journeys run as the admin account, which starts with an empty library and no holds
@@ -56,6 +56,12 @@ test.describe("book actions + waitlist (docs/03 §6.2–6.3, docs/07 §9)", () =
     await hold.getByRole("link", { name: ZERO_COPY }).click();
     await page.locator("html[data-hydrated='true']").waitFor({ state: "attached" });
     await page.getByTestId("waitlist-leave").click();
+    await expect(page.getByTestId("confirm-dialog")).toBeVisible();
+    await page.getByTestId("confirm-cancel").click(); // cancelling keeps the hold
+    await expect(page.getByTestId("confirm-dialog")).toBeHidden();
+    await expect(page.getByTestId("waitlist-position")).toBeVisible();
+    await page.getByTestId("waitlist-leave").click();
+    await page.getByTestId("confirm-accept").click();
     await expect(page.getByText("You left the waitlist")).toBeVisible();
     await expect(banner.getByTestId("waitlist-join")).toBeVisible();
   });
@@ -87,6 +93,7 @@ test.describe("book actions + waitlist (docs/03 §6.2–6.3, docs/07 §9)", () =
     await expect(row.getByTestId("row-rating-4")).toHaveAttribute("aria-pressed", "true");
 
     await row.getByTestId("row-remove").click();
+    await page.getByTestId("confirm-accept").click();
     await expect(page.getByTestId("library-empty")).toBeVisible();
     await expect(val("total")).toHaveText("0");
   });
@@ -109,16 +116,17 @@ test.describe("book actions + waitlist (docs/03 §6.2–6.3, docs/07 §9)", () =
 
     await page.getByTestId("library-menu-trigger").click();
     await page.getByTestId("library-remove").click();
+    await page.getByTestId("confirm-accept").click();
     await expect(actions).toHaveAttribute("data-status", "");
     await expect(page.getByTestId("library-favorite")).toHaveCount(0);
   });
 
   test("zh-CN localizes the menu and waitlist CTA", async ({ page }) => {
     await openBook(page, ZERO_COPY, ZERO_COPY);
-    await page.getByTestId("lang-zh-CN").click();
+    await switchLang(page, "zh-CN");
     await expect(page.getByTestId("library-menu-trigger")).toContainText("加入我的书架");
     await expect(page.getByTestId("waitlist-join")).toContainText("加入候补");
-    await page.getByTestId("lang-en").click();
+    await switchLang(page, "en");
     await expect(page.getByTestId("library-menu-trigger")).toContainText("Add to My Library");
   });
 });
