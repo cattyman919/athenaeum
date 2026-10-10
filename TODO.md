@@ -66,10 +66,10 @@ Refs: [docs/01](docs/01-architecture.md), [docs/02](docs/02-data-model.md).
 - [ ] `docker compose exec ollama ollama pull nomic-embed-text`
 - [ ] `api/go.mod` (module created; gin, env, uuid, tint in — rest added as each lands; module + gin, pgx v5, go-redis v9, jwt v5, uuid, argon2, checkdigit, env, eino)
 - [x] `internal/config` typed env loader (all vars from [docs/01 §7](docs/01-architecture.md#7-environment-variables))
-- [ ] Migrations `0001_extensions.sql` → all `CREATE TABLE` DDL verbatim from [docs/02 §4](docs/02-data-model.md#4-table-ddl-canonical-sql)
-- [ ] FTS + trigram + HNSW indexes ([docs/02 §5](docs/02-data-model.md#5-indexes))
-- [ ] `book_locations` view ([docs/02 §6](docs/02-data-model.md#6-book_locations-view))
-- [ ] `updated_at` trigger (slog request-id plumbing done) ([docs/09 §7](docs/09-development.md#7-logging))
+- [x] Migrations `0001_extensions.sql` → all `CREATE TABLE` DDL verbatim from [docs/02 §4](docs/02-data-model.md#4-table-ddl-canonical-sql)
+- [x] FTS + trigram + HNSW indexes ([docs/02 §5](docs/02-data-model.md#5-indexes))
+- [x] `book_locations` view ([docs/02 §6](docs/02-data-model.md#6-book_locations-view))
+- [x] `updated_at` trigger + `slog` request-id plumbing ([docs/09 §7](docs/09-development.md#7-logging))
 - [x] `GET /api/health` ([docs/03 §4.1](docs/03-api-spec.md#41-get-apihealth))
 
 ## 5. Phase 2 — Auth

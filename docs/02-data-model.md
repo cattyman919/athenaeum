@@ -202,7 +202,7 @@ CREATE TABLE users (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT users_google_sub_unique UNIQUE (google_sub)
 );
-CREATE UNIQUE INDEX users_email_lower_key ON users (lower(email)::text);
+CREATE UNIQUE INDEX users_email_lower_key ON users ((lower(email)::text));
 ```
 
 ### refresh_tokens
