@@ -22,10 +22,16 @@ services:
     ports: ["9000:9000"]
     volumes: [whisperdata:/data]
     healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s, start_period: 120s }
+  whisper-fast:
+    image: onerahmet/openai-whisper-asr-webservice:v1.10.0   # smaller model for live partials (?partial=true, docs/15 §5)
+    environment: { ASR_ENGINE: faster_whisper, ASR_MODEL: "${WHISPER_FAST_MODEL:-base}", ASR_MODEL_PATH: /data/whisper-fast }
+    ports: ["9001:9000"]
+    volumes: [whisperfastdata:/data]
+    healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s, start_period: 120s }
   api:
     profiles: [app]
     build: { context: ./api, dockerfile: Dockerfile }
-    environment: { DATABASE_URL: "postgres://athenaeum:athenaeum@postgres:5432/athenaeum?sslmode=disable", REDIS_ADDR: "redis:6379", OLLAMA_BASE_URL: "http://ollama:11434", WHISPER_BASE_URL: "http://whisper:9000" }
+    environment: { DATABASE_URL: "postgres://athenaeum:athenaeum@postgres:5432/athenaeum?sslmode=disable", REDIS_ADDR: "redis:6379", OLLAMA_BASE_URL: "http://ollama:11434", WHISPER_BASE_URL: "http://whisper:9000", WHISPER_PARTIAL_BASE_URL: "http://whisper-fast:9000" }
     ports: ["8080:8080"]
     depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
   web:
@@ -34,4 +40,4 @@ services:
     environment: { API_BASE_URL: "http://api:8080", WEB_ORIGIN: "http://localhost:3000" }
     ports: ["3000:3000"]
     depends_on: [api]
-volumes: { pgdata: {}, redisdata: {}, ollamadata: {}, whisperdata: {} }
+volumes: { pgdata: {}, redisdata: {}, ollamadata: {}, whisperdata: {}, whisperfastdata: {} }

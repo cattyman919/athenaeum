@@ -72,6 +72,8 @@ export default defineConfig({
         OPENROUTER_API_KEY: "e2e-stub-key",
         OPENROUTER_BASE_URL: STUBS_URL,
         WHISPER_BASE_URL: STUBS_URL,
+        // Live partials hit the stub's growing-prefix /fast/asr (docs/15 §2a).
+        WHISPER_PARTIAL_BASE_URL: `${STUBS_URL}/fast`,
       },
     },
     {

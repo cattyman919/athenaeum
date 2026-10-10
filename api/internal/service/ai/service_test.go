@@ -37,7 +37,7 @@ func sequence(names []string) string {
 func TestTurnSSEOrderAndPersistence(t *testing.T) {
 	repo := newMemRepo()
 	repo.chunks = []model.RAGChunk{{BookID: duneID, Title: "Dune", Content: "Desert planet Arrakis and its spice.",
-		Path: strp("MAIN/3F/SF/A-1/S-2"), Score: 0.86}}
+		Path: strp("MAIN/3F/SF/A-1/S-2"), Score: 0.86, CoverURL: &duneCover}}
 	cat := &fakeCatalog{}
 	m := &scriptedModel{steps: []step{
 		toolStep("call_1", ToolSearchCatalog, `{"query":"desert planet","mode":"semantic"}`),
@@ -84,8 +84,14 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 		t.Fatalf("tokens %q (markers must be stripped)", text.String())
 	}
 	cits := ev[len(ev)-2].Data.(CitationsData).Citations
-	if len(cits) != 1 || cits[0].BookID != duneID || *cits[0].Path != "MAIN/3F/SF/A-1/S-2" || cits[0].Score != 0.86 || cits[0].Snippet == "" {
+	if len(cits) != 1 || cits[0].BookID != duneID || *cits[0].Path != "MAIN/3F/SF/A-1/S-2" || cits[0].Score != 0.86 || cits[0].Snippet == "" ||
+		cits[0].CoverURL == nil || *cits[0].CoverURL != duneCover {
 		t.Fatalf("citations %+v", cits)
+	}
+	// The SSE payload carries cover_url on the wire.
+	wire, _ := json.Marshal(ev[len(ev)-2].Data)
+	if !strings.Contains(string(wire), `"cover_url":"`+duneCover+`"`) {
+		t.Fatalf("citations wire %s", wire)
 	}
 	done := ev[len(ev)-1].Data.(DoneData)
 	if done.FinishReason != FinishStop || done.TokensIn != 200 || done.TokensOut != 20 || done.MessageID == uuid.Nil {
@@ -109,6 +115,10 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 	}
 	if *msgs[2].Content != "Try Dune  on shelf S-2." || msgs[2].ID != done.MessageID {
 		t.Fatalf("assistant %+v", msgs[2])
+	}
+	// The streamed citation cards persist on the assistant message (docs/06 §7).
+	if len(msgs[2].Citations) != 1 || msgs[2].Citations[0].BookID != duneID || msgs[2].Citations[0].CoverURL == nil {
+		t.Fatalf("persisted citations %+v", msgs[2].Citations)
 	}
 	if title := repo.convs[turn.ConversationID()].Title; title != "Any novels about a desert planet…" {
 		t.Fatalf("title %q", title)
@@ -207,7 +217,7 @@ func TestToolIterationCap(t *testing.T) {
 		t.Fatalf("final call must forbid tools, got %q", last)
 	}
 	cits := sink.events[len(sink.events)-2].Data.(CitationsData).Citations
-	if len(cits) != 1 || cits[0].Title != "Dune" {
+	if len(cits) != 1 || cits[0].Title != "Dune" || cits[0].CoverURL == nil || *cits[0].CoverURL != duneCover {
 		t.Fatalf("tool-hit citation %+v", cits)
 	}
 }

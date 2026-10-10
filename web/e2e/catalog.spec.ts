@@ -106,6 +106,10 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await expect(page.getByTestId("command-palette")).toBeVisible();
     await page.getByTestId("palette-input").fill("hyperion");
     await expect(page.getByTestId("palette-item").first()).toContainText("Hyperion");
+    // each result carries a jacket thumbnail (img, or the typographic fallback when offline)
+    await expect(
+      page.getByTestId("palette-item").first().locator("img, [class*=aspect]").first(),
+    ).toBeVisible();
 
     await page.getByTestId("palette-see-all").click();
     await expect(page).toHaveURL(/\/catalog\?q=hyperion/);

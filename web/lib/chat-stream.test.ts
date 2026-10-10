@@ -96,6 +96,40 @@ describe("turnsFromHistory", () => {
     expect(turns[0]).toMatchObject({ prompt: "Dune?", text: "Dune is on 3F.", historical: true });
     expect(turns[0].tools[0].name).toBe("search_catalog");
     expect(turns[1]).toMatchObject({ prompt: "Thanks", text: "" });
+    expect(turns[0].citations).toEqual([]);
+  });
+
+  it("restores persisted citation cards from assistant rows (docs/06 §7)", () => {
+    const citation = {
+      book_id: "b",
+      title: "Dune",
+      path: "MAIN/3F/SF/A-1/S-2",
+      snippet: "",
+      score: 0.9,
+      cover_url: "https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg",
+    };
+    const turns = turnsFromHistory([
+      { id: "1", role: "user", content: "Dune?", tool_meta: null, created_at: "" },
+      {
+        id: "2",
+        role: "assistant",
+        content: "Try Dune.",
+        tool_meta: null,
+        citations: [citation],
+        created_at: "",
+      },
+      { id: "3", role: "user", content: "Thanks", tool_meta: null, created_at: "" },
+      {
+        id: "4",
+        role: "assistant",
+        content: "Welcome.",
+        tool_meta: null,
+        citations: [],
+        created_at: "",
+      },
+    ]);
+    expect(turns[0].citations).toEqual([citation]);
+    expect(turns[1].citations).toEqual([]);
   });
 });
 

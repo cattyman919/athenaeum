@@ -13,7 +13,7 @@ endef
 
 .PHONY: up down db-migrate seed reindex api web lint test vet e2e ci compose
 
-up: ## postgres, redis, ollama, whisper (+ api/web once their Dockerfiles exist)
+up: ## postgres, redis, ollama, whisper, whisper-fast (+ api/web once their Dockerfiles exist)
 	docker compose up -d --build
 
 down: ## stop the stack, keep volumes (use `docker compose down -v` to wipe)

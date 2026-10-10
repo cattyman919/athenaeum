@@ -47,3 +47,17 @@ func TestLoadFromValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestWhisperPartialURLFallsBack(t *testing.T) {
+	cfg, err := LoadFrom(map[string]string{"WHISPER_BASE_URL": "http://w:9000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WhisperPartialURL() != "http://w:9000" || cfg.WhisperFastModel != "base" {
+		t.Fatalf("fallback: %q %q", cfg.WhisperPartialURL(), cfg.WhisperFastModel)
+	}
+	cfg, _ = LoadFrom(map[string]string{"WHISPER_BASE_URL": "http://w:9000", "WHISPER_PARTIAL_BASE_URL": "http://fast:9000"})
+	if cfg.WhisperPartialURL() != "http://fast:9000" {
+		t.Fatalf("override: %q", cfg.WhisperPartialURL())
+	}
+}

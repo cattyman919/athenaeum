@@ -155,6 +155,8 @@ export interface ChatMessage {
   content: string | null;
   tool_meta: ChatToolMeta | null;
   created_at: string;
+  /** Persisted citation cards; assistant messages only (docs/06 §7). */
+  citations?: ChatCitation[];
 }
 
 export interface ConversationDetail {
@@ -169,6 +171,8 @@ export interface ChatCitation {
   path: string | null;
   snippet: string;
   score: number;
+  /** books.cover_url; null renders the typographic cover placeholder. */
+  cover_url?: string | null;
 }
 
 export interface ChatMetaEvent {

@@ -166,3 +166,39 @@ func TestTranscribeServiceTimeoutAndErrors(t *testing.T) {
 		t.Fatalf("domain error passthrough: %v", err)
 	}
 }
+
+func TestTranscribeServicePartialRouting(t *testing.T) {
+	final := &fakeSTT{out: Transcript{Text: "final", Language: "en"}}
+	fast := &fakeSTT{out: Transcript{Text: "fast", Language: "en"}}
+	s := NewTranscribeService(final, 0, logging.Discard()).WithPartial(fast, 0)
+	if out, err := s.Transcribe(context.Background(), TranscribeInput{Audio: webmMagic, Partial: true}); err != nil || out.Text != "fast" {
+		t.Fatalf("partial: %+v %v", out, err)
+	}
+	if out, err := s.Transcribe(context.Background(), TranscribeInput{Audio: webmMagic}); err != nil || out.Text != "final" {
+		t.Fatalf("final: %+v %v", out, err)
+	}
+	if final.calls != 1 || fast.calls != 1 {
+		t.Fatalf("calls final=%d fast=%d", final.calls, fast.calls)
+	}
+
+	// Same caps for partials: size and duration backstop.
+	if _, err := s.Transcribe(context.Background(), TranscribeInput{Audio: make([]byte, MaxAudioBytes+1), Partial: true}); !errors.Is(err, model.ErrValidation) {
+		t.Fatalf("partial size cap: %v", err)
+	}
+	long := NewTranscribeService(final, 0, logging.Discard()).
+		WithPartial(&fakeSTT{out: Transcript{Text: "x", Duration: 90 * time.Second}}, 0)
+	if _, err := long.Transcribe(context.Background(), TranscribeInput{Audio: webmMagic, Partial: true}); !errors.Is(err, model.ErrValidation) {
+		t.Fatalf("partial duration cap: %v", err)
+	}
+
+	// Without a fast adapter, partials fall back to the main one under the partial deadline.
+	fb := &fakeSTT{out: Transcript{Text: "fb"}}
+	if out, _ := NewTranscribeService(fb, 0, logging.Discard()).Transcribe(context.Background(),
+		TranscribeInput{Audio: webmMagic, Partial: true}); out.Text != "fb" {
+		t.Fatalf("fallback: %+v", out)
+	}
+	slow := NewTranscribeService(final, time.Minute, logging.Discard()).WithPartial(&fakeSTT{delay: time.Second}, 20*time.Millisecond)
+	if _, err := slow.Transcribe(context.Background(), TranscribeInput{Audio: webmMagic, Partial: true}); !errors.Is(err, model.ErrTranscriptionUnav) {
+		t.Fatalf("partial timeout: %v", err)
+	}
+}

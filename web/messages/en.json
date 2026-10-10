@@ -403,6 +403,7 @@
     "transcribing": "Transcribing…",
     "inserted": "Transcript added to the message box. Review it, then press Send.",
     "empty": "Sorry, I didn't catch that. Please try again.",
+    "interim": "Live transcript preview",
     "errors": {
       "denied": "Microphone access is blocked. Allow it in your browser settings to use voice input.",
       "noDevice": "No working microphone was found.",
@@ -471,7 +472,8 @@
       "open": "Open {title}",
       "match": "Match {pct}%",
       "noShelf": "No shelf location on record",
-      "pathLabel": "Shelf path"
+      "pathLabel": "Shelf path",
+      "coverAlt": "{title}, jacket"
     },
     "composer": {
       "label": "Message the AI Librarian",

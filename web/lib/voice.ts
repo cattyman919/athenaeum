@@ -132,3 +132,83 @@ export function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
+
+/** Cadence of live (interim) partial uploads while recording (docs/15 §2a). */
+export const PARTIAL_INTERVAL_MS = 2_000;
+/** MediaRecorder timeslice so chunks accumulate while recording (docs/15 §2a). */
+export const RECORDER_TIMESLICE_MS = 1_000;
+
+type IntervalHandle = ReturnType<typeof setInterval>;
+
+export interface PartialSchedulerOptions {
+  /** Cumulative clip recorded so far (all chunks since start), or null when empty. */
+  snapshot: () => Blob | null;
+  /** POST /api/chat/transcribe?partial=true; resolves to the interim text. */
+  send: (audio: Blob) => Promise<string>;
+  /** Receives each fresh interim text (trimmed); never called after stop(). */
+  onText: (text: string) => void;
+  intervalMs?: number;
+  /** Injectable timers for tests. */
+  setInterval?: (fn: () => void, ms: number) => IntervalHandle;
+  clearInterval?: (id: IntervalHandle) => void;
+}
+
+/**
+ * Live transcription by chunked re-transcription (docs/15 §2a). Every `intervalMs` while
+ * running, and only when no partial is in flight, uploads the CUMULATIVE clip (later
+ * MediaRecorder chunks are not independently decodable). Responses that are older than
+ * the newest applied one, or that arrive after stop(), are dropped. Failures (429/503/
+ * network) are swallowed: recording continues and the last interim text stays.
+ * One instance per recording.
+ */
+export class PartialScheduler {
+  private seq = 0;
+  private applied = 0;
+  private inFlight = false;
+  private stopped = false;
+  private timer: IntervalHandle | null = null;
+  private lastSize = 0;
+
+  constructor(private readonly opts: PartialSchedulerOptions) {}
+
+  start(): void {
+    if (this.timer !== null || this.stopped) return;
+    const set = this.opts.setInterval ?? ((fn, ms) => setInterval(fn, ms));
+    this.timer = set(() => void this.tick(), this.opts.intervalMs ?? PARTIAL_INTERVAL_MS);
+  }
+
+  /** Stops polling; in-flight responses are ignored from now on. */
+  stop(): void {
+    this.stopped = true;
+    if (this.timer !== null) {
+      (this.opts.clearInterval ?? ((id) => clearInterval(id)))(this.timer);
+      this.timer = null;
+    }
+  }
+
+  get busy(): boolean {
+    return this.inFlight;
+  }
+
+  /** One polling step; exposed for tests. Resolves when the upload (if any) settles. */
+  async tick(): Promise<void> {
+    if (this.stopped || this.inFlight) return;
+    const blob = this.opts.snapshot();
+    // Nothing new since the last upload (or over the cap): skip this beat.
+    if (!blob || blob.size === 0 || blob.size === this.lastSize || blob.size > MAX_AUDIO_BYTES)
+      return;
+    const id = ++this.seq;
+    this.lastSize = blob.size;
+    this.inFlight = true;
+    try {
+      const text = await this.opts.send(blob);
+      if (this.stopped || id <= this.applied) return;
+      this.applied = id;
+      this.opts.onText(text.trim());
+    } catch {
+      // Silent by design (docs/15 §2a): no toast spam; the next beat retries.
+    } finally {
+      this.inFlight = false;
+    }
+  }
+}

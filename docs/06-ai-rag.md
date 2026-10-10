@@ -175,7 +175,7 @@ one turn is fixed:
 | 2 | `tool_call` | `{"id":"call_1","name":"search_catalog","args":{"query":"babylonian math","mode":"semantic"}}` | each invocation |
 | 3 | `tool_result` | `{"id":"call_1","summary":"5 books found"}` | after each tool |
 | 4 | `token` | `{"text":"The Babylonian"}` | N streaming deltas |
-| 5 | `citations` | `{"citations":[{"book_id","title","path","snippet","score"}]}` | before done |
+| 5 | `citations` | `{"citations":[{"book_id","title","path","snippet","score","cover_url"}]}` | before done |
 | 6 | `done` | `{"message_id":"m9c…","tokens_in":842,"tokens_out":210,"finish_reason":"stop"}` | last |
 | — | `error` | `{"code":"RATE_LIMITED","message":…}` | replaces remaining flow, then terminates |
 
@@ -187,12 +187,18 @@ event: token
 data: {"text":"Babylonian arithmetic"}
 
 event: citations
-data: {"citations":[{"book_id":"a1f9","title":"Dune","path":"MAIN/3F/SF/A-1/S-2","score":0.86}]}
+data: {"citations":[{"book_id":"a1f9","title":"Dune","path":"MAIN/3F/SF/A-1/S-2","snippet":"Desert planet Arrakis…","score":0.86,"cover_url":"https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg"}]}
 
 event: done
 data: {"message_id":"99…","tokens_in":842,"tokens_out":210,"finish_reason":"stop"}
 ```
 
+- Citation fields: `path` is the book's home shelf (`null` when unshelved); `snippet` is empty
+  and `score` 0 for tool-hit books (only RAG findings carry them); `cover_url` is `books.cover_url`
+  (nullable — the card falls back to the typographic cover placeholder). Cards come from RAG findings
+  cited with `[doc#N]` plus tool-hit books named in the answer, deduplicated by book, max 8.
+- The same final citation list is persisted on the assistant message (§7) and replayed as
+  `citations` by `GET /api/chat/conversations/{id}`, so cards survive a reload.
 - Heartbeat: comment line `: ping` every 15 s.
 - `FinishReason` is `stop` or `rate_limited_daily`; termination always by `done` or `error`.
 - Client-side consumer spec: [07-frontend.md](./07-frontend.md#6-chat-streaming-client).
@@ -211,7 +217,9 @@ stateDiagram-v2
     Deleted --> [*]
 ```
 
-- Role enum `system, user, assistant, tool`; `tool_meta` JSONB stores `{tool_call_id, name, args, result}` for agent replay.
+- Role enum `system, user, assistant, tool`; `tool_meta` JSONB stores `{tool_call_id, name, args, result}` on tool rows for agent replay
+  and `{citations:[…]}` (the §6 `citations` payload, incl. `cover_url`) on assistant rows. The conversation
+  API returns the latter as each assistant message's `citations` array (`[]` when none) with `tool_meta: null`.
 - Replay/rename: **not in v1** — every turn re-sends the window; historical messages load on entering an existing conversation (GET #21), then streaming appends.
 
 ## 8. Guardrails

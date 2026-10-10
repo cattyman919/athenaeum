@@ -1,7 +1,8 @@
 // Command e2e-stubs serves deterministic stand-ins for the external AI providers used
 // by the Playwright suite (docs/09 §8.1): an OpenAI-compatible streaming
-// /chat/completions (point OPENROUTER_BASE_URL at it) and a fixed-text Whisper /asr
-// (point WHISPER_BASE_URL at it). No secrets, no network.
+// /chat/completions (point OPENROUTER_BASE_URL at it), a fixed-text Whisper /asr
+// (point WHISPER_BASE_URL at it) and a "fast" Whisper /fast/asr for live partials
+// (point WHISPER_PARTIAL_BASE_URL at {stubs}/fast). No secrets, no network.
 //
 // Chat script (drives the real Eino agent + tools + SSE pipeline):
 //  1. last message is the user's and tools are offered → one search_catalog tool call
@@ -49,6 +50,7 @@ func newMux() *http.ServeMux {
 	mux.HandleFunc("POST /chat/completions", chatCompletions)
 	mux.HandleFunc("POST /v1/chat/completions", chatCompletions)
 	mux.HandleFunc("POST /asr", asr)
+	mux.HandleFunc("POST /fast/asr", asrPartial)       // WHISPER_PARTIAL_BASE_URL={stubs}/fast
 	mux.HandleFunc("GET /api/books", openLibraryBooks) // OPENLIBRARY_BASE_URL (openlibrary.go)
 	return mux
 }
@@ -58,7 +60,26 @@ func newMux() *http.ServeMux {
 // answers 422 otherwise); the body is {"text","language","segments"} served as
 // text/plain, with Whisper's leading space on the text.
 func asr(w http.ResponseWriter, r *http.Request) {
-	f, _, err := r.FormFile("audio_file")
+	serveASR(w, r, func(int64) string { return StubTranscript })
+}
+
+// asrPartial is the fast-model stand-in for live partials (docs/15 §2a): it answers
+// with a strict prefix of StubTranscript that grows deterministically with the
+// cumulative clip size (2 words, +1 per 8 KiB), never the full phrase — so the e2e
+// suite can tell interim text from the final transcript.
+func asrPartial(w http.ResponseWriter, r *http.Request) {
+	serveASR(w, r, PartialTranscript)
+}
+
+// PartialTranscript is the /fast/asr text for a clip of size bytes.
+func PartialTranscript(size int64) string {
+	words := strings.Fields(StubTranscript)
+	n := min(len(words)-1, 2+int(size/(8<<10)))
+	return strings.Join(words[:n], " ")
+}
+
+func serveASR(w http.ResponseWriter, r *http.Request, transcript func(size int64) string) {
+	f, hdr, err := r.FormFile("audio_file")
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -66,9 +87,10 @@ func asr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = f.Close()
+	text := transcript(hdr.Size)
 	if o := r.URL.Query().Get("output"); o != "" && o != "json" {
 		w.Header().Set("Content-Type", "text/plain")
-		_, _ = fmt.Fprintln(w, StubTranscript)
+		_, _ = fmt.Fprintln(w, text)
 		return
 	}
 	lang := r.URL.Query().Get("language")
@@ -78,9 +100,9 @@ func asr(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Asr-Engine", "faster_whisper")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"text":     " " + StubTranscript,
+		"text":     " " + text,
 		"language": lang,
-		"segments": []map[string]any{{"id": 1, "seek": 0, "start": 0.0, "end": 2.4, "text": " " + StubTranscript}},
+		"segments": []map[string]any{{"id": 1, "seek": 0, "start": 0.0, "end": 2.4, "text": " " + text}},
 	})
 }
 

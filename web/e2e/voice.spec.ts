@@ -49,6 +49,60 @@ test.describe("voice input", () => {
     await expect(page.getByTestId("chat-send")).toBeEnabled();
   });
 
+  test("shows live interim text while recording, then the final transcript (docs/15 §2a)", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/chat");
+    const mic = page.getByTestId("chat-mic");
+    const composer = page.getByTestId("chat-composer");
+    await composer.fill("Hi");
+
+    // Partials go to ?partial=true (the stub's /fast/asr answers a growing strict prefix).
+    const partialResponse = page.waitForResponse(
+      (r) => r.url().includes("/api/chat/transcribe?partial=true") && r.status() === 200,
+    );
+    await mic.click();
+    await expect(page.getByTestId("chat-recording")).toBeVisible();
+    await partialResponse;
+
+    const interim = page.getByTestId("chat-voice-interim");
+    await expect(interim).toContainText("where can", { timeout: 8_000 });
+    const interimText = (await interim.innerText()).replace(/^.*?:\s*/, "").trim();
+    expect(STUB_TRANSCRIPT.startsWith(interimText)).toBe(true);
+    expect(interimText).not.toBe(STUB_TRANSCRIPT); // interim is a preview, not the final text
+    await expect(interim).toHaveClass(/italic/);
+    // Typed text is untouched while interim text is shown; nothing is inserted yet.
+    await expect(composer).toHaveValue("Hi");
+    await expect(page.getByTestId("chat-recording")).toBeVisible();
+
+    const final = page.waitForResponse((r) => r.url().endsWith("/api/chat/transcribe"));
+    await mic.click();
+    expect((await final).status()).toBe(200);
+    await expect(composer).toHaveValue(`Hi ${STUB_TRANSCRIPT}`);
+    await expect(interim).toHaveCount(0);
+    await expect(page.getByTestId("chat-turn-item")).toHaveCount(0);
+  });
+
+  test("cancelling with Escape discards the interim text and uploads nothing final", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/chat");
+    const mic = page.getByTestId("chat-mic");
+    let finalPosted = false;
+    page.on("request", (r) => {
+      if (r.url().endsWith("/api/chat/transcribe")) finalPosted = true;
+    });
+    await mic.click();
+    await expect(page.getByTestId("chat-voice-interim")).toContainText("where can", {
+      timeout: 8_000,
+    });
+    await mic.press("Escape");
+    await expect(mic).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("chat-voice-interim")).toHaveCount(0);
+    await expect(page.getByTestId("chat-composer")).toHaveValue("");
+    expect(finalPosted).toBe(false);
+  });
+
   test("sends the zh-CN locale as the Whisper hint", async ({ page, context }) => {
     await context.addCookies([{ name: "athenaeum_lang", value: "zh-CN", url: WEB_URL }]);
     await gotoReady(page, "/chat");

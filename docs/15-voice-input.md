@@ -6,6 +6,7 @@
 
 1. [Scope](#1-scope)
 2. [UX — Push-to-Talk](#2-ux--push-to-talk)
+   - [2a. Live (interim) transcript](#2a-live-interim-transcript)
 3. [Architecture](#3-architecture)
 4. [Transcription Endpoint](#4-transcription-endpoint)
 5. [Whisper Service](#5-whisper-service)
@@ -24,7 +25,8 @@
 | Self-hosted Whisper transcription | Cloud STT providers |
 | Desktop browsers with `MediaRecorder` + `getUserMedia` | Always-on / wake-word listening |
 
-> ⚠️ TODO: cloud/streaming STT and voice input on other screens are deferred; revisit in
+> ⚠️ TODO: cloud/true-streaming STT (WebSocket/token streaming) and voice input on other
+> screens are deferred — live text is approximated by chunked re-transcription (§2a); revisit in
 > [10 §5](./10-roadmap.md#5-future-enhancements).
 
 ## 2. UX — Push-to-Talk
@@ -38,6 +40,25 @@
   ISBNs can be corrected and the normal send/rate-limit path is reused.
 - Send is disabled while recording or transcribing; the mic is hidden when the browser
   lacks `MediaRecorder`/`getUserMedia`.
+
+### 2a. Live (interim) transcript
+
+While recording, the composer shows an **interim transcript** that refreshes as the user
+speaks (chunked re-transcription — no streaming protocol):
+
+- `MediaRecorder` runs with a 1 s timeslice. Every **~2 s**, if no partial request is in
+  flight, the client uploads the **cumulative** clip so far (all chunks since start —
+  later chunks are not independently decodable) to `POST /api/chat/transcribe?partial=true`.
+- Each partial carries a sequence number; responses older than the newest applied one, or
+  arriving after stop/cancel, are **ignored** (no out-of-order flicker).
+- The interim text renders below the textarea in a **muted, italic** style
+  (`data-testid="chat-voice-interim"`); typed text in the textarea is never touched.
+- On stop, polling ends and the normal **final pass** (no `partial`, `WHISPER_MODEL`)
+  runs; its transcript replaces the interim text and is merged into the composer (§2).
+  Cancel (Esc) or leaving the page stops polling and discards the interim text.
+- Partial failures (`429`, `503`, `400`, network) are **silent**: recording continues, the
+  last interim text stays, and no toast/note is shown. The 60 s cap (§6) still stops the
+  recording.
 
 ## 3. Architecture
 
@@ -57,7 +78,7 @@ already applies).
 
 ## 4. Transcription Endpoint
 
-`POST /api/chat/transcribe` — multipart `audio` upload (🔒, mirroring chat auth in
+`POST /api/chat/transcribe[?partial=true]` — multipart `audio` upload (🔒, mirroring chat auth in
 [03 §7](./03-api-spec.md#7-chat-sse)).
 
 ```json
@@ -68,11 +89,12 @@ already applies).
 | --- | --- | --- |
 | `audio` (form) | file | `webm`/`opus` from `MediaRecorder`; any container ffmpeg can decode |
 | `locale` (form, optional) | string | `en` \| `zh-CN`; maps to the Whisper `language` hint (`en`/`zh`); omitted → auto-detect |
+| `partial` (query, optional) | bool | `true` → live interim pass (§2a): fast model (`WHISPER_PARTIAL_BASE_URL`), 15 s timeout, partial rate bucket + one-in-flight guard (§6); default `false`. A query parameter so the limiter can route before the body is read; non-boolean → 400 |
 | `text` (response) | string | transcript; may be `""` for silent/unintelligible clips |
 | `language` (response) | string | detected/used language |
 
-Lifecycle: auth → **rate check (§6)** → size/duration validation → `WhisperAdapter` call
-(30 s timeout) → return `{text, language}`. Audio is never persisted or logged
+Lifecycle: auth → **rate check (§6)** (partials: partial bucket → in-flight guard) → size/duration validation → `WhisperAdapter` call
+(30 s timeout; 15 s for partials) → return `{text, language}`. Audio is never persisted or logged
 ([06 §8](./06-ai-rag.md#8-guardrails)); the transcript is **not** a chat turn until the
 user sends it.
 
@@ -87,8 +109,9 @@ user sends it.
 | Volume | `whisperdata` (model cache, `ASR_MODEL_PATH=/data/whisper`) |
 | Model pull | one-time step in the [09 §2](./09-development.md#2-docker-compose) startup block, mirroring the Ollama pull |
 | Adapter | `WhisperAdapter` in `api/internal/service/ai/providers.go` — the ACL pattern of [06 §5](./06-ai-rag.md#5-provider-configuration-acl); swapping STT vendors touches one file |
+| Partials (§2a) | second compose service `whisper-fast` — same pinned image, `ASR_MODEL=${WHISPER_FAST_MODEL:-base}`, host port `:9001` (container `:9000`), volume `whisperfastdata` (`ASR_MODEL_PATH=/data/whisper-fast`), same healthcheck. The API's second `WhisperAdapter` targets `WHISPER_PARTIAL_BASE_URL` (empty → falls back to `WHISPER_BASE_URL`); final passes always use `WHISPER_MODEL` (`small`) |
 
-Env vars (`WHISPER_BASE_URL`, `WHISPER_MODEL`) are added to the [01 §7](./01-architecture.md#7-environment-variables)
+Env vars (`WHISPER_BASE_URL`, `WHISPER_MODEL`, `WHISPER_PARTIAL_BASE_URL`, `WHISPER_FAST_MODEL`) are added to the [01 §7](./01-architecture.md#7-environment-variables)
 table and `.env.example`.
 
 Upstream wire contract (what `WhisperAdapter` sends and the `api/cmd/e2e-stubs` fake mirrors):
@@ -114,20 +137,24 @@ Upstream statuses: `422` (missing part) and `500` (ffmpeg could not decode the c
 | --- | --- |
 | Max clip length | 60 s (client-enforced; server backstop: transcribed length > 62 s → 400) |
 | Max upload size | ~10 MB (10 MiB `audio` part; the multipart body is read in memory, never spilled to temp files) |
-| Upstream timeout | 30 s |
+| Upstream timeout | 30 s (partials: 15 s — a later partial is stale anyway) |
 | Rate limit | **dedicated 10/min per `user_id`** bucket (transcription is CPU-expensive; does not share the chat 5/min bucket) |
+| Partial rate limit | `?partial=true` skips the 10/min bucket and uses its own **60/min per `user_id`** bucket (2 s cadence ≈ 30/min per recording) |
+| Partial concurrency | **one in-flight partial per user** (Redis `SET NX` lock, released when the request ends, 20 s TTL backstop); a concurrent second partial → 429 `RATE_LIMITED` with `Retry-After: 1`. Final calls are never blocked by an in-flight partial |
+| Partial caps | same 60 s / 10 MiB caps and duration backstop as final calls |
 | Auth | required (🔒) |
 
 | Error | HTTP | When |
 | --- | --- | --- |
 | `VALIDATION_FAILED` | 400 | missing/undecodable audio, over caps |
-| `RATE_LIMITED` | 429 | over the 10/min bucket |
+| `RATE_LIMITED` | 429 | over the 10/min bucket; partials: over the 60/min bucket or another partial in flight |
 | `TRANSCRIPTION_UNAVAILABLE` | 503 | Whisper service down or upstream timeout (mirrors `EMBEDDING_UNAVAILABLE` precedent) |
 | — | 200 | silent/unintelligible clip → `{"text":"","language":…}` |
 
 ## 7. Privacy
 
-- Raw audio is never stored, cached, or written to `messages`; only the transcript enters
+- Raw audio — final clips and every cumulative partial upload — is never stored, cached, or
+  written to `messages`; interim text is client-side only. Only the final transcript enters
   the chat flow **after the user sends it**.
 - Logging follows [09 §7](./09-development.md#7-logging): request id + durations, never
   audio bytes or transcript bodies.
@@ -137,9 +164,10 @@ Upstream statuses: `422` (missing part) and `500` (ffmpeg could not decode the c
 
 | File | Role |
 | --- | --- |
-| `web/hooks/use-voice-input.ts` | `MediaRecorder` capture, permission handling, record/stop state, POST to `/api/chat/transcribe`, transcript insertion |
+| `web/hooks/use-voice-input.ts` | `MediaRecorder` capture, permission handling, record/stop state, POST to `/api/chat/transcribe`, transcript insertion, live partial polling (`interim` text, §2a) |
+| `web/lib/voice.ts` | pure helpers incl. `PartialScheduler` (2 s cadence, single in-flight, stale-response guard) |
 | `web/components/**` chat composer | mic toggle, recording indicator, Send gating, "didn't catch that" on empty text, error toast on 503/429 |
-| `web/lib/api-client.ts` | typed `transcribe(audio, locale)` mirroring the endpoint |
+| `web/lib/api-client.ts` | typed `transcribe(audio, locale, fileName, { partial })` mirroring the endpoint |
 
 The active locale ([14 §10](./14-localization.md#10-ai-reply-language)) is passed as the
 language hint so Chinese speech decodes faster and more accurately.
@@ -148,9 +176,10 @@ language hint so Chinese speech decodes faster and more accurately.
 
 | Layer | Coverage |
 | --- | --- |
-| Handler unit | `httptest` against a fake `WhisperAdapter`: caps, rate bucket, timeout → 503, silent → 200, auth |
+| Handler unit | `httptest` against a fake `WhisperAdapter`: caps, rate bucket, timeout → 503, silent → 200, auth; partials: fast-model routing, 60/min bucket isolation, one-in-flight 429, flag validation |
+| Web unit | Vitest on `PartialScheduler`: cadence, single in-flight, stale/out-of-order drop, stop/cancel, silent failures |
 | Adapter unit | locale → `language` hint mapping; upstream error mapping |
-| E2E | Playwright with `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`; the Whisper stub returns fixed text that lands in the composer ([09 §8](./09-development.md#8-testing-strategy), [06 §6](./06-ai-rag.md#6-sse-event-contract)) |
+| E2E | Playwright with `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`; the Whisper stub returns fixed text that lands in the composer; the `/fast/asr` stub returns a growing strict prefix so the spec asserts interim text appears before the final transcript ([09 §8](./09-development.md#8-testing-strategy), [06 §6](./06-ai-rag.md#6-sse-event-contract)) |
 | Manual | mic-permission-denied path; Whisper-down 503 path; both en and zh-CN |
 
 ## 10. Traceability

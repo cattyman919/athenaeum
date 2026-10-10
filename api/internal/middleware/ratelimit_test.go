@@ -98,11 +98,62 @@ func TestBucketTableMatchesDocs(t *testing.T) {
 		{middleware.BucketChatMin, 5, time.Minute},
 		{middleware.BucketChatDay, 50, 24 * time.Hour},
 		{middleware.BucketTranscribe, 10, time.Minute},
+		{middleware.BucketTranscribePartial, 60, time.Minute},
 		{middleware.BucketFetchISBN, 10, time.Minute},
 	}
 	for _, tt := range tests {
 		if tt.b.Limit != tt.limit || tt.b.Window != tt.window {
 			t.Errorf("%s: %d/%v", tt.b.Name, tt.b.Limit, tt.b.Window)
 		}
+	}
+}
+
+func TestSingleFlightAllowsOneInFlightPerPeer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	l := middleware.NewRateLimiter(rdb, logging.Discard())
+	entered, release := make(chan struct{}), make(chan struct{})
+	r := gin.New()
+	r.GET("/x", l.SingleFlight("t", time.Minute, handler.RespondError, nil), func(c *gin.Context) {
+		if c.Query("block") == "1" {
+			entered <- struct{}{}
+			<-release
+		}
+		c.Status(200)
+	})
+	get := func(ip, q string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", "/x"+q, nil)
+		req.RemoteAddr = ip + ":1234"
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, req)
+		return rec
+	}
+
+	done := make(chan *httptest.ResponseRecorder)
+	go func() { done <- get("10.0.0.1", "?block=1") }()
+	<-entered
+	if rec := get("10.0.0.1", ""); rec.Code != 429 || rec.Header().Get("Retry-After") != "1" {
+		t.Fatalf("concurrent same peer: %d %v", rec.Code, rec.Header())
+	}
+	if rec := get("10.0.0.2", ""); rec.Code != 200 {
+		t.Fatalf("other peer must not be blocked: %d", rec.Code)
+	}
+	close(release)
+	if rec := <-done; rec.Code != 200 {
+		t.Fatalf("holder: %d", rec.Code)
+	}
+	if rec := get("10.0.0.1", ""); rec.Code != 200 {
+		t.Fatalf("lock must be released after the holder returns: %d", rec.Code)
+	}
+	if keys := mr.Keys(); len(keys) != 0 {
+		t.Fatalf("leftover locks %v", keys)
+	}
+
+	// Redis down → fail open.
+	mr.Close()
+	if rec := get("10.0.0.1", ""); rec.Code != 200 {
+		t.Fatalf("fail open: %d", rec.Code)
 	}
 }

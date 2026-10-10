@@ -403,6 +403,7 @@
     "transcribing": "正在转写…",
     "inserted": "转写内容已加入输入框，请检查后点击发送。",
     "empty": "抱歉，没有听清，请再试一次。",
+    "interim": "实时转写预览",
     "errors": {
       "denied": "麦克风权限已被阻止。请在浏览器设置中允许后使用语音输入。",
       "noDevice": "未找到可用的麦克风。",
@@ -471,7 +472,8 @@
       "open": "打开《{title}》",
       "match": "匹配度 {pct}%",
       "noShelf": "暂无书架位置记录",
-      "pathLabel": "书架路径"
+      "pathLabel": "书架路径",
+      "coverAlt": "《{title}》封面"
     },
     "composer": {
       "label": "向 AI 图书管理员提问",

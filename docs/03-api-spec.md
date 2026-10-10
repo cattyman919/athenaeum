@@ -61,6 +61,7 @@ else IP (hashed). Middleware: [01-architecture.md](01-architecture.md#3-request-
 | `POST /api/chat` | 5 | 1 min | user_id | 429 |
 | `POST /api/chat` | 50 | 24 h | user_id | 429 (surfaced in UI quota meter — [07](./07-frontend.md#7-page-breakdowns)) |
 | `POST /api/chat/transcribe` | 10 | 1 min | user_id | 429 (dedicated bucket; CPU-expensive — [15 §6](./15-voice-input.md#6-limits-rate--errors)) |
+| `POST /api/chat/transcribe?partial=true` | 60 | 1 min | user_id | 429 (live partials; own bucket, never drains the 10/min one; plus **1 in flight per user** → 429 `RATE_LIMITED` with `Retry-After: 1` — [15 §6](./15-voice-input.md#6-limits-rate--errors)) |
 | `POST /api/books/fetch-isbn` | 10 | 1 min | user_id | 429 |
 
 Specific limits shadow the general one (most restrictive wins per endpoint).
@@ -372,7 +373,7 @@ Non-streaming conversation CRUD is plain JSON, all for the calling user only:
 | --- | --- |
 | `GET /api/chat/conversations` | `{items:[{id,title,updated_at}], meta}` |
 | `POST /api/chat/conversations` | body `{title?}` → 201 |
-| `GET /api/chat/conversations/{id}` | `{id,title,messages:[{id,role,content,tool_meta,created_at}]}` |
+| `GET /api/chat/conversations/{id}` | `{id,title,messages:[{id,role,content,tool_meta,created_at}]}`; assistant messages add `citations:[{book_id,title,path,snippet,score,cover_url}]` (persisted `citations` event, [06 §7](06-ai-rag.md#7-conversation-persistence); `[]` when none, `tool_meta` null) |
 | `DELETE /api/chat/conversations/{id}` | 204 |
 
 ### 7.1 SSE stream
@@ -403,7 +404,12 @@ code; mid-stream errors emit `event: error` before `done` (no further events aft
 
 Voice input for `/chat` (🔒, full contract: [15-voice-input.md](./15-voice-input.md)).
 `multipart/form-data` with an `audio` file part and an optional `locale` form field
-(`en` | `zh-CN` → Whisper `language` hint).
+(`en` | `zh-CN` → Whisper `language` hint). Optional query parameter `partial`
+(`true` | `false`, default `false`): `?partial=true` requests a **live (interim)** pass over
+the cumulative clip recorded so far ([15 §2a](./15-voice-input.md#2a-live-interim-transcript)) — same body,
+response shape and caps, served by the smaller/faster Whisper (`WHISPER_PARTIAL_BASE_URL`)
+under a 15 s upstream timeout. The flag is a query parameter (not a form field) so the
+rate limiter can pick the bucket before the body is read.
 
 ```json
 { "text": "where can I find books on Babylonian mathematics", "language": "en" }
@@ -411,12 +417,14 @@ Voice input for `/chat` (🔒, full contract: [15-voice-input.md](./15-voice-inp
 
 Audio is never persisted or logged; the transcript is returned as text and only becomes
 a chat turn when the client sends it via [§7.1](#71-sse-stream). Rate limit: 10/min
-per `user_id` ([§2](#2-rate-limiting)). Caps: 60 s / ~10 MB; 30 s upstream timeout.
+per `user_id` for final calls; partials use a separate 60/min bucket and at most one
+partial may be in flight per user ([§2](#2-rate-limiting)). Caps: 60 s / ~10 MB; 30 s
+upstream timeout (15 s for partials).
 
 | Error | HTTP | When |
 | --- | --- | --- |
-| `VALIDATION_FAILED` | 400 | missing/undecodable audio, over caps |
-| `RATE_LIMITED` | 429 | over the 10/min bucket |
+| `VALIDATION_FAILED` | 400 | missing/undecodable audio, over caps, `partial` not a boolean |
+| `RATE_LIMITED` | 429 | over the 10/min bucket (final) or the 60/min bucket (partial); a second concurrent partial for the same user (`Retry-After: 1`) |
 | `TRANSCRIPTION_UNAVAILABLE` | 503 | Whisper service down or timeout |
 | — | 200 | silent/unintelligible clip → `{"text":"","language":"en"}` |
 

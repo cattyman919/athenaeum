@@ -54,9 +54,15 @@ services:
     ports: ["9000:9000"]
     volumes: [whisperdata:/data]
     healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s, start_period: 120s }
+  whisper-fast:
+    image: onerahmet/openai-whisper-asr-webservice:v1.10.0   # smaller model for live partials (?partial=true, docs/15 §5)
+    environment: { ASR_ENGINE: faster_whisper, ASR_MODEL: "${WHISPER_FAST_MODEL:-base}", ASR_MODEL_PATH: /data/whisper-fast }
+    ports: ["9001:9000"]
+    volumes: [whisperfastdata:/data]
+    healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s, start_period: 120s }
   api:
     build: { context: ./api, dockerfile: Dockerfile }
-    environment: { DATABASE_URL: postgres://athenaeum:athenaeum@postgres:5432/athenaeum?sslmode=disable, REDIS_ADDR: redis:6379, OLLAMA_BASE_URL: http://ollama:11434, WHISPER_BASE_URL: http://whisper:9000 }
+    environment: { DATABASE_URL: postgres://athenaeum:athenaeum@postgres:5432/athenaeum?sslmode=disable, REDIS_ADDR: redis:6379, OLLAMA_BASE_URL: http://ollama:11434, WHISPER_BASE_URL: http://whisper:9000, WHISPER_PARTIAL_BASE_URL: http://whisper-fast:9000 }
     ports: ["8080:8080"]
     depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
   web:
@@ -64,7 +70,7 @@ services:
     environment: { API_BASE_URL: http://api:8080, WEB_ORIGIN: "http://localhost:3000" }
     ports: ["3000:3000"]
     depends_on: [api]
-volumes: { pgdata: {}, redisdata: {}, ollamadata: {}, whisperdata: {} }
+volumes: { pgdata: {}, redisdata: {}, ollamadata: {}, whisperdata: {}, whisperfastdata: {} }
 ```
 
 `api` and `web` carry `profiles: [app]`, so `make up` starts only the infra services and
@@ -76,6 +82,7 @@ One-command startup (compose dev profile built the same way; pull the models onc
 docker compose up -d --build
 docker compose exec ollama ollama pull nomic-embed-text
 docker compose logs -f whisper        # faster-whisper downloads WHISPER_MODEL on first start
+docker compose logs -f whisper-fast   # …and WHISPER_FAST_MODEL (live partials, docs/15 §5)
 docker compose logs -f api
 ```
 
@@ -197,8 +204,9 @@ servers itself (`webServer`): the Go API on `:18080`, the production Next build 
 milestone on — the stub provider binary `api/cmd/e2e-stubs` (OpenAI-compatible fake
 ChatModel scripted as `meta`/`token`/`tool_call`/`tool_result`/`citations`/`done`,
 [06 §6](06-ai-rag.md#6-sse-event-contract), plus a fixed-text Whisper `/asr` stub mirroring the real service's wire contract,
-[15 §5](15-voice-input.md#5-whisper-service)) wired via
-`OPENROUTER_BASE_URL` / `WHISPER_BASE_URL`; `OFFLINE_MODE=true`. Semantic search specs assert
+[15 §5](15-voice-input.md#5-whisper-service), and a "fast" `/fast/asr` stub for live partials that answers a strict prefix of
+the same phrase growing with the clip size) wired via
+`OPENROUTER_BASE_URL` / `WHISPER_BASE_URL` / `WHISPER_PARTIAL_BASE_URL` (`{stubs}/fast`); `OFFLINE_MODE=true`. Semantic search specs assert
 real relevance against the real embedding model; chat and Whisper stay stubbed so the suite
 needs no secrets. Auth is captured once per role (`admin` + demo patron,
 [13 §6](13-mock-data-reference.md#6-demo-users--personal-library)) into Playwright

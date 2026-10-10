@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -30,16 +31,33 @@ func badMultipart() error {
 	return model.New(model.CodeValidationFailed, "Expected multipart/form-data with an audio file.")
 }
 
+// IsPartialTranscribe reports whether the request asks for a live (interim) pass
+// via the `partial` query parameter (docs/03 §7.2). The flag lives in the query, not
+// the multipart body, so the rate-limit and in-flight middleware can route on it
+// before the audio is read. Unparseable values are not partial (the handler 400s).
+func IsPartialTranscribe(c *gin.Context) bool {
+	v, err := strconv.ParseBool(c.Query("partial"))
+	return err == nil && v
+}
+
 // Transcribe streams the multipart body in memory (never spilling parts to temp
 // files, so audio is not persisted — docs/15 §7) and returns {text, language}.
 func (h *TranscribeHandler) Transcribe(c *gin.Context) {
+	var in ai.TranscribeInput
+	if raw, ok := c.GetQuery("partial"); ok && raw != "" {
+		v, err := strconv.ParseBool(raw)
+		if err != nil {
+			RespondError(c, model.New(model.CodeValidationFailed, "partial must be true or false."))
+			return
+		}
+		in.Partial = v
+	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, ai.MaxAudioBytes+multipartOverhead)
 	mr, err := c.Request.MultipartReader()
 	if err != nil {
 		RespondError(c, badMultipart())
 		return
 	}
-	var in ai.TranscribeInput
 	for {
 		part, err := mr.NextPart()
 		if errors.Is(err, io.EOF) {

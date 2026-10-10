@@ -36,6 +36,41 @@ type ChatMessage struct {
 	CreatedAt time.Time       `json:"created_at"`
 	// Tokens is the stored token count (not part of the API payload).
 	Tokens *int `json:"-"`
+	// Citations are the final citation cards of an assistant row, persisted in
+	// tool_meta as {"citations":[…]} (docs/06 §7) and serialized only on assistant rows.
+	Citations []ChatCitation `json:"-"`
+}
+
+// MarshalJSON adds `citations` (never null) to assistant rows (docs/03 §7).
+func (m ChatMessage) MarshalJSON() ([]byte, error) {
+	type plain ChatMessage
+	if m.Role != MsgRoleAssistant {
+		return json.Marshal(plain(m))
+	}
+	cits := m.Citations
+	if cits == nil {
+		cits = []ChatCitation{}
+	}
+	return json.Marshal(struct {
+		plain
+		Citations []ChatCitation `json:"citations"`
+	}{plain(m), cits})
+}
+
+// ChatCitation is one citation card: the `citations` SSE entry (docs/06 §6) and the
+// persisted `citations` of an assistant message.
+type ChatCitation struct {
+	BookID   uuid.UUID `json:"book_id"`
+	Title    string    `json:"title"`
+	Path     *string   `json:"path"`
+	Snippet  string    `json:"snippet"`
+	Score    float64   `json:"score"`
+	CoverURL *string   `json:"cover_url"`
+}
+
+// AssistantMeta is the messages.tool_meta JSONB for assistant rows: {citations}.
+type AssistantMeta struct {
+	Citations []ChatCitation `json:"citations"`
 }
 
 // ToolMeta is the messages.tool_meta JSONB for tool rows: {tool_call_id, name, args, result}.
@@ -61,9 +96,10 @@ type ConversationPage struct {
 
 // RAGChunk is one retrieved description chunk (docs/06 §2 query side).
 type RAGChunk struct {
-	BookID  uuid.UUID
-	Title   string
-	Content string
-	Path    *string // home shelf; nil when the book has no shelved copy
-	Score   float64
+	BookID   uuid.UUID
+	Title    string
+	Content  string
+	Path     *string // home shelf; nil when the book has no shelved copy
+	Score    float64
+	CoverURL *string // books.cover_url
 }

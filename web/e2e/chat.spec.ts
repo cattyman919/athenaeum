@@ -10,9 +10,18 @@ import { gotoReady } from "./helpers";
 test.use({ storageState: DEMO_STATE });
 
 const WEB_URL = "http://localhost:13000";
+const COVER_URL = /^https:\/\/covers\.openlibrary\.org\/b\/isbn\/\d{13}-[SML]\.jpg$/;
+// 1×1 transparent PNG served for Open Library covers so the thumbnail loads offline.
+const PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 test.describe("AI Librarian chat", () => {
   test("streams tokens, tool activity and a citation card (en)", async ({ page }) => {
+    await page.route("https://covers.openlibrary.org/**", (route) =>
+      route.fulfill({ status: 200, contentType: "image/png", body: PIXEL }),
+    );
     await gotoReady(page, "/chat");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("AI Librarian");
     await expect(page.getByText("How can I help your research?")).toBeVisible();
@@ -38,6 +47,12 @@ test.describe("AI Librarian chat", () => {
     await expect(card.getByTestId("citation-shelf")).toContainText("Floor 3 • Shelf S-2");
     await expect(card.getByTestId("citation-path")).toHaveText("MAIN/3F/SF/A-1/S-2");
     await expect(card).toHaveAttribute("href", /^\/books\/[0-9a-f-]{36}$/);
+    // 2:3 cover thumbnail from the citation's cover_url (docs/06 §6, docs/12 §9).
+    const cover = card.getByTestId("citation-cover").getByRole("img", {
+      name: "Neuromancer, jacket",
+    });
+    await expect(cover).toBeVisible();
+    await expect(cover).toHaveAttribute("src", COVER_URL);
 
     // Telemetry meta bar + quota meters (daily bucket from X-RateLimit-* headers).
     await expect(page.getByTestId("chat-model")).not.toHaveText("Model pending");
@@ -56,6 +71,22 @@ test.describe("AI Librarian chat", () => {
     await expect(page.getByTestId("chat-assistant-message")).toHaveText(
       "From the Athenaeum catalog, I recommend Neuromancer.",
     );
+
+    // Citation cards are persisted on the assistant message and survive the reload.
+    const replayed = page.getByTestId("citation-card").filter({ hasText: "Neuromancer" });
+    await expect(replayed).toBeVisible();
+    await expect(replayed.getByTestId("citation-path")).toHaveText("MAIN/3F/SF/A-1/S-2");
+    await expect(
+      replayed.getByTestId("citation-cover").getByRole("img", { name: "Neuromancer, jacket" }),
+    ).toHaveAttribute("src", COVER_URL);
+    const res = await page.request.get(`/api/chat/conversations/${id}`);
+    expect(res.status()).toBe(200);
+    const detail = (await res.json()) as {
+      messages: { role: string; citations?: { title: string; cover_url: string | null }[] }[];
+    };
+    const assistant = detail.messages.find((m) => m.role === "assistant");
+    expect(assistant?.citations?.[0]).toMatchObject({ title: "Neuromancer" });
+    expect(assistant?.citations?.[0].cover_url).toMatch(COVER_URL);
   });
 
   test("replies in Simplified Chinese with a localized citation shelf line (zh-CN)", async ({

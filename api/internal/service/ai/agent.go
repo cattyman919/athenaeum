@@ -90,6 +90,9 @@ func (s *turnState) addHit(c Citation) {
 		if h.Path == nil {
 			h.Path = c.Path
 		}
+		if h.CoverURL == nil {
+			h.CoverURL = c.CoverURL
+		}
 		if c.Score > h.Score {
 			h.Score = c.Score
 		}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/cattyman919/athenaeum/api/internal/model"
@@ -34,7 +35,11 @@ var (
 	BucketChatMin    = Bucket{Name: "chat_min", Limit: 5, Window: time.Minute, ByUser: true}
 	BucketChatDay    = Bucket{Name: "chat_day", Limit: 50, Window: 24 * time.Hour, ByUser: true}
 	BucketTranscribe = Bucket{Name: "transcribe", Limit: 10, Window: time.Minute, ByUser: true}
-	BucketFetchISBN  = Bucket{Name: "fetch_isbn", Limit: 10, Window: time.Minute, ByUser: true}
+	// BucketTranscribePartial governs live (interim) transcription calls
+	// (POST /api/chat/transcribe?partial=true, docs/15 §6); it never shares the
+	// 10/min final-transcript bucket.
+	BucketTranscribePartial = Bucket{Name: "transcribe_partial", Limit: 60, Window: time.Minute, ByUser: true}
+	BucketFetchISBN         = Bucket{Name: "fetch_isbn", Limit: 10, Window: time.Minute, ByUser: true}
 )
 
 // RateLimiter applies Redis fixed-window counters (INCR + EXPIRE).
@@ -110,4 +115,42 @@ func (l *RateLimiter) hit(ctx context.Context, key string, window time.Duration)
 		ttl = window
 	}
 	return incr.Val(), ttl, nil
+}
+
+// releaseLock deletes an in-flight lock only while it still holds our token, so a
+// request that outlived the TTL never frees a newer request's lock.
+var releaseLock = redis.NewScript(`if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) end return 0`)
+
+// SingleFlight allows at most one in-flight request per peer (user id, else hashed
+// IP) under name; a concurrent second request gets 429 RATE_LIMITED with
+// Retry-After: 1. The Redis lock (SET NX PX ttl) is released when the handler
+// returns; ttl only bounds a crashed holder. skip (optional) exempts requests.
+// Redis failures fail open with a warning, like Limit.
+func (l *RateLimiter) SingleFlight(name string, ttl time.Duration, respond ErrorResponder, skip func(*gin.Context) bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if skip != nil && skip(c) {
+			c.Next()
+			return
+		}
+		key := fmt.Sprintf("inflight:%s:%s", name, peerKey(c, Bucket{ByUser: true}))
+		token := uuid.NewString()
+		ctx := c.Request.Context()
+		ok, err := l.rdb.SetNX(ctx, key, token, ttl).Result()
+		if err != nil {
+			l.log.Warn("in-flight guard unavailable; failing open", "guard", name, "err", err)
+			c.Next()
+			return
+		}
+		if !ok {
+			c.Header("Retry-After", "1")
+			respond(c, model.New(model.CodeRateLimited, "Another request of this kind is still in progress."))
+			return
+		}
+		defer func() {
+			if err := releaseLock.Run(context.WithoutCancel(ctx), l.rdb, []string{key}, token).Err(); err != nil {
+				l.log.Warn("in-flight guard release failed", "guard", name, "err", err)
+			}
+		}()
+		c.Next()
+	}
 }

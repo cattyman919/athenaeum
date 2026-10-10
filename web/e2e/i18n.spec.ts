@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { gotoReady } from "./helpers";
 import { DEMO_STATE } from "./accounts";
 
 test.describe("language toggle (docs/14 §9, §12)", () => {
@@ -49,7 +50,7 @@ test.describe("language persists across navigation inside the shell", () => {
   test.use({ storageState: DEMO_STATE });
 
   test("shell nav is localized and the choice survives navigation", async ({ page }) => {
-    await page.goto("/catalog");
+    await gotoReady(page, "/catalog");
     await page.getByTestId("lang-zh-CN").click();
     await expect(page.getByRole("link", { name: "馆藏目录" })).toBeVisible();
     await page.getByRole("link", { name: "我的书架" }).click();

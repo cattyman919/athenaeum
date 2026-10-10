@@ -436,6 +436,17 @@ function ChatSession({
             </Button>
           )}
         </div>
+        {/* Live interim transcript (docs/15 §2a): muted preview, never written into the draft;
+            the stop-time final pass replaces it. */}
+        {voice.interim && (voice.recording || voice.status === "transcribing") && (
+          <p
+            data-testid="chat-voice-interim"
+            className="mt-1.5 line-clamp-2 px-3 text-sm italic text-muted-foreground"
+          >
+            <span className="sr-only">{tv("interim")}: </span>
+            {voice.interim}
+          </p>
+        )}
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px]">
           {voice.recording ? (
             <span

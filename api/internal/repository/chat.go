@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -112,6 +113,21 @@ func (r *ChatRepository) Messages(ctx context.Context, conversationID uuid.UUID)
 		if meta != nil {
 			m.ToolMeta = meta
 		}
+		if m.Role == model.MsgRoleAssistant {
+			// Assistant tool_meta carries the persisted citation cards (docs/06 §7);
+			// they surface as `citations`, not as raw tool_meta.
+			if meta != nil {
+				var am model.AssistantMeta
+				if err := json.Unmarshal(meta, &am); err != nil {
+					return nil, fmt.Errorf("assistant meta %s: %w", m.ID, err)
+				}
+				m.Citations = am.Citations
+			}
+			if m.Citations == nil {
+				m.Citations = []model.ChatCitation{}
+			}
+			m.ToolMeta = nil
+		}
 		out = append(out, m)
 	}
 	return out, rows.Err()
@@ -129,6 +145,12 @@ func (r *ChatRepository) AppendMessages(ctx context.Context, conversationID uuid
 		var meta any
 		if len(m.ToolMeta) > 0 {
 			meta = []byte(m.ToolMeta)
+		} else if m.Role == model.MsgRoleAssistant && m.Citations != nil {
+			b, err := json.Marshal(model.AssistantMeta{Citations: m.Citations})
+			if err != nil {
+				return fmt.Errorf("assistant meta: %w", err)
+			}
+			meta = b
 		}
 		createdAt := m.CreatedAt
 		if createdAt.IsZero() {
@@ -149,11 +171,11 @@ func (r *ChatRepository) AppendMessages(ctx context.Context, conversationID uuid
 
 // RetrieveChunks returns the top-k description chunks by cosine similarity with at most
 // perBook chunks per book and score >= minScore (docs/06 §2), each with the book's home
-// shelf path.
+// shelf path and cover URL.
 func (r *ChatRepository) RetrieveChunks(ctx context.Context, vec []float32, k, perBook int, minScore float64) ([]model.RAGChunk, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT t.book_id, t.title, t.content, loc.path, t.score FROM (
-		  SELECT e.book_id, b.title, e.content, (1 - (e.embedding <=> $1::vector))::float8 AS score,
+		SELECT t.book_id, t.title, t.content, loc.path, t.score, t.cover_url FROM (
+		  SELECT e.book_id, b.title, b.cover_url, e.content, (1 - (e.embedding <=> $1::vector))::float8 AS score,
 		         row_number() OVER (PARTITION BY e.book_id ORDER BY e.embedding <=> $1::vector) AS rn
 		  FROM (SELECT book_id, content, embedding FROM book_embeddings
 		        ORDER BY embedding <=> $1::vector LIMIT 64) e
@@ -171,7 +193,7 @@ func (r *ChatRepository) RetrieveChunks(ctx context.Context, vec []float32, k, p
 	var out []model.RAGChunk
 	for rows.Next() {
 		var c model.RAGChunk
-		if err := rows.Scan(&c.BookID, &c.Title, &c.Content, &c.Path, &c.Score); err != nil {
+		if err := rows.Scan(&c.BookID, &c.Title, &c.Content, &c.Path, &c.Score, &c.CoverURL); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

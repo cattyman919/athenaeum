@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+
+	"github.com/cattyman919/athenaeum/api/internal/model"
 )
 
 // SSE event names (docs/06 §6). Order within one turn is fixed:
@@ -65,14 +67,8 @@ type TokenData struct {
 	Text string `json:"text"`
 }
 
-// Citation is one citation card.
-type Citation struct {
-	BookID  uuid.UUID `json:"book_id"`
-	Title   string    `json:"title"`
-	Path    *string   `json:"path"`
-	Snippet string    `json:"snippet"`
-	Score   float64   `json:"score"`
-}
+// Citation is one citation card (book_id, title, path, snippet, score, cover_url).
+type Citation = model.ChatCitation
 
 // CitationsData is the citations payload.
 type CitationsData struct {

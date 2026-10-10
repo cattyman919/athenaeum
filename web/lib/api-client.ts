@@ -207,11 +207,18 @@ export function createApiClient(opts: ClientOptions = {}) {
 
     // Push-to-talk transcription (docs/03 §7.2, docs/15 §4): multipart `audio` + optional
     // `locale` hint. `text` may be "" for silent clips; the caller inserts it into the composer.
-    transcribe: (audio: Blob, locale?: Locale, fileName = "clip.webm") => {
+    /** `partial: true` → live interim pass over the cumulative clip (docs/15 §2a). */
+    transcribe: (
+      audio: Blob,
+      locale?: Locale,
+      fileName = "clip.webm",
+      opts: { partial?: boolean } = {},
+    ) => {
       const form = new FormData();
       form.append("audio", audio, fileName);
       if (locale) form.append("locale", locale);
-      return json<TranscribeResponse>("/api/chat/transcribe", { method: "POST", body: form });
+      const path = opts.partial ? "/api/chat/transcribe?partial=true" : "/api/chat/transcribe";
+      return json<TranscribeResponse>(path, { method: "POST", body: form });
     },
   };
 }

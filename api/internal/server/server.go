@@ -143,7 +143,19 @@ func NewRouter(d Deps) *gin.Engine {
 
 	if d.Transcribe != nil {
 		th := handler.NewTranscribeHandler(d.Transcribe)
-		api.POST("/chat/transcribe", requireAuth, limit(middleware.BucketTranscribe), th.Transcribe)
+		// Final clips use the 10/min bucket; live partials (?partial=true, docs/15 §2a)
+		// use their own 60/min bucket plus a one-in-flight-per-user guard.
+		notPartial := func(c *gin.Context) bool { return !handler.IsPartialTranscribe(c) }
+		chain := []gin.HandlerFunc{requireAuth}
+		if d.Limiter != nil {
+			chain = append(chain,
+				d.Limiter.Limit(middleware.BucketTranscribe, handler.RespondError, handler.IsPartialTranscribe),
+				d.Limiter.Limit(middleware.BucketTranscribePartial, handler.RespondError, notPartial),
+				d.Limiter.SingleFlight("transcribe_partial", ai.PartialTranscribeTimeout+5*time.Second,
+					handler.RespondError, notPartial),
+			)
+		}
+		api.POST("/chat/transcribe", append(chain, th.Transcribe)...)
 	}
 
 	if d.Admin != nil {

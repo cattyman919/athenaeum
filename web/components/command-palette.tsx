@@ -7,6 +7,7 @@ import { Command } from "cmdk";
 import { Search } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { AvailabilityBadge } from "@/components/availability-badge";
+import { BookCover } from "@/components/book-cover";
 import { api } from "@/lib/api-client";
 import type { BookSummary, SearchResponse } from "@/lib/types";
 
@@ -105,10 +106,13 @@ export function CommandPalette() {
                 data-testid="palette-item"
                 className="flex cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-2 text-sm data-[selected=true]:bg-secondary"
               >
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate font-medium">{b.title}</span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    {b.authors.join(", ")}
+                <span className="flex min-w-0 items-center gap-3">
+                  <BookCover src={b.cover_url} alt="" title={b.title} className="w-8 shrink-0" />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium">{b.title}</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {b.authors.join(", ")}
+                    </span>
                   </span>
                 </span>
                 <AvailabilityBadge state={b.availability.state} />

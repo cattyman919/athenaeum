@@ -390,7 +390,8 @@ func (t *Turn) Run(ctx context.Context, sink Sink) {
 		return
 	}
 	answer := filter.Text()
-	send(Event{Name: EventCitations, Data: CitationsData{Citations: BuildCitations(chunks, filter.Cited(), res.Hits, answer)}})
+	citations := BuildCitations(chunks, filter.Cited(), res.Hits, answer)
+	send(Event{Name: EventCitations, Data: CitationsData{Citations: citations}})
 
 	if res.TokensIn == 0 {
 		in := EstimateTokens(system) + EstimateTokens(t.message)
@@ -413,7 +414,7 @@ func (t *Turn) Run(ctx context.Context, sink Sink) {
 	}
 	tokensOut := res.TokensOut
 	msgs = append(msgs, model.ChatMessage{ID: t.assistID, Role: model.MsgRoleAssistant, Content: &answer,
-		Tokens: &tokensOut, CreatedAt: base.Add(time.Duration(len(res.Tools)) * time.Millisecond)})
+		Tokens: &tokensOut, Citations: citations, CreatedAt: base.Add(time.Duration(len(res.Tools)) * time.Millisecond)})
 	if err := s.repo.AppendMessages(context.WithoutCancel(ctx), t.conv.ID, msgs); err != nil {
 		fail(err)
 		return
@@ -443,7 +444,8 @@ func BuildCitations(chunks []model.RAGChunk, cited []int, hits []Citation, answe
 			continue
 		}
 		seen[c.BookID] = true
-		out = append(out, Citation{BookID: c.BookID, Title: c.Title, Path: c.Path, Snippet: snippet(c.Content), Score: c.Score})
+		out = append(out, Citation{BookID: c.BookID, Title: c.Title, Path: c.Path, Snippet: snippet(c.Content), Score: c.Score,
+			CoverURL: c.CoverURL})
 	}
 	lower := strings.ToLower(answer)
 	for _, h := range hits {

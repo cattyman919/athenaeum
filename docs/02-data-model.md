@@ -389,7 +389,7 @@ CREATE TABLE messages (
   conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
   role            TEXT NOT NULL CHECK (role IN ('system','user','assistant','tool')),
   content         TEXT,
-  tool_meta       JSONB,                  -- {tool_call_id, name, args, result} for tool messages
+  tool_meta       JSONB,                  -- {tool_call_id, name, args, result} for tool messages; {citations:[…]} for assistant messages
   tokens          INT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );

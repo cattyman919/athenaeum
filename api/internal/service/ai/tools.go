@@ -154,7 +154,7 @@ func (ts toolSet) search(ctx context.Context, in searchIn) (searchOut, error) {
 		}
 		out.Books = append(out.Books, searchBook{ID: b.ID, Title: b.Title, Authors: b.Authors,
 			Availability: map[string]string{"state": b.Availability.State}, Path: path})
-		st.addHit(Citation{BookID: b.ID, Title: b.Title, Path: path, Score: b.Score})
+		st.addHit(Citation{BookID: b.ID, Title: b.Title, Path: path, Score: b.Score, CoverURL: b.CoverURL})
 	}
 	return out, nil
 }
@@ -182,7 +182,7 @@ func (ts toolSet) location(ctx context.Context, in bookIn) (locationOut, error) 
 		return locationOut{}, err
 	}
 	path, ladder, steps := homeLocation(d)
-	st.addHit(Citation{BookID: d.ID, Title: d.Title, Path: path})
+	st.addHit(Citation{BookID: d.ID, Title: d.Title, Path: path, CoverURL: d.CoverURL})
 	return locationOut{BookID: d.ID, Title: d.Title, Path: path, Ladder: ladder, LadderSteps: steps, Section: d.Section}, nil
 }
 
@@ -203,7 +203,7 @@ func (ts toolSet) availability(ctx context.Context, in bookIn) (availabilityOut,
 		out.Copies = append(out.Copies, co)
 	}
 	path, _, _ := homeLocation(d)
-	st.addHit(Citation{BookID: d.ID, Title: d.Title, Path: path})
+	st.addHit(Citation{BookID: d.ID, Title: d.Title, Path: path, CoverURL: d.CoverURL})
 	return out, nil
 }
 
@@ -223,7 +223,7 @@ func (ts toolSet) recommend(ctx context.Context, in bookIn) (recommendOut, error
 		}
 		out.Recommendations = append(out.Recommendations, recommendation{ID: n.ID, Title: n.Title,
 			Authors: n.Authors, Link: "/books/" + n.ID.String()})
-		st.addHit(Citation{BookID: n.ID, Title: n.Title})
+		st.addHit(Citation{BookID: n.ID, Title: n.Title, CoverURL: n.CoverURL})
 	}
 	return out, nil
 }

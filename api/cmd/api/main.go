@@ -111,8 +111,11 @@ func run() error {
 		ai.Config{Enabled: engine != nil, Model: cfg.OpenRouterModel}, log)
 
 	// Voice input (docs/15): Whisper down → POST /api/chat/transcribe 503.
-	transcribeSvc := ai.NewTranscribeService(ai.NewWhisper(ai.WhisperConfig{BaseURL: cfg.WhisperBaseURL}), 0, log)
-	log.Info("voice input", "whisper_url", cfg.WhisperBaseURL, "whisper_model", cfg.WhisperModel)
+	// Live partials (?partial=true) use the fast model at WHISPER_PARTIAL_BASE_URL.
+	transcribeSvc := ai.NewTranscribeService(ai.NewWhisper(ai.WhisperConfig{BaseURL: cfg.WhisperBaseURL}), 0, log).
+		WithPartial(ai.NewWhisper(ai.WhisperConfig{BaseURL: cfg.WhisperPartialURL()}), 0)
+	log.Info("voice input", "whisper_url", cfg.WhisperBaseURL, "whisper_model", cfg.WhisperModel,
+		"whisper_partial_url", cfg.WhisperPartialURL(), "whisper_fast_model", cfg.WhisperFastModel)
 
 	// Admin (docs/03 §8): book/copy CRUD, audit stream, building tree, users.
 	adminSvc := admin.New(repository.NewAdminRepository(pool), catalogSvc, repository.NewBuildingRepository(pool))

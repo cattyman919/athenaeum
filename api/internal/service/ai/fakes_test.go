@@ -102,8 +102,9 @@ func (e fakeEmb) EmbedQuery(context.Context, string) ([]float32, error) {
 }
 
 var (
-	duneID = uuid.MustParse("8c140000-0000-4000-8000-000000000001")
-	hypID  = uuid.MustParse("b3aa0000-0000-4000-8000-000000000002")
+	duneID    = uuid.MustParse("8c140000-0000-4000-8000-000000000001")
+	hypID     = uuid.MustParse("b3aa0000-0000-4000-8000-000000000002")
+	duneCover = "https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg"
 )
 
 type fakeCatalog struct {
@@ -124,7 +125,7 @@ func (c *fakeCatalog) Search(ctx context.Context, req catalog.Request) (model.Se
 		return model.SearchPage{}, model.ErrEmbeddingUnavail
 	}
 	return model.SearchPage{Items: []model.BookSummary{{
-		ID: duneID, Title: "Dune", Authors: []string{"Frank Herbert"},
+		ID: duneID, Title: "Dune", Authors: []string{"Frank Herbert"}, CoverURL: &duneCover,
 		Location:     &model.LocationRef{Path: "MAIN/3F/SF/A-1/S-2", ShelfCode: "S-2"},
 		Availability: model.Availability{State: "available"}, Score: 0.9,
 	}}}, nil
@@ -134,7 +135,7 @@ func (c *fakeCatalog) Detail(_ context.Context, id string, _ uuid.UUID) (model.B
 	if id != duneID.String() {
 		return model.BookDetail{}, model.New(model.CodeNotFound, "Book not found.")
 	}
-	return model.BookDetail{ID: duneID, Title: "Dune",
+	return model.BookDetail{ID: duneID, Title: "Dune", CoverURL: &duneCover,
 		Availability: model.DetailAvailability{TotalCopies: 3, AvailableCopies: 2, State: "available"},
 		Wayfinding:   &model.Wayfinding{Path: "MAIN/3F/SF/A-1/S-2", LadderSteps: []string{"Floor 3 — North Stacks"}},
 		Neighbors:    []model.Neighbor{{ID: hypID, Title: "Hyperion", Authors: []string{"Dan Simmons"}}},

@@ -144,7 +144,8 @@ export function chatReducer(turns: ChatTurn[], action: ChatAction): ChatTurn[] {
   }
 }
 
-/** Rebuilds display turns from persisted messages: user → tool rows* → assistant. */
+/** Rebuilds display turns from persisted messages: user → tool rows* → assistant (with its
+ *  persisted citation cards, docs/06 §7). */
 export function turnsFromHistory(messages: ChatMessage[]): ChatTurn[] {
   const turns: ChatTurn[] = [];
   let current: ChatTurn | null = null;
@@ -170,6 +171,7 @@ export function turnsFromHistory(messages: ChatMessage[]): ChatTurn[] {
       });
     } else if (m.role === "assistant") {
       current.text = current.text ? `${current.text}\n\n${m.content ?? ""}` : (m.content ?? "");
+      if (m.citations?.length) current.citations = m.citations;
     }
   }
   return turns;

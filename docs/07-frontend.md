@@ -200,7 +200,9 @@ rating), hold rows from `GET /api/waitlist`, AI cross-reference banner →
 ### /chat — screen 5 (Stitch `70530f16…`)
 
 Two-pane: conversations drawer (`GET /api/chat/conversations`, create/delete) +
-active stream. `AICitationCard`s render `citations` events; telemetry meta bar
+active stream. `AICitationCard`s (2:3 `BookCover` thumbnail from `cover_url`, placeholder when
+null) render `citations` events live and each assistant message's persisted `citations` when
+history loads ([06 §7](./06-ai-rag.md#7-conversation-persistence)); telemetry meta bar
 shows model + latency; quota meter consumes `meta`/`done` rate data — daily limit
 50 ([03 §2](03-api-spec.md#2-rate-limiting)). SSE client: [§6](#6-chat-streaming-client).
 The composer also carries the **voice mic toggle** (push-to-talk → composer, [15 §2](./15-voice-input.md#2-ux--push-to-talk));

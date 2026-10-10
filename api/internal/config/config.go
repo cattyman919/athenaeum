@@ -41,6 +41,10 @@ type Config struct {
 
 	WhisperBaseURL string `env:"WHISPER_BASE_URL" envDefault:"http://localhost:9000"`
 	WhisperModel   string `env:"WHISPER_MODEL" envDefault:"small"`
+	// WhisperPartialBaseURL serves live (interim) transcription with a smaller model
+	// (docs/15 §5); empty falls back to WhisperBaseURL (see WhisperPartialURL).
+	WhisperPartialBaseURL string `env:"WHISPER_PARTIAL_BASE_URL"`
+	WhisperFastModel      string `env:"WHISPER_FAST_MODEL" envDefault:"base"`
 
 	OpenLibraryBaseURL string `env:"OPENLIBRARY_BASE_URL" envDefault:"https://openlibrary.org"`
 	OfflineMode        bool   `env:"OFFLINE_MODE" envDefault:"false"`
@@ -49,6 +53,15 @@ type Config struct {
 	SeedAdminPassword string `env:"SEED_ADMIN_PASSWORD" envDefault:"athenaeum-demo"`
 	SeedUserEmail     string `env:"SEED_USER_EMAIL" envDefault:"demo@athenaeum.dev"`
 	SeedUserPassword  string `env:"SEED_USER_PASSWORD" envDefault:"athenaeum-demo"`
+}
+
+// WhisperPartialURL is the Whisper endpoint for partial passes: WHISPER_PARTIAL_BASE_URL,
+// or WHISPER_BASE_URL when that is empty.
+func (c Config) WhisperPartialURL() string {
+	if c.WhisperPartialBaseURL != "" {
+		return c.WhisperPartialBaseURL
+	}
+	return c.WhisperBaseURL
 }
 
 // IsProd reports whether the service runs with APP_ENV=prod.

@@ -33,9 +33,9 @@ func newChatRepo() *chatRepo {
 }
 
 func (r *chatRepo) RetrieveChunks(context.Context, []float32, int, int, float64) ([]model.RAGChunk, error) {
-	p := "MAIN/3F/SF/A-1/S-2"
+	p, cover := "MAIN/3F/SF/A-1/S-2", "https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg"
 	return []model.RAGChunk{{BookID: uuid.MustParse("8c140000-0000-4000-8000-000000000001"), Title: "Dune",
-		Content: "Arrakis.", Path: &p, Score: 0.86}}, nil
+		Content: "Arrakis.", Path: &p, Score: 0.86, CoverURL: &cover}}, nil
 }
 
 func (r *chatRepo) CreateConversation(_ context.Context, id, u uuid.UUID, title string) (model.Conversation, error) {
@@ -211,7 +211,8 @@ func TestChatSSEWireContract(t *testing.T) {
 	}
 	cits := events[5].data["citations"].([]any)
 	c0 := cits[0].(map[string]any)
-	if len(cits) != 1 || c0["title"] != "Dune" || c0["path"] != "MAIN/3F/SF/A-1/S-2" || c0["score"] != 0.86 {
+	if len(cits) != 1 || c0["title"] != "Dune" || c0["path"] != "MAIN/3F/SF/A-1/S-2" || c0["score"] != 0.86 ||
+		c0["cover_url"] != "https://covers.openlibrary.org/b/isbn/9780441013593-L.jpg" {
 		t.Fatalf("citations %v", cits)
 	}
 	done := events[6].data
@@ -235,6 +236,15 @@ func TestChatSSEWireContract(t *testing.T) {
 	}
 	if _, ok := detail.Messages[0]["tool_meta"]; !ok {
 		t.Fatal("tool_meta key must be present (null)")
+	}
+	// Assistant rows replay the persisted citation cards; other roles carry none.
+	if _, ok := detail.Messages[0]["citations"]; ok {
+		t.Fatalf("user row must not carry citations %v", detail.Messages[0])
+	}
+	hc, _ := detail.Messages[1]["citations"].([]any)
+	if len(hc) != 1 || hc[0].(map[string]any)["title"] != "Dune" ||
+		hc[0].(map[string]any)["cover_url"] != c0["cover_url"] {
+		t.Fatalf("history citations %v", detail.Messages[1])
 	}
 	_ = repo
 }

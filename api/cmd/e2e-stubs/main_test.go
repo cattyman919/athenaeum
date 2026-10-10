@@ -87,3 +87,24 @@ func TestStubASR(t *testing.T) {
 		t.Fatalf("%d %v", resp.StatusCode, out)
 	}
 }
+
+// The fast /fast/asr route answers growing strict prefixes of the final phrase.
+func TestStubPartialASR(t *testing.T) {
+	srv := httptest.NewServer(newMux())
+	defer srv.Close()
+	w := ai.NewWhisper(ai.WhisperConfig{BaseURL: srv.URL + "/fast"})
+	prev := ""
+	for _, size := range []int{4, 9 << 10, 17 << 10, 1 << 20} {
+		out, err := w.Transcribe(context.Background(), ai.TranscribeInput{Audio: make([]byte, size), Locale: ai.LocaleEN})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.Text == StubTranscript || !strings.HasPrefix(StubTranscript, out.Text) || len(out.Text) < len(prev) {
+			t.Fatalf("size %d: %q (prev %q)", size, out.Text, prev)
+		}
+		prev = out.Text
+	}
+	if PartialTranscript(0) != "where can" || PartialTranscript(9<<10) != "where can I" {
+		t.Fatalf("growth: %q %q", PartialTranscript(0), PartialTranscript(9<<10))
+	}
+}
