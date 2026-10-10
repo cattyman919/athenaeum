@@ -396,6 +396,12 @@
     "error": "无法更新候补，请重试。"
   },
   "voice": {
+    "mic": {
+      "label": "麦克风",
+      "default": "系统默认",
+      "unnamed": "麦克风 {n}",
+      "level": "输入音量"
+    },
     "start": "开始语音输入",
     "stop": "停止录音并转写",
     "recording": "正在录音 {elapsed}",

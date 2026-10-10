@@ -212,3 +212,62 @@ export class PartialScheduler {
     }
   }
 }
+
+/** localStorage key for the chosen microphone (the id is only a hint; it may go stale). */
+export const MIC_STORAGE_KEY = "athenaeum_mic";
+/** Companion key holding the device label, used to re-find the mic if its id rotates. */
+export const MIC_LABEL_STORAGE_KEY = "athenaeum_mic_label";
+
+/** Resolves the saved choice against the current list: by id first, then by label. */
+export function resolveMic(
+  options: ReadonlyArray<MicOption>,
+  id: string,
+  label: string,
+): MicOption | null {
+  if (!id && !label) return null;
+  return (
+    options.find((o) => o.deviceId === id) ??
+    (label ? options.find((o) => o.label === label) : undefined) ??
+    null
+  );
+}
+
+export interface MicOption {
+  deviceId: string;
+  label: string;
+}
+
+/** getUserMedia audio constraint: an exact device when one is chosen, else the default. */
+export function audioConstraints(
+  deviceId: string | null | undefined,
+): MediaTrackConstraints | true {
+  return deviceId ? { deviceId: { exact: deviceId } } : true;
+}
+
+/** True when the failure means the saved device is gone (retry with the default input). */
+export function isStaleDeviceError(e: unknown): boolean {
+  const name = (e as { name?: string } | null)?.name;
+  return name === "OverconstrainedError" || name === "NotFoundError";
+}
+
+/** Audio inputs for the picker; the virtual "default"/"communications" entries are dropped
+ *  (the "System default" option covers them) and unlabeled devices get a numbered name. */
+export function toMicOptions(
+  devices: ReadonlyArray<MediaDeviceInfo>,
+  unnamed: (n: number) => string,
+): MicOption[] {
+  const out: MicOption[] = [];
+  for (const d of devices) {
+    if (d.kind !== "audioinput" || !d.deviceId) continue;
+    if (d.deviceId === "default" || d.deviceId === "communications") continue;
+    out.push({ deviceId: d.deviceId, label: d.label.trim() || unnamed(out.length + 1) });
+  }
+  return out;
+}
+
+/** Peak amplitude (0..1) of a time-domain byte buffer (128 = silence). */
+export function peakLevel(samples: ArrayLike<number>): number {
+  let max = 0;
+  for (let i = 0; i < samples.length; i++) max = Math.max(max, Math.abs(samples[i] - 128));
+  return Math.min(1, max / 128);
+}

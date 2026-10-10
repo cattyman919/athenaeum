@@ -219,6 +219,7 @@ function ChatSession({
   // Push-to-talk (docs/15 §2): the transcript lands beside typed text; the user presses Send.
   const voice = useVoiceInput({
     locale,
+    unnamedMic: (n) => tv("mic.unnamed", { n }),
     onTranscript: (text) => {
       if (!text) {
         setVoiceNote({ text: tv("empty"), tone: "warn" });
@@ -446,6 +447,47 @@ function ChatSession({
             <span className="sr-only">{tv("interim")}: </span>
             {voice.interim}
           </p>
+        )}
+        {voice.supported && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 px-1 text-[11px] text-muted-foreground">
+            <label htmlFor="chat-mic-select">{tv("mic.label")}</label>
+            <select
+              id="chat-mic-select"
+              data-testid="chat-mic-select"
+              value={voice.mics.some((m) => m.deviceId === voice.deviceId) ? voice.deviceId : ""}
+              onChange={(e) =>
+                voice.setDeviceId(
+                  e.target.value,
+                  voice.mics.find((m) => m.deviceId === e.target.value)?.label ?? "",
+                )
+              }
+              disabled={voice.busy}
+              className="max-w-[16rem] truncate rounded-md border border-border bg-background px-1.5 py-1 text-[11px] text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <option value="">{tv("mic.default")}</option>
+              {voice.mics.map((m) => (
+                <option key={m.deviceId} value={m.deviceId}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            {voice.recording && (
+              <span
+                role="meter"
+                aria-label={tv("mic.level")}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(voice.level * 100)}
+                data-testid="chat-mic-level"
+                className="relative h-1.5 w-20 overflow-hidden rounded-full bg-secondary"
+              >
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary transition-[width] duration-100 motion-reduce:transition-none"
+                  style={{ width: `${Math.round(Math.min(1, voice.level * 3) * 100)}%` }}
+                />
+              </span>
+            )}
+          </div>
         )}
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px]">
           {voice.recording ? (

@@ -396,6 +396,12 @@
     "error": "We couldn't update the waitlist. Please try again."
   },
   "voice": {
+    "mic": {
+      "label": "Microphone",
+      "default": "System default",
+      "unnamed": "Microphone {n}",
+      "level": "Input level"
+    },
     "start": "Start voice input",
     "stop": "Stop recording and transcribe",
     "recording": "Recording {elapsed}",

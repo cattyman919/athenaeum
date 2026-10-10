@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, createApiClient } from "./api-client";
 import {
+  audioConstraints,
+  isStaleDeviceError,
+  peakLevel,
+  toMicOptions,
   classifyMediaError,
   classifyTranscribeError,
   clipFileName,
@@ -142,5 +146,40 @@ describe("api.transcribe (docs/03 §7.2)", () => {
     const c = createApiClient({ fetcher: fetcher as unknown as typeof fetch });
     const e = await c.transcribe(new Blob(["a"]), "en").catch((x: unknown) => x);
     expect(classifyTranscribeError(e)).toEqual({ kind: "rateLimited", retryAfter: 7 });
+  });
+});
+
+describe("microphone selection", () => {
+  const dev = (kind: string, deviceId: string, label: string) =>
+    ({ kind, deviceId, label }) as unknown as MediaDeviceInfo;
+
+  it("uses an exact constraint only when a device is chosen", () => {
+    expect(audioConstraints("")).toBe(true);
+    expect(audioConstraints("abc")).toEqual({ deviceId: { exact: "abc" } });
+  });
+
+  it("lists real audio inputs, hides virtual entries and names unlabeled ones", () => {
+    const opts = toMicOptions(
+      [
+        dev("audioinput", "default", "Default - Built-in"),
+        dev("audioinput", "communications", "Comms"),
+        dev("audioinput", "a1", "USB Mic"),
+        dev("audioinput", "a2", " "),
+        dev("videoinput", "v1", "Camera"),
+        dev("audiooutput", "o1", "Speakers"),
+      ],
+      (n) => `Microphone ${n}`,
+    );
+    expect(opts).toEqual([
+      { deviceId: "a1", label: "USB Mic" },
+      { deviceId: "a2", label: "Microphone 2" },
+    ]);
+  });
+
+  it("recognises a stale saved device and measures peak level", () => {
+    expect(isStaleDeviceError({ name: "OverconstrainedError" })).toBe(true);
+    expect(isStaleDeviceError({ name: "NotAllowedError" })).toBe(false);
+    expect(peakLevel(new Uint8Array([128, 128, 128]))).toBe(0);
+    expect(peakLevel(new Uint8Array([128, 192, 64]))).toBeCloseTo(0.5);
   });
 });

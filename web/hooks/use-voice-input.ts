@@ -11,6 +11,14 @@ import { api } from "@/lib/api-client";
 import type { Locale } from "@/lib/locale";
 import type { TranscribeResponse } from "@/lib/types";
 import {
+  MIC_LABEL_STORAGE_KEY,
+  MIC_STORAGE_KEY,
+  resolveMic,
+  audioConstraints,
+  isStaleDeviceError,
+  peakLevel,
+  toMicOptions,
+  type MicOption,
   MAX_AUDIO_BYTES,
   MAX_CLIP_MS,
   PartialScheduler,
@@ -29,6 +37,8 @@ export interface UseVoiceInputOptions {
   /** Receives the trimmed transcript; called with "" when nothing was recognised. */
   onTranscript: (text: string) => void;
   onError?: (error: VoiceError) => void;
+  /** Label for unnamed devices, e.g. "Microphone 2". */
+  unnamedMic?: (n: number) => string;
   /** Injectable for tests. */
   transcribe?: (
     audio: Blob,
@@ -58,6 +68,11 @@ export function useVoiceInput(opts: UseVoiceInputOptions) {
   const [now, setNow] = React.useState(0);
   /** Live interim transcript while recording/transcribing (docs/15 §2a); "" otherwise. */
   const [interim, setInterim] = React.useState("");
+  /** Available audio inputs, the saved choice ("" = system default) and the live input level. */
+  const [mics, setMics] = React.useState<MicOption[]>([]);
+  const [deviceId, setDeviceIdState] = React.useState("");
+  const [level, setLevel] = React.useState(0);
+  const levelCleanup = React.useRef<(() => void) | null>(null);
 
   const optsRef = React.useRef(opts);
   React.useEffect(() => {
@@ -91,6 +106,8 @@ export function useVoiceInput(opts: UseVoiceInputOptions) {
     }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    levelCleanup.current?.();
+    levelCleanup.current = null;
   }, []);
 
   const upload = React.useCallback(
@@ -127,6 +144,59 @@ export function useVoiceInput(opts: UseVoiceInputOptions) {
     if (rec && rec.state !== "inactive") rec.stop();
   }, []);
 
+  const refreshMics = React.useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      if (mountedRef.current) {
+        setMics(toMicOptions(all, optsRef.current.unnamedMic ?? ((n) => `Microphone ${n}`)));
+      }
+    } catch {
+      /* device listing is best effort */
+    }
+  }, []);
+
+  const setDeviceId = React.useCallback((id: string, label = "") => {
+    setDeviceIdState(id);
+    try {
+      if (id) {
+        window.localStorage.setItem(MIC_STORAGE_KEY, id);
+        window.localStorage.setItem(MIC_LABEL_STORAGE_KEY, label);
+      } else {
+        window.localStorage.removeItem(MIC_STORAGE_KEY);
+        window.localStorage.removeItem(MIC_LABEL_STORAGE_KEY);
+      }
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, []);
+
+  // The device id can rotate (cleared site data); re-find the saved mic by label.
+  React.useEffect(() => {
+    if (!deviceId || mics.length === 0) return;
+    let label = "";
+    try {
+      label = window.localStorage.getItem(MIC_LABEL_STORAGE_KEY) ?? "";
+    } catch {
+      /* ignore */
+    }
+    const found = resolveMic(mics, deviceId, label);
+    if (found && found.deviceId !== deviceId) setDeviceId(found.deviceId, found.label);
+  }, [mics, deviceId, setDeviceId]);
+
+  // Restore the saved choice, list devices, and follow plug/unplug events.
+  React.useEffect(() => {
+    try {
+      setDeviceIdState(window.localStorage.getItem(MIC_STORAGE_KEY) ?? "");
+    } catch {
+      /* ignore */
+    }
+    const md = navigator.mediaDevices;
+    if (!md?.enumerateDevices) return;
+    void refreshMics();
+    md.addEventListener?.("devicechange", refreshMics);
+    return () => md.removeEventListener?.("devicechange", refreshMics);
+  }, [refreshMics]);
+
   const start = React.useCallback(async () => {
     if (recorderRef.current || status !== "idle") return;
     setError(null);
@@ -137,16 +207,44 @@ export function useVoiceInput(opts: UseVoiceInputOptions) {
     setStatus("requesting");
     let stream: MediaStream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints(deviceId) });
+      } catch (e) {
+        if (!deviceId || !isStaleDeviceError(e)) throw e;
+        // The saved microphone is gone: forget it and fall back to the system default.
+        setDeviceId("");
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
     } catch (e) {
       fail(classifyMediaError(e));
       return;
     }
+    void refreshMics(); // labels become available once permission is granted
     if (!mountedRef.current) {
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
     streamRef.current = stream;
+    levelCleanup.current?.();
+    try {
+      const ctx = new AudioContext();
+      const analyser = ctx.createAnalyser();
+      ctx.createMediaStreamSource(stream).connect(analyser);
+      const buf = new Uint8Array(analyser.fftSize);
+      let peak = 0;
+      const id = window.setInterval(() => {
+        analyser.getByteTimeDomainData(buf);
+        peak = Math.max(peak * 0.7, peakLevel(buf));
+        if (mountedRef.current) setLevel(peak);
+      }, 100);
+      levelCleanup.current = () => {
+        window.clearInterval(id);
+        void ctx.close();
+        setLevel(0);
+      };
+    } catch {
+      /* the meter is optional */
+    }
 
     let rec: MediaRecorder;
     try {
@@ -212,7 +310,7 @@ export function useVoiceInput(opts: UseVoiceInputOptions) {
     setStatus("recording");
     // Client-enforced 60 s cap (docs/15 §6): stop and transcribe what we have.
     capTimer.current = window.setTimeout(() => stop(), MAX_CLIP_MS);
-  }, [status, fail, releaseStream, upload, stop, stopPartials]);
+  }, [status, deviceId, fail, releaseStream, upload, stop, stopPartials, refreshMics, setDeviceId]);
 
   /** Abandons an in-progress recording without uploading it. */
   const cancel = React.useCallback(() => {
@@ -256,6 +354,10 @@ export function useVoiceInput(opts: UseVoiceInputOptions) {
     busy: status !== "idle",
     elapsedMs: startedAt === null ? 0 : Math.max(0, now - startedAt),
     interim,
+    mics,
+    deviceId,
+    setDeviceId,
+    level,
     start,
     stop,
     cancel,

@@ -13,6 +13,50 @@ const WEB_URL = "http://localhost:13000";
 const STUB_TRANSCRIPT = "where can I find books on Babylonian mathematics";
 
 test.describe("voice input", () => {
+  test("microphone picker lists inputs, remembers the choice and records from it", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/chat");
+    const select = page.getByTestId("chat-mic-select");
+    await expect(select).toBeVisible();
+    await expect(select.locator("option").first()).toHaveText("System default");
+
+    // Labels appear once permission has been granted (first recording), then the fake
+    // device is selectable.
+    const mic = page.getByTestId("chat-mic");
+    await mic.click();
+    await expect(page.getByTestId("chat-recording")).toBeVisible();
+    await expect(page.getByTestId("chat-mic-level")).toBeVisible();
+    await page.waitForTimeout(1_200); // capture a short clip of the fake tone
+    await mic.click();
+    await expect(mic).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("chat-composer")).not.toHaveValue("");
+
+    const options = select.locator("option");
+    await expect.poll(() => options.count()).toBeGreaterThan(1);
+    const value = await options.nth(1).getAttribute("value");
+    const label = (await options.nth(1).textContent())!;
+    await select.selectOption(value!);
+    expect(await page.evaluate(() => localStorage.getItem("athenaeum_mic"))).toBe(value);
+
+    await page.reload();
+    await page.locator("html[data-hydrated='true']").waitFor({ state: "attached" });
+    await expect
+      .poll(() => page.getByTestId("chat-mic-select").locator("option").count())
+      .toBeGreaterThan(1);
+    // Device ids can rotate across page loads; the choice is re-found by its label.
+    await expect(page.getByTestId("chat-mic-select").locator("option:checked")).toHaveText(label);
+
+    await page.getByTestId("chat-composer").fill("");
+    await page.getByTestId("chat-mic").click();
+    await expect(page.getByTestId("chat-recording")).toBeVisible();
+    await page.waitForTimeout(1_200); // capture a short clip of the fake tone
+    await page.getByTestId("chat-mic").click();
+    await expect(page.getByTestId("chat-composer")).toHaveValue(STUB_TRANSCRIPT, {
+      timeout: 15_000,
+    });
+  });
+
   test("records, transcribes and inserts the transcript without sending (en)", async ({ page }) => {
     await gotoReady(page, "/chat");
     const mic = page.getByTestId("chat-mic");
