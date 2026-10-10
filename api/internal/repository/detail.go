@@ -45,7 +45,7 @@ func (r *CatalogRepository) Detail(ctx context.Context, id uuid.UUID, userID uui
 	rows, err := r.pool.Query(ctx, `
 		SELECT bc.id, bc.barcode, bc.status, bc.condition, bc.last_state_change,
 		       bl.path, bl.building_name, bl.floor_number, bl.floor_name, bl.section_name,
-		       bl.aisle_code, bl.shelf_code, bl.row_level, bl.height_tier
+		       bl.aisle_code, bl.shelf_code, bl.row_level, bl.height_tier, bl.building_code, bl.section_code
 		FROM book_copies bc LEFT JOIN book_locations bl ON bl.copy_id = bc.id
 		WHERE bc.book_id = $1 ORDER BY bc.barcode`, id)
 	if err != nil {
@@ -55,10 +55,10 @@ func (r *CatalogRepository) Detail(ctx context.Context, id uuid.UUID, userID uui
 	statuses := map[string]bool{}
 	for rows.Next() {
 		var c model.CopyDetail
-		var path, bName, fName, sName, aisle, shelf, tier *string
+		var path, bName, fName, sName, aisle, shelf, tier, bCode, sCode *string
 		var floorN, rowLevel *int
 		if err := rows.Scan(&c.ID, &c.Barcode, &c.Status, &c.Condition, &c.LastStateChange,
-			&path, &bName, &floorN, &fName, &sName, &aisle, &shelf, &rowLevel, &tier); err != nil {
+			&path, &bName, &floorN, &fName, &sName, &aisle, &shelf, &rowLevel, &tier, &bCode, &sCode); err != nil {
 			return model.BookDetailData{}, err
 		}
 		d.Availability.TotalCopies++
@@ -71,6 +71,7 @@ func (r *CatalogRepository) Detail(ctx context.Context, id uuid.UUID, userID uui
 				CopyID: c.ID, Barcode: c.Barcode, BuildingName: deref(bName), FloorNumber: derefInt(floorN),
 				FloorName: deref(fName), SectionName: deref(sName), AisleCode: deref(aisle), ShelfCode: deref(shelf),
 				RowLevel: derefInt(rowLevel), HeightTier: deref(tier), Path: *path,
+				BuildingCode: deref(bCode), SectionCode: deref(sCode),
 			}
 		}
 		d.Copies = append(d.Copies, c)

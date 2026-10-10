@@ -43,8 +43,25 @@ func (s *stubCatalogRepo) Summaries(_ context.Context, ids []uuid.UUID) (map[uui
 	}}, nil
 }
 
-func (s *stubCatalogRepo) Detail(context.Context, uuid.UUID, uuid.UUID) (model.BookDetailData, error) {
-	return model.BookDetailData{}, model.New(model.CodeNotFound, "Book not found.")
+func (s *stubCatalogRepo) Detail(_ context.Context, id uuid.UUID, _ uuid.UUID) (model.BookDetailData, error) {
+	if id != s.id {
+		return model.BookDetailData{}, model.New(model.CodeNotFound, "Book not found.")
+	}
+	copyID := uuid.New()
+	return model.BookDetailData{
+		Detail: model.BookDetail{
+			ID: id, Title: "Dune", Authors: []string{"Frank Herbert"},
+			Availability: model.DetailAvailability{TotalCopies: 1, AvailableCopies: 1},
+			Copies:       []model.CopyDetail{{ID: copyID, Barcode: "ATH-002941-C02", Status: "available", Condition: "good"}},
+			Neighbors:    []model.Neighbor{},
+		},
+		Locations: map[uuid.UUID]model.LocationRow{copyID: {
+			CopyID: copyID, Barcode: "ATH-002941-C02", BuildingCode: "MAIN", BuildingName: "Athenaeum Main Building",
+			FloorNumber: 3, FloorName: "North Stacks", SectionCode: "SF", SectionName: "Science Fiction & Speculative",
+			AisleCode: "A-1", ShelfCode: "S-2", RowLevel: 4, HeightTier: "Eye Level", Path: "MAIN/3F/SF/A-1/S-2",
+		}},
+		Statuses: []string{"available"},
+	}, nil
 }
 
 type downEmbedder struct{}
@@ -146,5 +163,50 @@ func TestBookDetailEndpointErrors(t *testing.T) {
 	// /search must not be shadowed by /:id.
 	if rec := get(r, "/api/books/search?q=dune", cookie); rec.Code != 200 {
 		t.Fatalf("search route: %d", rec.Code)
+	}
+}
+
+// TestBookDetailWayfindingParts pins the additive structured `parts` objects (docs/03 §5.2).
+func TestBookDetailWayfindingParts(t *testing.T) {
+	r, repo, cookie := searchApp(t)
+	rec := get(r, "/api/books/"+repo.id.String(), cookie)
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Copies []struct {
+			Location struct {
+				Path   string         `json:"path"`
+				Ladder string         `json:"ladder"`
+				Parts  map[string]any `json:"parts"`
+			} `json:"location"`
+		} `json:"copies"`
+		Wayfinding struct {
+			Path        string         `json:"path"`
+			Parts       map[string]any `json:"parts"`
+			LadderSteps []string       `json:"ladder_steps"`
+		} `json:"wayfinding"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{
+		"building_code": "MAIN", "building_name": "Athenaeum Main Building", "floor_number": float64(3),
+		"floor_name": "North Stacks", "section_code": "SF", "section_name": "Science Fiction & Speculative",
+		"aisle_code": "A-1", "shelf_code": "S-2", "row_level": float64(4), "height_tier": "Eye Level",
+	}
+	for name, parts := range map[string]map[string]any{"wayfinding": body.Wayfinding.Parts, "copy": body.Copies[0].Location.Parts} {
+		if len(parts) != len(want) {
+			t.Fatalf("%s parts keys: %v", name, parts)
+		}
+		for k, v := range want {
+			if parts[k] != v {
+				t.Errorf("%s parts[%s] = %v, want %v", name, k, parts[k], v)
+			}
+		}
+	}
+	// English prose fallbacks remain.
+	if body.Wayfinding.Path != "MAIN/3F/SF/A-1/S-2" || len(body.Wayfinding.LadderSteps) != 4 || body.Copies[0].Location.Ladder == "" {
+		t.Fatalf("prose fields: %+v", body)
 	}
 }

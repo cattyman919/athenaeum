@@ -8,8 +8,24 @@ import (
 
 // CopyLocation is a copy's resolved shelf location.
 type CopyLocation struct {
-	Path   string `json:"path"`
-	Ladder string `json:"ladder"`
+	Path   string        `json:"path"`
+	Ladder string        `json:"ladder"`
+	Parts  LocationParts `json:"parts"`
+}
+
+// LocationParts is the structured form of a shelf location; the web composes localized
+// wayfinding text from it (docs/03 §5.2, docs/14 §6.1).
+type LocationParts struct {
+	BuildingCode string `json:"building_code"`
+	BuildingName string `json:"building_name"`
+	FloorNumber  int    `json:"floor_number"`
+	FloorName    string `json:"floor_name"`
+	SectionCode  string `json:"section_code"`
+	SectionName  string `json:"section_name"`
+	AisleCode    string `json:"aisle_code"`
+	ShelfCode    string `json:"shelf_code"`
+	RowLevel     int    `json:"row_level"`
+	HeightTier   string `json:"height_tier"`
 }
 
 // CopyDetail is one physical copy in the manifest (docs/03 §5.2).
@@ -24,8 +40,9 @@ type CopyDetail struct {
 
 // Wayfinding is the turn-by-turn route to the book's home shelf.
 type Wayfinding struct {
-	Path        string   `json:"path"`
-	LadderSteps []string `json:"ladder_steps"`
+	Path        string        `json:"path"`
+	Parts       LocationParts `json:"parts"`
+	LadderSteps []string      `json:"ladder_steps"`
 }
 
 // Neighbor is an "archival affinity" carousel entry.
@@ -75,9 +92,11 @@ type BookDetail struct {
 type LocationRow struct {
 	CopyID       uuid.UUID
 	Barcode      string
+	BuildingCode string
 	BuildingName string
 	FloorNumber  int
 	FloorName    string
+	SectionCode  string
 	SectionName  string
 	AisleCode    string
 	ShelfCode    string

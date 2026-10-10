@@ -26,6 +26,17 @@ func LadderSteps(l model.LocationRow) []string {
 	}
 }
 
+// Parts returns the structured location parts (docs/14 §6.1).
+func Parts(l model.LocationRow) model.LocationParts {
+	return model.LocationParts{
+		BuildingCode: l.BuildingCode, BuildingName: l.BuildingName,
+		FloorNumber: l.FloorNumber, FloorName: l.FloorName,
+		SectionCode: l.SectionCode, SectionName: l.SectionName,
+		AisleCode: l.AisleCode, ShelfCode: l.ShelfCode,
+		RowLevel: l.RowLevel, HeightTier: l.HeightTier,
+	}
+}
+
 // Detail assembles GET /api/books/{id}. An unparsable id is NOT_FOUND like any unknown id.
 func (s *Service) Detail(ctx context.Context, id string, userID uuid.UUID) (model.BookDetail, error) {
 	bid, err := uuid.Parse(id)
@@ -44,7 +55,7 @@ func (s *Service) Detail(ctx context.Context, id string, userID uuid.UUID) (mode
 	for i := range d.Copies {
 		c := &d.Copies[i]
 		if loc, ok := data.Locations[c.ID]; ok {
-			c.Location = &model.CopyLocation{Path: loc.Path, Ladder: Ladder(loc)}
+			c.Location = &model.CopyLocation{Path: loc.Path, Ladder: Ladder(loc), Parts: Parts(loc)}
 			if home == nil || (c.Status == "available" && !isAvailable(d.Copies, home.CopyID)) {
 				l := loc
 				home = &l
@@ -52,7 +63,7 @@ func (s *Service) Detail(ctx context.Context, id string, userID uuid.UUID) (mode
 		}
 	}
 	if home != nil {
-		d.Wayfinding = &model.Wayfinding{Path: home.Path, LadderSteps: LadderSteps(*home)}
+		d.Wayfinding = &model.Wayfinding{Path: home.Path, Parts: Parts(*home), LadderSteps: LadderSteps(*home)}
 	}
 	return d, nil
 }

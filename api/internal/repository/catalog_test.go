@@ -278,6 +278,17 @@ func TestBookDetail(t *testing.T) {
 		d.Wayfinding.LadderSteps[0] != "Floor 3 — North Stacks" || d.Wayfinding.LadderSteps[3] != "Shelf S-2 — Row 4, Eye Level" {
 		t.Fatalf("wayfinding %+v", d.Wayfinding)
 	}
+	wantParts := model.LocationParts{
+		BuildingCode: "MAIN", BuildingName: "Athenaeum Main Building", FloorNumber: 3, FloorName: "North Stacks",
+		SectionCode: "SF", SectionName: "Science Fiction & Speculative", AisleCode: "A-1", ShelfCode: "S-2",
+		RowLevel: 4, HeightTier: "Eye Level",
+	}
+	if d.Wayfinding.Parts != wantParts || d.Copies[1].Location.Parts != wantParts {
+		t.Fatalf("parts %+v / %+v", d.Wayfinding.Parts, d.Copies[1].Location.Parts)
+	}
+	if p := d.Copies[2].Location.Parts; p.ShelfCode != "S-3" || p.SectionCode != "SF" || p.BuildingCode != "MAIN" {
+		t.Fatalf("copy 3 parts %+v", p)
+	}
 	if len(d.Neighbors) == 0 || len(d.Neighbors) > 8 {
 		t.Fatalf("neighbors %d", len(d.Neighbors))
 	}

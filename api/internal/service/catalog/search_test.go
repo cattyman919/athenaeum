@@ -262,6 +262,22 @@ func TestLadderAndSteps(t *testing.T) {
 	}
 }
 
+func TestParts(t *testing.T) {
+	l := model.LocationRow{
+		BuildingCode: "MAIN", BuildingName: "Main Building", FloorNumber: 3, FloorName: "North Stacks",
+		SectionCode: "SF", SectionName: "Science Fiction & Speculative", AisleCode: "A-1", ShelfCode: "S-2",
+		RowLevel: 4, HeightTier: "Eye Level", Path: "MAIN/3F/SF/A-1/S-2",
+	}
+	want := model.LocationParts{
+		BuildingCode: "MAIN", BuildingName: "Main Building", FloorNumber: 3, FloorName: "North Stacks",
+		SectionCode: "SF", SectionName: "Science Fiction & Speculative", AisleCode: "A-1", ShelfCode: "S-2",
+		RowLevel: 4, HeightTier: "Eye Level",
+	}
+	if got := catalog.Parts(l); got != want {
+		t.Fatalf("%+v", got)
+	}
+}
+
 func TestDetailStateAndHomeShelf(t *testing.T) {
 	c1, c2, c3 := uuid.New(), uuid.New(), uuid.New()
 	loc := func(id uuid.UUID, path string) model.LocationRow {
