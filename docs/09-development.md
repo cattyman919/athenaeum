@@ -49,11 +49,11 @@ services:
     ports: ["11434:11434"]
     volumes: [ollamadata:/root/.ollama]
   whisper:
-    image: onerahmet/openai-whisper-asr-webservice:latest   # faster-whisper HTTP server
-    environment: { ASR_ENGINE: faster_whisper, ASR_MODEL: small }
+    image: onerahmet/openai-whisper-asr-webservice:v1.10.0   # faster-whisper HTTP server (POST /asr, docs/15 §5)
+    environment: { ASR_ENGINE: faster_whisper, ASR_MODEL: "${WHISPER_MODEL:-small}", ASR_MODEL_PATH: /data/whisper }
     ports: ["9000:9000"]
     volumes: [whisperdata:/data]
-    healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s }
+    healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s, start_period: 120s }
   api:
     build: { context: ./api, dockerfile: Dockerfile }
     environment: { DATABASE_URL: postgres://athenaeum:athenaeum@postgres:5432/athenaeum?sslmode=disable, REDIS_ADDR: redis:6379, OLLAMA_BASE_URL: http://ollama:11434, WHISPER_BASE_URL: http://whisper:9000 }
@@ -196,7 +196,8 @@ servers itself (`webServer`): the Go API on `:18080`, the production Next build 
 `:13000` (rewrite target `API_BASE_URL=http://localhost:18080`), and — from the chat
 milestone on — the stub provider binary `api/cmd/e2e-stubs` (OpenAI-compatible fake
 ChatModel scripted as `meta`/`token`/`tool_call`/`tool_result`/`citations`/`done`,
-[06 §6](06-ai-rag.md#6-sse-event-contract), plus a fixed-text Whisper `/asr` stub) wired via
+[06 §6](06-ai-rag.md#6-sse-event-contract), plus a fixed-text Whisper `/asr` stub mirroring the real service's wire contract,
+[15 §5](15-voice-input.md#5-whisper-service)) wired via
 `OPENROUTER_BASE_URL` / `WHISPER_BASE_URL`; `OFFLINE_MODE=true`. Semantic search specs assert
 real relevance against the real embedding model; chat and Whisper stay stubbed so the suite
 needs no secrets. Auth is captured once per role (`admin` + demo patron,

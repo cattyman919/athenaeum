@@ -48,15 +48,39 @@ func newMux() *http.ServeMux {
 	})
 	mux.HandleFunc("POST /chat/completions", chatCompletions)
 	mux.HandleFunc("POST /v1/chat/completions", chatCompletions)
-	mux.HandleFunc("POST /asr", func(w http.ResponseWriter, r *http.Request) {
-		lang := r.URL.Query().Get("language")
-		if lang == "" {
-			lang = "en"
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"text": StubTranscript, "language": lang})
-	})
+	mux.HandleFunc("POST /asr", asr)
 	return mux
+}
+
+// asr mirrors onerahmet/openai-whisper-asr-webservice v1.10.0 POST /asr with
+// output=json (docs/15 §5): a multipart `audio_file` part is required (FastAPI
+// answers 422 otherwise); the body is {"text","language","segments"} served as
+// text/plain, with Whisper's leading space on the text.
+func asr(w http.ResponseWriter, r *http.Request) {
+	f, _, err := r.FormFile("audio_file")
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"detail":[{"type":"missing","loc":["body","audio_file"],"msg":"Field required"}]}`))
+		return
+	}
+	_ = f.Close()
+	if o := r.URL.Query().Get("output"); o != "" && o != "json" {
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = fmt.Fprintln(w, StubTranscript)
+		return
+	}
+	lang := r.URL.Query().Get("language")
+	if lang == "" {
+		lang = "en" // "detected"
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Asr-Engine", "faster_whisper")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"text":     " " + StubTranscript,
+		"language": lang,
+		"segments": []map[string]any{{"id": 1, "seek": 0, "start": 0.0, "end": 2.4, "text": " " + StubTranscript}},
+	})
 }
 
 type message struct {

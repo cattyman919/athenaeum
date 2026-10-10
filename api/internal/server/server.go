@@ -32,7 +32,9 @@ type Deps struct {
 	Library  *library.Service
 	Waitlist *waitlist.Service
 	Chat     *ai.Service
-	Limiter  *middleware.RateLimiter
+	// Transcribe serves voice input (docs/15); nil skips the route.
+	Transcribe *ai.TranscribeService
+	Limiter    *middleware.RateLimiter
 	// ChatHeartbeat overrides the SSE heartbeat interval (tests); 0 = 15 s.
 	ChatHeartbeat time.Duration
 }
@@ -125,6 +127,11 @@ func NewRouter(d Deps) *gin.Engine {
 		cg.POST("/conversations", ch.Create)
 		cg.GET("/conversations/:id", ch.Get)
 		cg.DELETE("/conversations/:id", ch.Delete)
+	}
+
+	if d.Transcribe != nil {
+		th := handler.NewTranscribeHandler(d.Transcribe)
+		api.POST("/chat/transcribe", requireAuth, limit(middleware.BucketTranscribe), th.Transcribe)
 	}
 	return r
 }

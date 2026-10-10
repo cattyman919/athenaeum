@@ -80,23 +80,40 @@ user sends it.
 
 | Concern | Value |
 | --- | --- |
-| Image | faster-whisper HTTP server (model loaded on start) |
-| Model | `WHISPER_MODEL` = `small` (multilingual, CPU-acceptable) |
+| Image | `onerahmet/openai-whisper-asr-webservice:v1.10.0` with `ASR_ENGINE=faster_whisper` (model loaded on start) |
+| Model | `WHISPER_MODEL` = `small` (multilingual, CPU-acceptable); compose passes it to the container as `ASR_MODEL` |
 | Port / URL | `:9000`; `WHISPER_BASE_URL` (e.g. `http://localhost:9000`) |
 | Compose | always-on service beside `postgres`/`redis`/`ollama` ([09 §2](./09-development.md#2-docker-compose), [01 §6](./01-architecture.md#6-docker-compose-topology)) |
-| Volume | `whisperdata` (model cache) |
+| Volume | `whisperdata` (model cache, `ASR_MODEL_PATH=/data/whisper`) |
 | Model pull | one-time step in the [09 §2](./09-development.md#2-docker-compose) startup block, mirroring the Ollama pull |
 | Adapter | `WhisperAdapter` in `api/internal/service/ai/providers.go` — the ACL pattern of [06 §5](./06-ai-rag.md#5-provider-configuration-acl); swapping STT vendors touches one file |
 
 Env vars (`WHISPER_BASE_URL`, `WHISPER_MODEL`) are added to the [01 §7](./01-architecture.md#7-environment-variables)
 table and `.env.example`.
 
+Upstream wire contract (what `WhisperAdapter` sends and the `api/cmd/e2e-stubs` fake mirrors):
+
+```text
+POST {WHISPER_BASE_URL}/asr?task=transcribe&output=json&encode=true&vad_filter=true[&language=en|zh]
+Content-Type: multipart/form-data      part "audio_file" = the clip (ffmpeg-decoded by the service)
+
+200 (served as text/plain; body is JSON)
+{"language":"en","text":" Where can I find books on Babylonian mathematics?",
+ "segments":[{"id":1,"seek":0,"start":0.0,"end":3.0,"text":" …", …}]}
+```
+
+The adapter trims `text`, keeps `language` (the hint when given, otherwise the detected
+code), and derives the clip length from the last segment `end` for the §6 duration backstop.
+`vad_filter=true` drops silence so silent clips return `""` instead of hallucinated text.
+Upstream statuses: `422` (missing part) and `500` (ffmpeg could not decode the clip) →
+`VALIDATION_FAILED`; connection errors, timeouts and other `5xx` → `TRANSCRIPTION_UNAVAILABLE`.
+
 ## 6. Limits, Rate & Errors
 
 | Rule | Value |
 | --- | --- |
-| Max clip length | 60 s (client-enforced; server validates as backstop) |
-| Max upload size | ~10 MB |
+| Max clip length | 60 s (client-enforced; server backstop: transcribed length > 62 s → 400) |
+| Max upload size | ~10 MB (10 MiB `audio` part; the multipart body is read in memory, never spilled to temp files) |
 | Upstream timeout | 30 s |
 | Rate limit | **dedicated 10/min per `user_id`** bucket (transcription is CPU-expensive; does not share the chat 5/min bucket) |
 | Auth | required (🔒) |

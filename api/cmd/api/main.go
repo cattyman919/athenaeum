@@ -104,16 +104,21 @@ func run() error {
 	chatSvc := ai.New(repository.NewChatRepository(pool), embedder, engine,
 		ai.Config{Enabled: engine != nil, Model: cfg.OpenRouterModel}, log)
 
+	// Voice input (docs/15): Whisper down → POST /api/chat/transcribe 503.
+	transcribeSvc := ai.NewTranscribeService(ai.NewWhisper(ai.WhisperConfig{BaseURL: cfg.WhisperBaseURL}), 0, log)
+	log.Info("voice input", "whisper_url", cfg.WhisperBaseURL, "whisper_model", cfg.WhisperModel)
+
 	srv := server.New(server.Deps{
-		Config:   cfg,
-		Log:      log,
-		JWT:      jm,
-		Auth:     authSvc,
-		Catalog:  catalogSvc,
-		Library:  librarySvc,
-		Waitlist: waitSvc,
-		Chat:     chatSvc,
-		Limiter:  middleware.NewRateLimiter(rdb, log),
+		Config:     cfg,
+		Log:        log,
+		JWT:        jm,
+		Auth:       authSvc,
+		Catalog:    catalogSvc,
+		Library:    librarySvc,
+		Waitlist:   waitSvc,
+		Chat:       chatSvc,
+		Transcribe: transcribeSvc,
+		Limiter:    middleware.NewRateLimiter(rdb, log),
 	}, fmt.Sprintf(":%d", cfg.APIPort))
 
 	errCh := make(chan error, 1)

@@ -60,17 +60,30 @@ func TestStubDrivesAgent(t *testing.T) {
 	}
 }
 
+// The real Whisper ACL adapter against the stub (same wire contract as the
+// whisper-asr-webservice image).
 func TestStubASR(t *testing.T) {
 	srv := httptest.NewServer(newMux())
 	defer srv.Close()
-	resp, err := http.Post(srv.URL+"/asr?language=zh", "audio/webm", strings.NewReader("x"))
+	w := ai.NewWhisper(ai.WhisperConfig{BaseURL: srv.URL})
+	for locale, lang := range map[string]string{ai.LocaleZH: "zh", ai.LocaleEN: "en", "": "en"} {
+		out, err := w.Transcribe(context.Background(), ai.TranscribeInput{Audio: []byte{0x1a, 0x45, 0xdf, 0xa3}, Locale: locale})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out.Text != StubTranscript || out.Language != lang || out.Duration <= 0 {
+			t.Fatalf("%q: %+v", locale, out)
+		}
+	}
+	// Missing audio_file part → 422 like FastAPI.
+	resp, err := http.Post(srv.URL+"/asr?output=json", "audio/webm", strings.NewReader("x"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	var out map[string]string
+	var out map[string]any
 	_ = json.NewDecoder(resp.Body).Decode(&out)
-	if out["text"] != StubTranscript || out["language"] != "zh" {
-		t.Fatalf("%v", out)
+	if resp.StatusCode != http.StatusUnprocessableEntity || out["detail"] == nil {
+		t.Fatalf("%d %v", resp.StatusCode, out)
 	}
 }

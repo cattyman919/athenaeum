@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -21,7 +23,8 @@ import (
 // This file is the anti-corruption layer between the agent and the chat vendor
 // (docs/06 §5): an OpenAI-compatible streaming client (OpenRouter, or the
 // api/cmd/e2e-stubs fake) exposed as an Eino ToolCallingChatModel. Swapping vendors
-// touches only this file.
+// touches only this file. The speech-to-text adapter (WhisperAdapter, docs/15 §5)
+// lives at the bottom under the same rule.
 
 // Generation defaults (docs/06 §3, §8).
 const (
@@ -319,4 +322,130 @@ func readSSE(r io.Reader, sw *schema.StreamWriter[*schema.Message]) {
 	if err := sc.Err(); err != nil {
 		sw.Send(nil, upstream("The AI provider stream was interrupted.", err))
 	}
+}
+
+// --- Speech-to-text ACL (docs/15 §5) ---
+//
+// WhisperAdapter speaks the onerahmet/openai-whisper-asr-webservice API (ASR_ENGINE=
+// faster_whisper, pinned in docker-compose.yml): POST {base}/asr with a multipart
+// `audio_file` part and query `task=transcribe&output=json&encode=true&vad_filter=true
+// [&language=en|zh]`. The JSON body is {"text","language","segments":[{"start","end",…}]}
+// (served as text/plain). api/cmd/e2e-stubs fakes the same contract. Swapping STT
+// vendors touches only this section.
+
+// WhisperConfig configures the STT adapter. The model itself (WHISPER_MODEL) is chosen
+// by the whisper container (ASR_MODEL), not per request.
+type WhisperConfig struct {
+	BaseURL string
+	// HTTPClient overrides the default client (5 s connect; the per-call deadline comes
+	// from the caller's context, docs/15 §6).
+	HTTPClient *http.Client
+}
+
+// WhisperAdapter implements Transcriber against the whisper ASR webservice.
+type WhisperAdapter struct {
+	base string
+	http *http.Client
+}
+
+var _ Transcriber = (*WhisperAdapter)(nil)
+
+// NewWhisper builds the STT adapter.
+func NewWhisper(cfg WhisperConfig) *WhisperAdapter {
+	hc := cfg.HTTPClient
+	if hc == nil {
+		hc = &http.Client{Transport: &http.Transport{
+			Proxy:       http.ProxyFromEnvironment,
+			DialContext: (&net.Dialer{Timeout: connectTimeout}).DialContext,
+		}}
+	}
+	return &WhisperAdapter{base: strings.TrimRight(cfg.BaseURL, "/"), http: hc}
+}
+
+// WhisperLanguage maps a UI locale to the Whisper `language` hint (docs/15 §4);
+// anything else → "" (auto-detect).
+func WhisperLanguage(locale string) string {
+	switch locale {
+	case LocaleEN:
+		return "en"
+	case LocaleZH:
+		return "zh"
+	}
+	return ""
+}
+
+type whisperResponse struct {
+	Text     string `json:"text"`
+	Language string `json:"language"`
+	Segments []struct {
+		End float64 `json:"end"`
+	} `json:"segments"`
+}
+
+func sttUnavailable(cause error) error {
+	return model.Wrap(model.CodeTranscriptionUnavailable, "Voice transcription is temporarily unavailable.", cause)
+}
+
+// Transcribe uploads the clip and returns the transcript. Connection failures,
+// timeouts and 5xx gateway statuses → TRANSCRIPTION_UNAVAILABLE; 4xx and 500 (the
+// service raises 500 when ffmpeg cannot decode the clip) → VALIDATION_FAILED. Error
+// causes never include audio bytes or transcript text.
+func (w *WhisperAdapter) Transcribe(ctx context.Context, in TranscribeInput) (Transcript, error) {
+	var body bytes.Buffer
+	mw := multipart.NewWriter(&body)
+	name := in.Filename
+	if name == "" {
+		name = "audio.webm"
+	}
+	part, err := mw.CreateFormFile("audio_file", name)
+	if err != nil {
+		return Transcript{}, err
+	}
+	if _, err := part.Write(in.Audio); err != nil {
+		return Transcript{}, err
+	}
+	if err := mw.Close(); err != nil {
+		return Transcript{}, err
+	}
+	q := url.Values{"task": {"transcribe"}, "output": {"json"}, "encode": {"true"}, "vad_filter": {"true"}}
+	if lang := WhisperLanguage(in.Locale); lang != "" {
+		q.Set("language", lang)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.base+"/asr?"+q.Encode(), &body)
+	if err != nil {
+		return Transcript{}, err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Accept", "application/json")
+	resp, err := w.http.Do(req)
+	if err != nil {
+		return Transcript{}, sttUnavailable(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	switch {
+	case resp.StatusCode == http.StatusOK:
+	case resp.StatusCode >= 400 && resp.StatusCode <= 500:
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		return Transcript{}, model.Wrap(model.CodeValidationFailed, "The audio could not be decoded.",
+			fmt.Errorf("whisper status %d", resp.StatusCode))
+	default:
+		return Transcript{}, sttUnavailable(fmt.Errorf("whisper status %d", resp.StatusCode))
+	}
+	var out whisperResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
+		return Transcript{}, sttUnavailable(fmt.Errorf("decode whisper response: %w", err))
+	}
+	var end float64
+	for _, s := range out.Segments {
+		end = max(end, s.End)
+	}
+	lang := out.Language
+	if lang == "" {
+		lang = WhisperLanguage(in.Locale)
+	}
+	return Transcript{
+		Text:     strings.TrimSpace(out.Text),
+		Language: lang,
+		Duration: time.Duration(end * float64(time.Second)),
+	}, nil
 }

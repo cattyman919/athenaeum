@@ -17,11 +17,11 @@ services:
     ports: ["11434:11434"]
     volumes: [ollamadata:/root/.ollama]
   whisper:
-    image: onerahmet/openai-whisper-asr-webservice:latest   # faster-whisper HTTP server
-    environment: { ASR_ENGINE: faster_whisper, ASR_MODEL: small }
+    image: onerahmet/openai-whisper-asr-webservice:v1.10.0   # faster-whisper HTTP server (POST /asr, docs/15 §5)
+    environment: { ASR_ENGINE: faster_whisper, ASR_MODEL: "${WHISPER_MODEL:-small}", ASR_MODEL_PATH: /data/whisper }
     ports: ["9000:9000"]
     volumes: [whisperdata:/data]
-    healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s }
+    healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s, start_period: 120s }
   api:
     profiles: [app]
     build: { context: ./api, dockerfile: Dockerfile }
