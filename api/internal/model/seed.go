@@ -73,9 +73,26 @@ type CopyFixture struct {
 	ShelfPath string `json:"shelf_path"`
 }
 
+// LibraryFixture is mocks/library.json: the demo patron's personal library and holds (docs/13 §6).
+type LibraryFixture struct {
+	UserEmail string                `json:"user_email"`
+	Entries   []LibraryEntryFixture `json:"entries"`
+	Waitlist  []string              `json:"waitlist"` // book titles
+}
+
+// LibraryEntryFixture is one seeded user_library row, keyed by book title.
+type LibraryEntryFixture struct {
+	Title       string `json:"title"`
+	Status      string `json:"status"`
+	IsFavorite  bool   `json:"is_favorite"`
+	ProgressPct *int   `json:"progress_pct"`
+	Rating      *int   `json:"rating"`
+}
+
 // SeedCounts are the totals printed after seeding (docs/08 §4 step 5).
 type SeedCounts struct {
 	Users, Books, Copies, Shelves, CheckedOut, ZeroCopyBooks int
+	LibraryEntries, WaitlistRows                             int
 }
 
 // IndexBook is a book to be chunked and embedded (docs/06 §2).

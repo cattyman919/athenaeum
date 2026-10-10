@@ -99,7 +99,7 @@ Refs: [docs/08](docs/08-seed-data.md), values [docs/13](docs/13-mock-data-refere
 - [x] `internal/service/olbooks` Open Library client + fallbacks ([docs/08 §6](docs/08-seed-data.md#6-open-library-fallback))
 - [x] `cmd/reindex` chunker v1 (~300 tok, 50 overlap) + Ollama batch + upsert ([docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline))
 
-- [ ] Demo `user_library` (24 rows) + `waitlist` (2 rows) seeds per [docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library) — lands with Phase 6 (needs those features)
+- [x] Demo `user_library` (24 rows) + `waitlist` (2 rows) seeds per [docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library) — lands with Phase 6 (needs those features)
 
 ## 7. Phase 4 — Catalog & Search
 
@@ -125,8 +125,8 @@ Refs: [docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid), [docs/05 §3–5](
 
 Refs: [docs/03 §6](docs/03-api-spec.md#6-personal-library--waitlist).
 
-- [ ] `user_library` service + `/api/library` CRUD (upsert semantics, 409 `BOOK_NOT_AVAILABLE` rule)
-- [ ] waitlist join/leave/list + 48h expiry sweep ([docs/12 §10](docs/12-ui-design.md#10-copy-state-machine))
+- [x] `user_library` service + `/api/library` CRUD (upsert semantics, 409 `BOOK_NOT_AVAILABLE` rule)
+- [x] waitlist join/leave/list + 48h expiry sweep ([docs/12 §10](docs/12-ui-design.md#10-copy-state-machine))
 - [ ] `/library` page: 4 KPI cards, stage tabs, `LibraryRowItem`, holds tab, AI banner deep link
 
 ## 10. Phase 7 — AI Librarian Chat

@@ -1,0 +1,177 @@
+{
+  "user_email": "demo@athenaeum.dev",
+  "entries": [
+    {
+      "title": "Dune",
+      "status": "reading",
+      "is_favorite": true,
+      "progress_pct": 40,
+      "rating": null
+    },
+    {
+      "title": "Project Hail Mary",
+      "status": "reading",
+      "is_favorite": false,
+      "progress_pct": 12,
+      "rating": null
+    },
+    {
+      "title": "Neuromancer",
+      "status": "read",
+      "is_favorite": true,
+      "progress_pct": 100,
+      "rating": 5
+    },
+    {
+      "title": "Foundation",
+      "status": "read",
+      "is_favorite": true,
+      "progress_pct": 100,
+      "rating": 4
+    },
+    {
+      "title": "Snow Crash",
+      "status": "read",
+      "is_favorite": true,
+      "progress_pct": 100,
+      "rating": 5
+    },
+    {
+      "title": "Hyperion",
+      "status": "read",
+      "is_favorite": true,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "The Three-Body Problem",
+      "status": "read",
+      "is_favorite": true,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "Clean Code",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "Structure and Interpretation of Computer Programs",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": 5
+    },
+    {
+      "title": "The C Programming Language",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "A Brief History of Time",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "1491: New Revelations of the Americas Before Columbus",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": 4
+    },
+    {
+      "title": "The Guns of August",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "Salt: A World History",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "Ways of Seeing",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "The Name of the Rose",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "Ender's Game",
+      "status": "read",
+      "is_favorite": false,
+      "progress_pct": 100,
+      "rating": null
+    },
+    {
+      "title": "The Left Hand of Darkness",
+      "status": "want_to_read",
+      "is_favorite": false,
+      "progress_pct": null,
+      "rating": null
+    },
+    {
+      "title": "Gödel, Escher, Bach",
+      "status": "want_to_read",
+      "is_favorite": false,
+      "progress_pct": null,
+      "rating": null
+    },
+    {
+      "title": "Thinking, Fast and Slow",
+      "status": "want_to_read",
+      "is_favorite": false,
+      "progress_pct": null,
+      "rating": null
+    },
+    {
+      "title": "The Story of Art",
+      "status": "want_to_read",
+      "is_favorite": false,
+      "progress_pct": null,
+      "rating": null
+    },
+    {
+      "title": "Postwar: A History of Europe Since 1945",
+      "status": "want_to_read",
+      "is_favorite": false,
+      "progress_pct": null,
+      "rating": null
+    },
+    {
+      "title": "Guns, Germs, and Steel",
+      "status": "want_to_read",
+      "is_favorite": false,
+      "progress_pct": null,
+      "rating": null
+    },
+    {
+      "title": "Designing Data-Intensive Applications",
+      "status": "want_to_read",
+      "is_favorite": true,
+      "progress_pct": null,
+      "rating": null
+    }
+  ],
+  "waitlist": [
+    "The Oxford Guide to Library Research",
+    "Quarterly Bulletin of the Athenaeum, 1952–1953"
+  ]
+}

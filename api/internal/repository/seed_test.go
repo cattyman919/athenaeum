@@ -39,7 +39,7 @@ func TestSeedParityIdempotencyAndReset(t *testing.T) {
 	if err := fx.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	want := model.SeedCounts{Users: 2, Books: 40, Copies: 60, Shelves: 40, CheckedOut: 12, ZeroCopyBooks: 5}
+	want := model.SeedCounts{Users: 2, Books: 40, Copies: 60, Shelves: 40, CheckedOut: 12, ZeroCopyBooks: 5, LibraryEntries: 24, WaitlistRows: 2}
 
 	got, err := seed.Run(ctx, store, stubEnricher{}, fx, seed.Options{Users: seedUsers}, logging.Discard())
 	if err != nil {

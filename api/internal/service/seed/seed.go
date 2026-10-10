@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/cattyman919/athenaeum/api/internal/model"
 	"github.com/cattyman919/athenaeum/api/internal/pkg/hash"
@@ -23,6 +24,9 @@ type Store interface {
 	// bookIndex is 1-based (barcode allocation) and shelf paths are resolved
 	// with building.ResolvePath.
 	ApplyBook(ctx context.Context, bookIndex int, b model.BookFixture) error
+	// ApplyDemoLibrary upserts the demo patron's library entries and waitlist rows
+	// (rows are keyed by user + book title; re-running changes nothing).
+	ApplyDemoLibrary(ctx context.Context, l model.LibraryFixture) error
 	// Counts returns the database totals after seeding.
 	Counts(ctx context.Context) (model.SeedCounts, error)
 }
@@ -67,6 +71,15 @@ func Run(ctx context.Context, st Store, enr Enricher, fx Fixtures, opts Options,
 		b = enrich(ctx, enr, b, log)
 		if err := st.ApplyBook(ctx, i+1, b); err != nil {
 			return model.SeedCounts{}, fmt.Errorf("books[%d] (%s): %w", i, b.Title, err)
+		}
+	}
+	// The demo library belongs to a seeded user; skip it when that account is not part of this run.
+	for _, u := range opts.Users {
+		if strings.EqualFold(u.Email, fx.Library.UserEmail) {
+			if err := st.ApplyDemoLibrary(ctx, fx.Library); err != nil {
+				return model.SeedCounts{}, fmt.Errorf("demo library: %w", err)
+			}
+			break
 		}
 	}
 	return st.Counts(ctx)

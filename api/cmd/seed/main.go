@@ -45,6 +45,7 @@ func run() error {
 	if err := fx.Validate(); err != nil {
 		return err // bad fixture: abort before any write
 	}
+	fx.Library.UserEmail = cfg.SeedUserEmail // the demo library follows SEED_USER_EMAIL
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

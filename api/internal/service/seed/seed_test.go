@@ -25,7 +25,7 @@ func TestShippedFixturesAreValidAndMatchDocs13(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := fx.Counts()
-	want := model.SeedCounts{Books: 40, Copies: 60, Shelves: 40, CheckedOut: 12, ZeroCopyBooks: 5}
+	want := model.SeedCounts{Books: 40, Copies: 60, Shelves: 40, CheckedOut: 12, ZeroCopyBooks: 5, LibraryEntries: 24, WaitlistRows: 2}
 	if c != want {
 		t.Fatalf("counts %+v, want %+v", c, want)
 	}
@@ -125,5 +125,45 @@ func TestBarcodeAllocation(t *testing.T) {
 func TestLoadRejectsMissingDirAndUnknownFields(t *testing.T) {
 	if _, err := seed.Load(t.TempDir()); err == nil {
 		t.Fatal("empty dir must fail")
+	}
+}
+
+func TestLibraryFixtureMatchesDocs13(t *testing.T) {
+	fx := load(t)
+	byStatus := map[string]int{}
+	fav := 0
+	for _, e := range fx.Library.Entries {
+		byStatus[e.Status]++
+		if e.IsFavorite {
+			fav++
+		}
+	}
+	if byStatus["reading"] != 2 || byStatus["read"] != 15 || byStatus["want_to_read"] != 7 || fav != 7 {
+		t.Fatalf("stages %v favorites %d", byStatus, fav)
+	}
+	if len(fx.Library.Waitlist) != 2 {
+		t.Fatalf("waitlist %v", fx.Library.Waitlist)
+	}
+}
+
+func TestValidateLibraryFailureModes(t *testing.T) {
+	bad := func(f func(fx *seed.Fixtures)) seed.Fixtures {
+		fx := load(t)
+		f(&fx)
+		return fx
+	}
+	tests := map[string]seed.Fixtures{
+		"unknown title":  bad(func(fx *seed.Fixtures) { fx.Library.Entries[0].Title = "Nope" }),
+		"duplicate":      bad(func(fx *seed.Fixtures) { fx.Library.Entries[1] = fx.Library.Entries[0] }),
+		"bad status":     bad(func(fx *seed.Fixtures) { fx.Library.Entries[0].Status = "finished" }),
+		"bad rating":     bad(func(fx *seed.Fixtures) { r := 9; fx.Library.Entries[0].Rating = &r }),
+		"bad progress":   bad(func(fx *seed.Fixtures) { p := 120; fx.Library.Entries[0].ProgressPct = &p }),
+		"unknown hold":   bad(func(fx *seed.Fixtures) { fx.Library.Waitlist[0] = "Nope" }),
+		"missing e-mail": bad(func(fx *seed.Fixtures) { fx.Library.UserEmail = "" }),
+	}
+	for name, fx := range tests {
+		if err := fx.Validate(); err == nil {
+			t.Errorf("%s: expected error", name)
+		}
 	}
 }

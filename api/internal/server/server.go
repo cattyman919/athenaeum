@@ -15,18 +15,22 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
+	"github.com/cattyman919/athenaeum/api/internal/service/library"
+	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
 )
 
 // Deps are the collaborators wired in cmd/api (manual DI, docs/01 §2).
 // Optional members may be nil in tests: nil JWT/Auth skip identity and auth
 // routes, nil Limiter disables rate limiting.
 type Deps struct {
-	Config  config.Config
-	Log     *slog.Logger
-	JWT     *jwt.Manager
-	Auth    *auth.Service
-	Catalog *catalog.Service
-	Limiter *middleware.RateLimiter
+	Config   config.Config
+	Log      *slog.Logger
+	JWT      *jwt.Manager
+	Auth     *auth.Service
+	Catalog  *catalog.Service
+	Library  *library.Service
+	Waitlist *waitlist.Service
+	Limiter  *middleware.RateLimiter
 }
 
 // specificBucketRoutes shadow the general 120/min bucket (docs/03 §2).
@@ -93,6 +97,19 @@ func NewRouter(d Deps) *gin.Engine {
 		bg := api.Group("/books", requireAuth)
 		bg.GET("/search", limit(middleware.BucketSearch), bh.Search)
 		bg.GET("/:id", bh.Get)
+	}
+
+	if d.Library != nil && d.Waitlist != nil {
+		lh := handler.NewLibraryHandler(d.Library, d.Waitlist)
+		lg := api.Group("/library", requireAuth)
+		lg.GET("", lh.List)
+		lg.POST("", lh.Add)
+		lg.PATCH("/:book_id", lh.Patch)
+		lg.DELETE("/:book_id", lh.Remove)
+		wg := api.Group("", requireAuth)
+		wg.POST("/books/:id/waitlist", lh.JoinWaitlist)
+		wg.DELETE("/books/:id/waitlist", lh.LeaveWaitlist)
+		wg.GET("/waitlist", lh.ListWaitlist)
 	}
 	return r
 }

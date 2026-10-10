@@ -30,6 +30,7 @@ var validStatus = map[string]bool{"available": true, "checked_out": true, "missi
 type Fixtures struct {
 	Building model.BuildingFixture
 	Books    []model.BookFixture
+	Library  model.LibraryFixture
 }
 
 // Barcode builds the accession barcode of copy n (1-based) of book index (1-based).
@@ -48,6 +49,9 @@ func Load(dir string) (Fixtures, error) {
 		return Fixtures{}, err
 	}
 	fx.Books = books.Books
+	if err := readJSON(filepath.Join(dir, "library.json"), &fx.Library); err != nil {
+		return Fixtures{}, err
+	}
 	return fx, nil
 }
 
@@ -144,6 +148,41 @@ func (f Fixtures) Validate() error {
 			}
 		}
 	}
+	return f.validateLibrary()
+}
+
+var validLibraryStatus = map[string]bool{"want_to_read": true, "reading": true, "read": true}
+
+func (f Fixtures) validateLibrary() error {
+	titles := map[string]bool{}
+	for _, b := range f.Books {
+		titles[b.Title] = true
+	}
+	if f.Library.UserEmail == "" {
+		return fmt.Errorf("library.json: user_email is required")
+	}
+	seen := map[string]bool{}
+	for i, e := range f.Library.Entries {
+		where := fmt.Sprintf("library.json: entries[%d] (%s)", i, e.Title)
+		switch {
+		case !titles[e.Title]:
+			return fmt.Errorf("%s: unknown book title", where)
+		case seen[e.Title]:
+			return fmt.Errorf("%s: duplicate entry", where)
+		case !validLibraryStatus[e.Status]:
+			return fmt.Errorf("%s: invalid status %q", where, e.Status)
+		case e.ProgressPct != nil && (*e.ProgressPct < 0 || *e.ProgressPct > 100):
+			return fmt.Errorf("%s: progress_pct out of range", where)
+		case e.Rating != nil && (*e.Rating < 1 || *e.Rating > 5):
+			return fmt.Errorf("%s: rating out of range", where)
+		}
+		seen[e.Title] = true
+	}
+	for i, t := range f.Library.Waitlist {
+		if !titles[t] {
+			return fmt.Errorf("library.json: waitlist[%d] (%s): unknown book title", i, t)
+		}
+	}
 	return nil
 }
 
@@ -157,6 +196,8 @@ func (f Fixtures) Counts() model.SeedCounts {
 			}
 		}
 	}
+	c.LibraryEntries = len(f.Library.Entries)
+	c.WaitlistRows = len(f.Library.Waitlist)
 	for _, b := range f.Books {
 		c.Books++
 		c.Copies += len(b.Copies)

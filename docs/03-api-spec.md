@@ -324,6 +324,11 @@ Personal list. Params: `status=want_to_read|reading|read|favorites` (repeatable)
 ], "meta": { "page": 1, "per_page": 20, "total": 24, "total_pages": 2 } }
 ```
 
+Additive fields: every item carries `"kind":"entry"`; `include_waitlist=true` prepends
+`{"kind":"hold","book":{…},"waitlist":{"id","status","position",…}}` items on page 1 (not counted in
+`meta.total`); and the response carries `"counts":{"total","reading","read","want_to_read","favorites"}`
+for the KPI cards regardless of the active filter.
+
 ### 6.2 Add/Update library entry
 
 `POST /api/library` body `{ "book_id": "…", "status": "reading?" }` → 201;
@@ -331,7 +336,8 @@ Personal list. Params: `status=want_to_read|reading|read|favorites` (repeatable)
 `{ "status": "want_to_read|reading|read", "is_favorite": true|false, "progress_pct": 40, "rating": 5 }`
 → 200 upserted row; `DELETE /api/library/{book_id}` → 204.
 
-- Upsert semantics (idempotent). 404 for unknown book.
+- Upsert semantics (idempotent): `POST` returns 201 for a new row and 200 when it already existed;
+  `PATCH` on a missing row creates it as `want_to_read`; `null` clears `progress_pct`/`rating`. 404 for unknown book.
 - Zero-available copy + first-time `status=reading` → **409 BOOK_NOT_AVAILABLE**
   (treated as soft warning; client may proceed with `?force=true` — captures
   suggested_actions from the 409 body).
@@ -344,8 +350,13 @@ Personal list. Params: `status=want_to_read|reading|read|favorites` (repeatable)
 | `DELETE /api/books/{id}/waitlist` | — | 204 (sets cancelled) |
 | `GET /api/waitlist` | — | `{ "items":[ {"id":"w1…","book":{…},"status":"waiting","position":1} ] }` |
 
-- Only meaningful when `availability.state` has zero available copies; joining
-  twice → same row (200 with existing), no duplicate ([02](02-data-model.md#waitlist)).
+- Only meaningful when `availability.state` has zero available copies (otherwise 409 `CONFLICT`);
+  joining twice → same row (200 with existing), no duplicate ([02](02-data-model.md#waitlist)).
+- Expiry sweep (every 5 min in the API process): `ready` rows past `expires_at` (ready_at + 48 h)
+  become `expired`; the freed hold goes to the oldest `waiting` patron (→ `ready`, new 48 h window), or,
+  with nobody waiting, one `reserved_waitlist` copy returns to `available` (`copy_events.source='waitlist'`).
+  Cancelling a `ready` hold does the same. Marking copies `reserved_waitlist` on turnover arrives with the
+  admin copy PATCH.
 - `notify_when_available` UX is in-app only — no email delivery ([10-roadmap.md](./10-roadmap.md)).
 
 ## 7. Chat (SSE)

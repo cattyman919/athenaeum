@@ -25,9 +25,14 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/server"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
+	"github.com/cattyman919/athenaeum/api/internal/service/library"
+	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
 )
 
-const shutdownTimeout = 10 * time.Second
+const (
+	shutdownTimeout       = 10 * time.Second
+	waitlistSweepInterval = 5 * time.Minute
+)
 
 func main() {
 	if err := run(); err != nil {
@@ -75,13 +80,21 @@ func run() error {
 	embedder := embed.NewOllama(cfg.OllamaBaseURL, cfg.OllamaEmbedModel, cfg.OllamaEmbedDim)
 	catalogSvc := catalog.New(repository.NewCatalogRepository(pool), embedder)
 
+	libRepo := repository.NewLibraryRepository(pool)
+	waitRepo := repository.NewWaitlistRepository(pool)
+	waitSvc := waitlist.New(waitRepo, libRepo)
+	librarySvc := library.New(libRepo, waitRepo)
+	go waitSvc.RunSweeper(ctx, waitlistSweepInterval, log)
+
 	srv := server.New(server.Deps{
-		Config:  cfg,
-		Log:     log,
-		JWT:     jm,
-		Auth:    authSvc,
-		Catalog: catalogSvc,
-		Limiter: middleware.NewRateLimiter(rdb, log),
+		Config:   cfg,
+		Log:      log,
+		JWT:      jm,
+		Auth:     authSvc,
+		Catalog:  catalogSvc,
+		Library:  librarySvc,
+		Waitlist: waitSvc,
+		Limiter:  middleware.NewRateLimiter(rdb, log),
 	}, fmt.Sprintf(":%d", cfg.APIPort))
 
 	errCh := make(chan error, 1)

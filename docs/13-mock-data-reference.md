@@ -208,9 +208,11 @@ Copy audit math: 3×7 = 21, 2×11 = 22, 1×17 = 17 → **60 copies** across 35 b
 | --- | --- |
 | `reading` (2) | Dune (progress 40%) · Project Hail Mary (progress 12%) |
 | `read` (15) | Neuromancer, Foundation, Snow Crash, Hyperion, Three-Body, Clean Code, SICP, C Programming, Brief History, 1491, Guns of August, Salt, Ways of Seeing, Name of the Rose, Ender's Game |
-| `want_to_read` (7) | Left Hand of Darkness, GEB, Thinking Fast, Story of Art, Postwar, Guns Germs & Steel, Zen |
+| `want_to_read` (7) | Left Hand of Darkness, GEB, Thinking Fast, Story of Art, Postwar, Guns Germs & Steel, Designing Data-Intensive Applications |
 | favorites (7) | Dune, Neuromancer, Foundation, Snow Crash, Hyperion, Three-Body, Designing Data-Intensive Applications |
 | ratings seeded | Neuromancer 5, Foundation 4, Snow Crash 5, SICP 5, 1491 4 |
+
+> Correction: the favorites list includes *Designing Data-Intensive Applications*, which must be a library row to be favorited; it replaces *Zen and the Art of Motorcycle Maintenance* in `want_to_read` so the 24-entry / 7-favorite totals hold. Seeded from `api/mocks/library.json` (titles resolve against `books.json`; the account follows `SEED_USER_EMAIL`).
 
 `waitlist` seeds (2): demo holds on #33 and #40 (`status='waiting'`, `position`
 1 each — no other users so queues are short).

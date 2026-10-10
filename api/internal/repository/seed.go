@@ -209,6 +209,57 @@ func (s *SeedStore) ApplyBook(ctx context.Context, index int, b model.BookFixtur
 	return tx.Commit(ctx)
 }
 
+// ApplyDemoLibrary seeds the demo patron's library and holds idempotently.
+func (s *SeedStore) ApplyDemoLibrary(ctx context.Context, l model.LibraryFixture) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var userID uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT id FROM users WHERE lower(email) = lower($1)`, l.UserEmail).Scan(&userID); err != nil {
+		return fmt.Errorf("demo user %s: %w", l.UserEmail, err)
+	}
+	bookByTitle := func(title string) (uuid.UUID, error) {
+		var id uuid.UUID
+		err := tx.QueryRow(ctx, `SELECT id FROM books WHERE title = $1`, title).Scan(&id)
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("book %q: %w", title, err)
+		}
+		return id, nil
+	}
+	for _, e := range l.Entries {
+		bookID, err := bookByTitle(e.Title)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO user_library (id, user_id, book_id, status, is_favorite, progress_pct, rating)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)
+			ON CONFLICT (user_id, book_id) DO UPDATE
+			SET status = EXCLUDED.status, is_favorite = EXCLUDED.is_favorite,
+			    progress_pct = EXCLUDED.progress_pct, rating = EXCLUDED.rating`,
+			uuid.New(), userID, bookID, e.Status, e.IsFavorite, e.ProgressPct, e.Rating); err != nil {
+			return fmt.Errorf("library entry %q: %w", e.Title, err)
+		}
+	}
+	for _, title := range l.Waitlist {
+		bookID, err := bookByTitle(title)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO waitlist (id, book_id, user_id)
+			SELECT $1, $2, $3 WHERE NOT EXISTS (
+			  SELECT 1 FROM waitlist WHERE book_id = $2 AND user_id = $3 AND status IN ('waiting','ready'))`,
+			uuid.New(), bookID, userID); err != nil {
+			return fmt.Errorf("waitlist %q: %w", title, err)
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 // Counts returns database totals.
 func (s *SeedStore) Counts(ctx context.Context) (model.SeedCounts, error) {
 	var c model.SeedCounts
@@ -218,8 +269,10 @@ func (s *SeedStore) Counts(ctx context.Context) (model.SeedCounts, error) {
 		(SELECT count(*) FROM book_copies),
 		(SELECT count(*) FROM shelves),
 		(SELECT count(*) FROM book_copies WHERE status = 'checked_out'),
-		(SELECT count(*) FROM books b WHERE NOT EXISTS (SELECT 1 FROM book_copies bc WHERE bc.book_id = b.id))`).
-		Scan(&c.Users, &c.Books, &c.Copies, &c.Shelves, &c.CheckedOut, &c.ZeroCopyBooks)
+		(SELECT count(*) FROM books b WHERE NOT EXISTS (SELECT 1 FROM book_copies bc WHERE bc.book_id = b.id)),
+		(SELECT count(*) FROM user_library),
+		(SELECT count(*) FROM waitlist WHERE status IN ('waiting','ready'))`).
+		Scan(&c.Users, &c.Books, &c.Copies, &c.Shelves, &c.CheckedOut, &c.ZeroCopyBooks, &c.LibraryEntries, &c.WaitlistRows)
 	if err != nil {
 		return model.SeedCounts{}, fmt.Errorf("counts: %w", err)
 	}

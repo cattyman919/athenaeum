@@ -60,6 +60,25 @@ Target distribution mirrors [13-mock-data-reference.md](./13-mock-data-reference
 
 Concrete hierarchy values: [13 §shelf inventory](13-mock-data-reference.md#4-shelf-inventory-all-40).
 
+## 2b. `mocks/library.json` schema
+
+The demo patron's personal library and holds ([13 §6](13-mock-data-reference.md#6-demo-users--personal-library)):
+
+```json
+{
+  "user_email": "demo@athenaeum.dev",
+  "entries": [
+    { "title": "Dune", "status": "reading", "is_favorite": true, "progress_pct": 40, "rating": null }
+  ],
+  "waitlist": ["The Oxford Guide to Library Research", "Quarterly Bulletin of the Athenaeum, 1952–1953"]
+}
+```
+
+`title` is the natural key into `books.json` (a validation error if it does not match); `status` ∈
+`want_to_read|reading|read`; `waitlist` rows are inserted `status='waiting'` unless the patron already has
+an active hold on that book. `cmd/seed` overrides `user_email` with `SEED_USER_EMAIL` and applies the file only
+when that account is part of the run. Re-running changes nothing.
+
 ## 3. `mocks/books.json` Schema
 
 ```json
