@@ -112,5 +112,79 @@
       "want_to_read": "想读",
       "favorites": "收藏"
     }
+  },
+  "catalog": {
+    "title": "馆藏目录",
+    "subtitle": "按关键词、语义或两者结合浏览书库。",
+    "search": {
+      "label": "搜索馆藏",
+      "placeholder": "书名、作者、主题或一个问题…",
+      "submit": "搜索",
+      "clear": "清除搜索"
+    },
+    "modes": {
+      "label": "搜索模式",
+      "keyword": "关键词",
+      "semantic": "语义",
+      "hybrid": "混合"
+    },
+    "sort": {
+      "label": "排序",
+      "relevance": "相关度",
+      "title": "书名 A–Z",
+      "year:asc": "出版年份（从早到晚）",
+      "year:desc": "出版年份（从晚到早）"
+    },
+    "filters": {
+      "title": "筛选",
+      "sections": "分区",
+      "availability": "可借状态",
+      "onlyAvailable": "馆内可借",
+      "onlyAvailableHint": "仅显示书架上有馆藏的书目",
+      "era": "出版年代",
+      "clear": "清除全部筛选",
+      "eras": {
+        "pre1800": "1800 年以前",
+        "1800_1970": "1800 – 1969",
+        "1970_2000": "1970 – 1999",
+        "2000_n": "2000 年及以后"
+      }
+    },
+    "results": {
+      "count": "共 {count} 册",
+      "page": "第 {page} / {pages} 页",
+      "prev": "上一页",
+      "next": "下一页",
+      "pagination": "分页"
+    },
+    "card": {
+      "shelf": "书架",
+      "copies": "可借 {available} / 共 {total} 册",
+      "noCopies": "暂无馆藏",
+      "openBook": "打开《{title}》",
+      "coverAlt": "《{title}》封面"
+    },
+    "empty": {
+      "title": "没有找到匹配的书目",
+      "hint": "试试其他词语、切换搜索模式，或浏览相邻分区。",
+      "nearby": "浏览分区"
+    },
+    "error": {
+      "embedding": "语义搜索暂时不可用。",
+      "embeddingHint": "嵌入服务没有响应，关键词搜索仍可使用。",
+      "switchKeyword": "改用关键词搜索",
+      "generic": "无法加载馆藏目录。",
+      "retry": "重试"
+    }
+  },
+  "palette": {
+    "title": "快速搜索",
+    "description": "搜索馆藏并直接跳转到书目",
+    "placeholder": "搜索书名和作者…",
+    "empty": "没有匹配项",
+    "searching": "搜索中…",
+    "seeAll": "查看“{query}”的全部结果",
+    "hint": "输入以搜索",
+    "close": "关闭"
   }
 }

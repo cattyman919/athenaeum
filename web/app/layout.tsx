@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { AuthProvider } from "@/providers/auth-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { HydrationMarker } from "@/components/hydration-marker";
 import { getCurrentUser } from "@/lib/api-server";
 import "./globals.css";
 
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <NextIntlClientProvider locale={locale} messages={messages}>
           <AuthProvider initialUser={user}>{children}</AuthProvider>
           <Toaster />
+          <HydrationMarker />
         </NextIntlClientProvider>
       </body>
     </html>

@@ -34,7 +34,8 @@ describe("catalog parity (docs/14 §12)", () => {
       const b = lookup(zh as Tree, key)!;
       expect(a.trim(), key).not.toBe("");
       expect(b.trim(), key).not.toBe("");
-      const ph = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+      const ph = (s: string) =>
+        [...new Set([...s.matchAll(/\{(\w+)[,}]/g)].map((m) => m[1]))].sort();
       expect(ph(b), `placeholders of ${key}`).toEqual(ph(a));
     }
   });

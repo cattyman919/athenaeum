@@ -9,10 +9,11 @@ const apiBase = process.env.API_BASE_URL ?? "http://localhost:8080";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Compression would buffer the SSE chat stream.
+  compress: false,
   // The repo root also has a lockfile (commitlint tooling); pin tracing to web/.
   outputFileTracingRoot: process.cwd(),
   // Compression would buffer the SSE chat stream.
-  compress: false,
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiBase}/api/:path*` }];
   },

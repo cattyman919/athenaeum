@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Library, LogOut, Search } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { LanguageToggle } from "@/components/language-toggle";
+import { CommandPalette, OPEN_PALETTE_EVENT } from "@/components/command-palette";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -38,15 +39,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
             <span>{t("common.appName")}</span>
           </Link>
-          <Link
-            href="/catalog"
+          <button
+            type="button"
+            data-testid="open-palette"
             aria-label={t("shell.search")}
+            onClick={() => window.dispatchEvent(new Event(OPEN_PALETTE_EVENT))}
             className="hidden h-9 w-64 items-center gap-2 rounded-md border border-border bg-card px-3 text-xs text-muted-foreground md:flex"
           >
             <Search className="h-4 w-4" aria-hidden />
             <span>{t("shell.searchPlaceholder")}</span>
             <kbd className="mono-label ml-auto rounded bg-secondary px-1.5 py-0.5">⌘K</kbd>
-          </Link>
+          </button>
           <nav aria-label="Primary" className="flex items-center gap-1">
             {links.map((l) => (
               <Link
@@ -90,6 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-6 py-8">
         {children}
       </main>
+      <CommandPalette />
       <footer className="border-t border-border py-4 text-xs text-muted-foreground">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6">
           <span>

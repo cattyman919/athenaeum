@@ -112,5 +112,79 @@
       "want_to_read": "Want to Read",
       "favorites": "Favorites"
     }
+  },
+  "catalog": {
+    "title": "Catalog",
+    "subtitle": "Browse the stacks by keyword, meaning, or both.",
+    "search": {
+      "label": "Search the catalog",
+      "placeholder": "Title, author, topic, or a question…",
+      "submit": "Search",
+      "clear": "Clear search"
+    },
+    "modes": {
+      "label": "Search mode",
+      "keyword": "Keyword",
+      "semantic": "Semantic",
+      "hybrid": "Hybrid"
+    },
+    "sort": {
+      "label": "Sort by",
+      "relevance": "Relevance",
+      "title": "Title A–Z",
+      "year:asc": "Year, oldest first",
+      "year:desc": "Year, newest first"
+    },
+    "filters": {
+      "title": "Refine",
+      "sections": "Sections",
+      "availability": "Availability",
+      "onlyAvailable": "In Building",
+      "onlyAvailableHint": "Only titles with a copy on the shelf",
+      "era": "Publication era",
+      "clear": "Clear all filters",
+      "eras": {
+        "pre1800": "Before 1800",
+        "1800_1970": "1800 – 1969",
+        "1970_2000": "1970 – 1999",
+        "2000_n": "2000 and later"
+      }
+    },
+    "results": {
+      "count": "{count, plural, one {# volume} other {# volumes}}",
+      "page": "Page {page} of {pages}",
+      "prev": "Previous",
+      "next": "Next",
+      "pagination": "Pagination"
+    },
+    "card": {
+      "shelf": "Shelf",
+      "copies": "{available} of {total} copies",
+      "noCopies": "No copies",
+      "openBook": "Open {title}",
+      "coverAlt": "Cover of {title}"
+    },
+    "empty": {
+      "title": "No volumes matched",
+      "hint": "Try different words, switch search mode, or browse a nearby section.",
+      "nearby": "Browse a section"
+    },
+    "error": {
+      "embedding": "Semantic search is unavailable right now.",
+      "embeddingHint": "The embedding service is not responding. Keyword search still works.",
+      "switchKeyword": "Use keyword search",
+      "generic": "We couldn't load the catalog.",
+      "retry": "Try again"
+    }
+  },
+  "palette": {
+    "title": "Quick search",
+    "description": "Search the catalog and jump to a book",
+    "placeholder": "Search titles and authors…",
+    "empty": "No matches",
+    "searching": "Searching…",
+    "seeAll": "See all results for “{query}”",
+    "hint": "Type to search",
+    "close": "Close"
   }
 }
