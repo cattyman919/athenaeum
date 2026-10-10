@@ -2,7 +2,7 @@
 // page, the facet sidebar and the command palette.
 
 export const SECTIONS = [
-  // Section names stay English (docs/14 §1: catalog records are not translated).
+  // English names are the fallback; the UI shows `wayfinding.section.<code>` (docs/14 §6.1).
   { code: "SCI", name: "Science, Mathematics & Tech", color: "#10B981" },
   { code: "PER", name: "Periodicals & Archives", color: "#F59E0B" },
   { code: "HVA", name: "History, Humanities & Arts", color: "#8B5CF6" },

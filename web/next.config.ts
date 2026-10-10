@@ -13,7 +13,16 @@ const nextConfig: NextConfig = {
   compress: false,
   // The repo root also has a lockfile (commitlint tooling); pin tracing to web/.
   outputFileTracingRoot: process.cwd(),
-  // Compression would buffer the SSE chat stream.
+  // Ship the ZXing-C++ reader binary for the barcode-detector ponyfill as a static asset
+  // (docs/11 §3) rather than letting zxing-wasm fetch it from jsDelivr at runtime.
+  webpack(config) {
+    config.module.rules.push({
+      test: /zxing_reader\.wasm$/,
+      type: "asset/resource",
+      generator: { filename: "static/media/[name].[contenthash:8][ext]" },
+    });
+    return config;
+  },
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${apiBase}/api/:path*` }];
   },

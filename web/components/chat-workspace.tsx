@@ -48,6 +48,8 @@ export interface ChatWorkspaceProps {
   activeId?: string;
   initialTurns: ChatTurn[];
   loadError?: boolean;
+  /** GET /api/chat/conversations failed (docs/07 §9) — the list shows an inline error. */
+  listError?: boolean;
   prefill?: string;
 }
 
@@ -118,11 +120,20 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           </Button>
         </div>
         <ul className="flex-1 overflow-y-auto p-2" data-testid="conversation-list">
-          {list.length === 0 && (
-            <li className="px-2 py-6 text-center text-xs text-muted-foreground">
-              {t("conversations.empty")}
-            </li>
-          )}
+          {list.length === 0 &&
+            (props.listError ? (
+              <li
+                role="alert"
+                data-testid="conversation-list-error"
+                className="px-2 py-6 text-center text-xs text-destructive"
+              >
+                {t("conversations.listError")}
+              </li>
+            ) : (
+              <li className="px-2 py-6 text-center text-xs text-muted-foreground">
+                {t("conversations.empty")}
+              </li>
+            ))}
           {list.map((c) => {
             const active = c.id === currentId;
             const title = c.title || t("conversations.untitled");
@@ -304,7 +315,11 @@ function ChatSession({
         className="flex-1 overflow-y-auto px-4 py-6 md:px-8"
       >
         {loadError && (
-          <p className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <p
+            role="alert"
+            data-testid="chat-load-error"
+            className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+          >
             {t("conversations.loadError")}
           </p>
         )}

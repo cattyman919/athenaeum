@@ -255,6 +255,11 @@ Usage per page:
 | 5xx / SSE `error` event | toast + retry affordance; streaming keeps partial tokens on screen |
 | Offline | navigator.onLine banner (best effort) |
 
+Skeletons are in-page `<Suspense>` boundaries (`/catalog` results, `/library` KPIs/tabs/list,
+`/chat` workspace) — **no route-level `loading.tsx`** (it froze soft navigation in Next 15.5
+prod). Thrown server errors land in `app/(shell)/error.tsx` / `app/error.tsx` (inline panel +
+retry); unknown URLs render `app/not-found.tsx` (404).
+
 Playwright E2E coverage for the six routes + key journeys is **in v1 scope** — suite,
 stubbing harness, and `make e2e` in [09 §8](./09-development.md#8-testing-strategy);
 localization and voice flows add specs per [14 §12](./14-localization.md#12-testing) and

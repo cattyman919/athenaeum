@@ -15,6 +15,7 @@ import {
   type LibraryPatch,
   type ReadingStatus,
 } from "@/lib/api-client";
+import { apiErrorText } from "@/lib/api-errors";
 import { enumLabel } from "@/lib/enum-labels";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,7 @@ export function BookLibraryActions({
   const t = useTranslations("bookActions");
   const tWait = useTranslations("waitlist");
   const tEnums = useTranslations("enums");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const [entry, setEntry] = React.useState<LibraryEntryState | null>(initial);
   const [open, setOpen] = React.useState(false);
@@ -79,7 +81,7 @@ export function BookLibraryActions({
           setUnavailable(Array.isArray(actions) ? actions.map(String) : []);
           return;
         }
-        toast.error(t("error"));
+        toast.error(apiErrorText(tCommon, err, t("error")));
       }
     });
   }
@@ -137,7 +139,11 @@ export function BookLibraryActions({
         });
         router.refresh();
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : tWait("error"));
+        toast.error(
+          err instanceof ApiError && err.status !== 429
+            ? err.message
+            : apiErrorText(tCommon, err, tWait("error")),
+        );
       }
     });
   }

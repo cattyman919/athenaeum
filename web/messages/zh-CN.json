@@ -4,7 +4,26 @@
     "tagline": "学术目录与导航系统",
     "loading": "加载中…",
     "retry": "重试",
-    "back": "返回"
+    "back": "返回",
+    "routeError": {
+      "title": "出了点问题",
+      "body": "此页面无法加载，可能是暂时性问题，请稍后重试。",
+      "reference": "参考编号：{digest}",
+      "retry": "重试",
+      "toCatalog": "返回馆藏目录"
+    },
+    "notFound": {
+      "title": "页面不存在",
+      "body": "这个书架是空的——你要找的页面不存在。",
+      "back": "返回馆藏目录"
+    },
+    "offline": {
+      "message": "你已离线。恢复连接前，更改不会被保存。"
+    },
+    "errors": {
+      "rateLimited": "请求过于频繁，请在 {seconds} 秒后重试。",
+      "rateLimitedSoon": "请求过于频繁，请稍后重试。"
+    }
   },
   "adminGate": {
     "title": "仅限馆员",
@@ -179,7 +198,8 @@
       "embeddingHint": "嵌入服务没有响应，关键词搜索仍可使用。",
       "switchKeyword": "改用关键词搜索",
       "generic": "无法加载馆藏目录。",
-      "retry": "重试"
+      "retry": "重试",
+      "rateLimited": "搜索过于频繁，请等待一分钟后重试。"
     }
   },
   "palette": {
@@ -306,7 +326,6 @@
       "holdsBody": "当一本书被借出时，可以在图书页面加入候补。"
     },
     "row": {
-      "shelf": "{floor} 楼 • 书架 {shelf}",
       "noShelf": "未上架",
       "progress": "已读 {pct}%",
       "stage": "阅读状态",
@@ -339,6 +358,10 @@
       "prev": "上一页",
       "next": "下一页",
       "page": "第 {page} / {pages} 页"
+    },
+    "error": {
+      "title": "无法加载你的书架",
+      "body": "书架服务没有响应。你的图书都还在——请重试。"
     }
   },
   "bookActions": {
@@ -404,7 +427,8 @@
       "delete": "删除对话“{title}”",
       "deleted": "对话已删除",
       "deleteError": "无法删除对话，请重试。",
-      "loadError": "无法加载此对话。"
+      "loadError": "无法加载此对话。",
+      "listError": "无法加载你的对话列表。"
     },
     "telemetry": {
       "label": "运行信息",

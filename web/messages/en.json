@@ -4,7 +4,26 @@
     "tagline": "Academic Catalog & Wayfinding System",
     "loading": "Loading…",
     "retry": "Try again",
-    "back": "Back"
+    "back": "Back",
+    "routeError": {
+      "title": "Something went wrong",
+      "body": "This page could not be loaded. It may be a temporary problem — try again in a moment.",
+      "reference": "Reference: {digest}",
+      "retry": "Try again",
+      "toCatalog": "Back to the catalog"
+    },
+    "notFound": {
+      "title": "Page not found",
+      "body": "This shelf is empty — the page you are looking for does not exist.",
+      "back": "Back to the catalog"
+    },
+    "offline": {
+      "message": "You are offline. Changes will not be saved until the connection returns."
+    },
+    "errors": {
+      "rateLimited": "Too many requests — try again in {seconds} s.",
+      "rateLimitedSoon": "Too many requests — try again in a moment."
+    }
   },
   "adminGate": {
     "title": "Staff only",
@@ -179,7 +198,8 @@
       "embeddingHint": "The embedding service is not responding. Keyword search still works.",
       "switchKeyword": "Use keyword search",
       "generic": "We couldn't load the catalog.",
-      "retry": "Try again"
+      "retry": "Try again",
+      "rateLimited": "Too many searches — wait a minute and try again."
     }
   },
   "palette": {
@@ -306,7 +326,6 @@
       "holdsBody": "When a title is checked out you can join its waitlist from the book page."
     },
     "row": {
-      "shelf": "Floor {floor} • Shelf {shelf}",
       "noShelf": "Not shelved",
       "progress": "{pct}% read",
       "stage": "Reading stage",
@@ -339,6 +358,10 @@
       "prev": "Previous",
       "next": "Next",
       "page": "Page {page} of {pages}"
+    },
+    "error": {
+      "title": "We couldn't load your library",
+      "body": "The library service did not respond. Your books are safe — try again."
     }
   },
   "bookActions": {
@@ -404,7 +427,8 @@
       "delete": "Delete conversation “{title}”",
       "deleted": "Conversation deleted",
       "deleteError": "We couldn't delete the conversation. Please try again.",
-      "loadError": "We couldn't load this conversation."
+      "loadError": "We couldn't load this conversation.",
+      "listError": "We couldn't load your conversations."
     },
     "telemetry": {
       "label": "Telemetry",

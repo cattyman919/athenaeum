@@ -13,6 +13,7 @@ import {
   type CatalogQuery,
 } from "@/lib/catalog-query";
 import type { SearchResponse } from "@/lib/types";
+import { sectionLabel } from "@/lib/wayfinding";
 
 const PER_PAGE = 12;
 
@@ -35,7 +36,11 @@ function href(query: CatalogQuery, patch: Partial<CatalogQuery>) {
 }
 
 async function Results({ query }: { query: CatalogQuery }) {
-  const [t, result] = await Promise.all([getTranslations("catalog"), search(query)]);
+  const [t, tWay, result] = await Promise.all([
+    getTranslations("catalog"),
+    getTranslations("wayfinding"),
+    search(query),
+  ]);
   return (
     <>
       {!result.ok ? (
@@ -45,7 +50,11 @@ async function Results({ query }: { query: CatalogQuery }) {
           className="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-6 shadow-sm"
         >
           <h2 className="text-lg font-semibold">
-            {result.code === "EMBEDDING_UNAVAILABLE" ? t("error.embedding") : t("error.generic")}
+            {result.code === "EMBEDDING_UNAVAILABLE"
+              ? t("error.embedding")
+              : result.code === "RATE_LIMITED"
+                ? t("error.rateLimited")
+                : t("error.generic")}
           </h2>
           {result.code === "EMBEDDING_UNAVAILABLE" && (
             <p className="text-sm text-muted-foreground">{t("error.embeddingHint")}</p>
@@ -94,7 +103,7 @@ async function Results({ query }: { query: CatalogQuery }) {
                   style={{ backgroundColor: s.color }}
                   aria-hidden
                 />
-                {s.name}
+                {sectionLabel(tWay, s.code, s.name)}
               </Link>
             ))}
           </div>

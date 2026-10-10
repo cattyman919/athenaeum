@@ -122,6 +122,11 @@ const loop = async () => {
   double-invoke-safe guard).
 - **HTTPS in production** — `getUserMedia` is blocked on insecure origins; local
   dev uses `http://localhost` exception.
+- **Self-hosted WASM** — `zxing-wasm` defaults to fetching `zxing_reader.wasm` from
+  jsDelivr. The web pins `zxing-wasm` to the exact version `barcode-detector` depends on,
+  emits the binary via a webpack `asset/resource` rule in `next.config.ts`
+  (`/_next/static/media/zxing_reader.<hash>.wasm`) and points `prepareZXingModule`'s
+  `locateFile` at it, so the ponyfill works offline/behind a CSP. Bump both together.
 
 ## 6. Component Structure
 

@@ -19,6 +19,7 @@ import {
   type Mode,
   type Sort,
 } from "@/lib/catalog-query";
+import { sectionLabel } from "@/lib/wayfinding";
 
 function useNavigate() {
   const router = useRouter();
@@ -121,6 +122,7 @@ export function CatalogSearchBar({ query }: { query: CatalogQuery }) {
 /** Faceted wayfinding sidebar: sections (color dots), availability ("In Building"), era. */
 export function FacetSidebar({ query }: { query: CatalogQuery }) {
   const t = useTranslations("catalog.filters");
+  const tWay = useTranslations("wayfinding");
   const { go } = useNavigate();
   const active = query.sections.length + query.eras.length + (query.availableOnly ? 1 : 0);
 
@@ -158,7 +160,7 @@ export function FacetSidebar({ query }: { query: CatalogQuery }) {
               style={{ backgroundColor: s.color }}
               aria-hidden
             />
-            <span>{s.name}</span>
+            <span>{sectionLabel(tWay, s.code, s.name)}</span>
           </label>
         ))}
       </fieldset>

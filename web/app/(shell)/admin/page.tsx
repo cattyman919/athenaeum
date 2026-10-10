@@ -52,7 +52,14 @@ export default async function AdminPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
-        <RealTimeAuditStream initial={events?.items ?? []} />
+        <div className="space-y-3">
+          {!events && (
+            <Alert variant="warning" data-testid="audit-error">
+              Could not load recent copy events. The stream keeps polling and will catch up.
+            </Alert>
+          )}
+          <RealTimeAuditStream initial={events?.items ?? []} />
+        </div>
         <Card className="h-fit">
           <CardContent className="space-y-3 p-5">
             <div className="flex items-center gap-2 font-semibold">
@@ -75,7 +82,13 @@ export default async function AdminPage() {
         </Card>
       </div>
 
-      {users && <UsersTable initial={users.items} currentUserId={user.id} />}
+      {users ? (
+        <UsersTable initial={users.items} currentUserId={user.id} />
+      ) : (
+        <Alert variant="destructive" data-testid="users-error">
+          Could not load the accounts list. Refresh to retry.
+        </Alert>
+      )}
     </div>
   );
 }

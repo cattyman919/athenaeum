@@ -1,15 +1,19 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { BookOpen, Sparkles } from "lucide-react";
 import { BookCover } from "@/components/book-cover";
 import { LeaveWaitlistButton } from "@/components/leave-waitlist-button";
 import { LibraryRowActions } from "@/components/library-row-actions";
+import { RetryButton } from "@/components/retry-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { apiServer } from "@/lib/api-server";
 import { enumLabel } from "@/lib/enum-labels";
 import type { LibraryResponse, WaitlistItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { shelfLine } from "@/lib/wayfinding";
 
 const STAGES = ["all", "reading", "read", "want_to_read", "favorites", "holds"] as const;
 type Stage = (typeof STAGES)[number];
@@ -33,9 +37,63 @@ export default async function LibraryPage({
   const stage: Stage = (STAGES as readonly string[]).includes(sp.stage ?? "")
     ? (sp.stage as Stage)
     : "all";
-  const [t, tEnums, format] = await Promise.all([
+  const t = await getTranslations("library");
+
+  return (
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+      </header>
+
+      {/* In-page Suspense (not route-level loading.tsx — docs/07 §9, Next 15.5 note). */}
+      <Suspense key={stage} fallback={<LibrarySkeleton />}>
+        <LibraryContent stage={stage} />
+      </Suspense>
+
+      <aside className="flex items-center justify-between gap-4 rounded-lg border border-accent/40 bg-accent/5 p-4">
+        <div className="flex items-start gap-3">
+          <Sparkles className="mt-0.5 h-5 w-5 text-accent" aria-hidden />
+          <div>
+            <p className="font-semibold">{t("ai.title")}</p>
+            <p className="text-xs text-muted-foreground">{t("ai.body")}</p>
+          </div>
+        </div>
+        <Link
+          href={`/chat?prefill=${encodeURIComponent(t("ai.prefill"))}`}
+          data-testid="ai-banner-link"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+        >
+          {t("ai.cta")}
+        </Link>
+      </aside>
+    </div>
+  );
+}
+
+function LibrarySkeleton() {
+  return (
+    <div className="flex flex-col gap-8" aria-busy="true" data-testid="library-skeleton">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-[84px] w-full" />
+        ))}
+      </div>
+      <Skeleton className="h-9 w-full max-w-2xl" />
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function LibraryContent({ stage }: { stage: Stage }) {
+  const [t, tEnums, tWay, format] = await Promise.all([
     getTranslations("library"),
     getTranslations("enums"),
+    getTranslations("wayfinding"),
     getFormatter(),
   ]);
 
@@ -45,7 +103,20 @@ export default async function LibraryPage({
     getJson<LibraryResponse>(`/api/library?${query}`),
     getJson<{ items: WaitlistItem[] }>("/api/waitlist"),
   ]);
-  const counts = lib?.counts ?? { total: 0, reading: 0, read: 0, want_to_read: 0, favorites: 0 };
+  if (!lib || (stage === "holds" && !holds)) {
+    return (
+      <div
+        role="alert"
+        data-testid="library-error"
+        className="flex flex-col items-start gap-3 rounded-lg border border-border bg-card p-6 shadow-sm"
+      >
+        <p className="font-semibold">{t("error.title")}</p>
+        <p className="text-sm text-muted-foreground">{t("error.body")}</p>
+        <RetryButton testId="library-retry" />
+      </div>
+    );
+  }
+  const counts = lib.counts ?? { total: 0, reading: 0, read: 0, want_to_read: 0, favorites: 0 };
   const holdItems = holds?.items ?? [];
 
   const kpis: Array<[string, number, string]> = [
@@ -65,11 +136,6 @@ export default async function LibraryPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-      </header>
-
       <section className="grid grid-cols-2 gap-4 md:grid-cols-4" aria-label="KPI">
         {kpis.map(([key, value, label]) => (
           <div
@@ -148,11 +214,11 @@ export default async function LibraryPage({
             ))}
           </ul>
         )
-      ) : (lib?.items.length ?? 0) === 0 ? (
+      ) : lib.items.length === 0 ? (
         <Empty title={t("empty.title")} body={t("empty.body")} cta={t("empty.browse")} />
       ) : (
         <ul className="flex flex-col gap-3" data-testid="library-list">
-          {lib!.items.map((it) => (
+          {lib.items.map((it) => (
             <li
               key={it.book.id}
               data-testid="library-row"
@@ -176,7 +242,10 @@ export default async function LibraryPage({
                   </Badge>
                   {it.location ? (
                     <span className="mono-label" data-testid="row-shelf">
-                      {t("row.shelf", { floor: it.location.floor, shelf: it.location.shelf_code })}
+                      {shelfLine(tWay, {
+                        floor_number: it.location.floor,
+                        shelf_code: it.location.shelf_code,
+                      })}
                     </span>
                   ) : (
                     <span>{t("row.noShelf")}</span>
@@ -204,23 +273,6 @@ export default async function LibraryPage({
           ))}
         </ul>
       )}
-
-      <aside className="flex items-center justify-between gap-4 rounded-lg border border-accent/40 bg-accent/5 p-4">
-        <div className="flex items-start gap-3">
-          <Sparkles className="mt-0.5 h-5 w-5 text-accent" aria-hidden />
-          <div>
-            <p className="font-semibold">{t("ai.title")}</p>
-            <p className="text-xs text-muted-foreground">{t("ai.body")}</p>
-          </div>
-        </div>
-        <Link
-          href={`/chat?prefill=${encodeURIComponent(t("ai.prefill"))}`}
-          data-testid="ai-banner-link"
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          {t("ai.cta")}
-        </Link>
-      </aside>
     </div>
   );
 }

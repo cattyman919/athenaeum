@@ -94,3 +94,40 @@ test.describe("admin gate", () => {
     await expect(page.getByTestId("add-book-open")).toHaveCount(0);
   });
 });
+
+test.describe("admin scan tab (docs/11 §3/§5)", () => {
+  test.use({ storageState: ADMIN_STATE });
+
+  test("scan tab loads the self-hosted ZXing WASM ponyfill and starts scanning", async ({
+    page,
+  }) => {
+    // Force the barcode-detector ponyfill path (Safari/Firefox behaviour) on Chromium.
+    await page.addInitScript(() => {
+      delete (globalThis as { BarcodeDetector?: unknown }).BarcodeDetector;
+    });
+    const wasm = page.waitForResponse((r) =>
+      /\/_next\/static\/media\/zxing_reader\.[0-9a-f]+\.wasm$/.test(r.url()),
+    );
+    let cdnHit = false;
+    page.on("request", (r) => {
+      if (r.url().includes("jsdelivr")) cdnHit = true;
+    });
+
+    await gotoReady(page, "/admin");
+    await page.getByTestId("add-book-open").click();
+    const dialog = page.getByTestId("add-book-dialog");
+    await dialog.getByRole("tab", { name: "Scan ISBN" }).click();
+
+    const scanner = dialog.getByTestId("isbn-scanner");
+    await expect(scanner).toBeVisible();
+    const res = await wasm;
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toContain("application/wasm");
+    await expect(scanner).toHaveAttribute("data-status", "scanning");
+    // The first detect() compiles the module; a load failure would flip to the wasm error card.
+    await page.waitForTimeout(1500);
+    await expect(scanner).toHaveAttribute("data-status", "scanning");
+    await expect(dialog.getByTestId("scanner-error")).toHaveCount(0);
+    expect(cdnHit).toBe(false);
+  });
+});

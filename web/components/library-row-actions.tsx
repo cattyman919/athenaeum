@@ -8,6 +8,7 @@ import { Heart, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
 import { api, type LibraryPatch, type ReadingStatus } from "@/lib/api-client";
+import { apiErrorText } from "@/lib/api-errors";
 import { enumLabel } from "@/lib/enum-labels";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ export function LibraryRowActions({
 }) {
   const t = useTranslations("library");
   const tEnums = useTranslations("enums");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const selectId = React.useId();
@@ -43,8 +45,8 @@ export function LibraryRowActions({
         await fn();
         toast.success(done);
         router.refresh();
-      } catch {
-        toast.error(t("toast.error"));
+      } catch (err) {
+        toast.error(apiErrorText(tCommon, err, t("toast.error")));
       }
     });
   }

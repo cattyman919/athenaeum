@@ -6,10 +6,12 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
+import { apiErrorText } from "@/lib/api-errors";
 
 /** Leaves the waitlist for a book and refreshes the server-rendered list. */
 export function LeaveWaitlistButton({ bookId }: { bookId: string }) {
   const t = useTranslations("library");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   return (
@@ -24,8 +26,8 @@ export function LeaveWaitlistButton({ bookId }: { bookId: string }) {
             await api.json(`/api/books/${bookId}/waitlist`, { method: "DELETE" });
             toast.success(t("toast.left"));
             router.refresh();
-          } catch {
-            toast.error(t("toast.error"));
+          } catch (err) {
+            toast.error(apiErrorText(tCommon, err, t("toast.error")));
           }
         })
       }

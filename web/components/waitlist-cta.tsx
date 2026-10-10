@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { BellRing } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api-client";
+import { apiErrorText } from "@/lib/api-errors";
 
 export interface HoldState {
   status: "waiting" | "ready";
@@ -20,6 +21,7 @@ export interface HoldState {
  */
 export function WaitlistCta({ bookId, hold: initial }: { bookId: string; hold: HoldState | null }) {
   const t = useTranslations("waitlist");
+  const tCommon = useTranslations("common");
   const format = useFormatter();
   const router = useRouter();
   const [hold, setHold] = React.useState<HoldState | null>(initial);
@@ -33,7 +35,11 @@ export function WaitlistCta({ bookId, hold: initial }: { bookId: string; hold: H
         toast.success(t("joined"));
         router.refresh();
       } catch (err) {
-        toast.error(err instanceof ApiError && err.status === 409 ? err.message : t("error"));
+        toast.error(
+          err instanceof ApiError && err.status === 409
+            ? err.message
+            : apiErrorText(tCommon, err, t("error")),
+        );
       }
     });
   }
@@ -45,8 +51,8 @@ export function WaitlistCta({ bookId, hold: initial }: { bookId: string; hold: H
         setHold(null);
         toast.success(t("left"));
         router.refresh();
-      } catch {
-        toast.error(t("error"));
+      } catch (err) {
+        toast.error(apiErrorText(tCommon, err, t("error")));
       }
     });
   }
