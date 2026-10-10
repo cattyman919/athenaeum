@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/cattyman919/athenaeum/api/internal/middleware"
 	"github.com/cattyman919/athenaeum/api/internal/model"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 )
@@ -64,4 +65,15 @@ func (h *BooksHandler) Search(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, res)
+}
+
+// Get handles GET /api/books/{id} (docs/03 §5.2).
+func (h *BooksHandler) Get(c *gin.Context) {
+	uid, _ := middleware.UserID(c)
+	d, err := h.catalog.Detail(c.Request.Context(), c.Param("id"), uid)
+	if err != nil {
+		RespondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, d)
 }

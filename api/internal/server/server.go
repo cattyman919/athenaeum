@@ -92,6 +92,7 @@ func NewRouter(d Deps) *gin.Engine {
 		bh := handler.NewBooksHandler(d.Catalog)
 		bg := api.Group("/books", requireAuth)
 		bg.GET("/search", limit(middleware.BucketSearch), bh.Search)
+		bg.GET("/:id", bh.Get)
 	}
 	return r
 }

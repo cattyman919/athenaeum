@@ -116,7 +116,7 @@ Refs: [docs/02 §7 query examples](docs/02-data-model.md#7-query-examples), [doc
 
 Refs: [docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid), [docs/05 §3–5](docs/05-building-layout.md#3-location-path-tokens).
 
-- [ ] `GET /api/books/{id}`: copies + `book_locations` join + `neighbors` carousel data
+- [x] `GET /api/books/{id}`: copies + `book_locations` join + `neighbors` carousel data
 - [ ] `BookLocationCard` wayfinding ladder (`MAIN/3F/SF/A-1/S-2` display format)
 - [ ] Tri-state availability banner + waitlist CTA on zero-available ([§9 below](#9-phase-6--personal-library--waitlist))
 - [ ] `/books/[id]` page (40/60 split, per Stitch screen 3)

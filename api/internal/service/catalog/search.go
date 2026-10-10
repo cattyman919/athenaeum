@@ -31,6 +31,8 @@ type Repository interface {
 	Semantic(ctx context.Context, f model.SearchFilters, vec []float32, limit int) ([]model.SearchHit, error)
 	// Summaries hydrates books (metadata, section, home shelf, copy aggregates).
 	Summaries(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]model.BookSummary, error)
+	// Detail loads one book with copies, locations, neighbors and the caller's library entry.
+	Detail(ctx context.Context, id uuid.UUID, userID uuid.UUID) (model.BookDetailData, error)
 }
 
 // Embedder embeds search queries (embed.Ollama).

@@ -43,6 +43,10 @@ func (s *stubCatalogRepo) Summaries(_ context.Context, ids []uuid.UUID) (map[uui
 	}}, nil
 }
 
+func (s *stubCatalogRepo) Detail(context.Context, uuid.UUID, uuid.UUID) (model.BookDetailData, error) {
+	return model.BookDetailData{}, model.New(model.CodeNotFound, "Book not found.")
+}
+
 type downEmbedder struct{}
 
 func (downEmbedder) EmbedQuery(context.Context, string) ([]float32, error) {
@@ -125,5 +129,22 @@ func TestSearchEndpointErrors(t *testing.T) {
 		if rec.Code != tc.status || errCode(t, rec) != tc.code {
 			t.Errorf("%s: %d %s", name, rec.Code, rec.Body)
 		}
+	}
+}
+
+func TestBookDetailEndpointErrors(t *testing.T) {
+	r, _, cookie := searchApp(t)
+	if rec := get(r, "/api/books/"+uuid.NewString(), nil); rec.Code != 401 {
+		t.Fatalf("anon: %d", rec.Code)
+	}
+	for _, id := range []string{uuid.NewString(), "not-a-uuid"} {
+		rec := get(r, "/api/books/"+id, cookie)
+		if rec.Code != 404 || errCode(t, rec) != "NOT_FOUND" {
+			t.Errorf("%s: %d %s", id, rec.Code, rec.Body)
+		}
+	}
+	// /search must not be shadowed by /:id.
+	if rec := get(r, "/api/books/search?q=dune", cookie); rec.Code != 200 {
+		t.Fatalf("search route: %d", rec.Code)
 	}
 }

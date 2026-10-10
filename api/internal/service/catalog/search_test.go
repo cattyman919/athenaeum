@@ -17,6 +17,8 @@ type fakeRepo struct {
 	books     map[uuid.UUID]model.BookSummary
 	gotFilter model.SearchFilters
 	vecLimit  int
+	detail    model.BookDetailData
+	detailErr error
 }
 
 func (f *fakeRepo) Keyword(_ context.Context, flt model.SearchFilters, _ string) ([]model.SearchHit, error) {
@@ -37,6 +39,10 @@ func (f *fakeRepo) Summaries(_ context.Context, ids []uuid.UUID) (map[uuid.UUID]
 		}
 	}
 	return out, nil
+}
+
+func (f *fakeRepo) Detail(context.Context, uuid.UUID, uuid.UUID) (model.BookDetailData, error) {
+	return f.detail, f.detailErr
 }
 
 type fakeEmb struct{ err error }
@@ -238,5 +244,77 @@ func TestSearchPassesFiltersAndMapsEmbedderOutage(t *testing.T) {
 	// Keyword search keeps working while Ollama is down.
 	if _, err := svc.Search(context.Background(), catalog.Request{Query: "q"}); err != nil {
 		t.Fatalf("keyword must not need embeddings: %v", err)
+	}
+}
+
+func TestLadderAndSteps(t *testing.T) {
+	l := model.LocationRow{
+		BuildingName: "Main Building", FloorNumber: 3, FloorName: "North Stacks", SectionName: "Science Fiction & Speculative",
+		AisleCode: "A-1", ShelfCode: "S-2", RowLevel: 4, HeightTier: "Eye Level",
+	}
+	want := "Main Building (North Stacks) → Floor 3 → Science Fiction & Speculative → Aisle A-1 → Shelf S-2 (Row 4, Eye Level)"
+	if got := catalog.Ladder(l); got != want {
+		t.Fatalf("%s", got)
+	}
+	steps := catalog.LadderSteps(l)
+	if len(steps) != 4 || steps[0] != "Floor 3 — North Stacks" || steps[3] != "Shelf S-2 — Row 4, Eye Level" {
+		t.Fatalf("%v", steps)
+	}
+}
+
+func TestDetailStateAndHomeShelf(t *testing.T) {
+	c1, c2, c3 := uuid.New(), uuid.New(), uuid.New()
+	loc := func(id uuid.UUID, path string) model.LocationRow {
+		return model.LocationRow{CopyID: id, Path: path, BuildingName: "B", FloorName: "F", SectionName: "S", AisleCode: "A", ShelfCode: "S1", RowLevel: 1, HeightTier: "T"}
+	}
+	repo := &fakeRepo{detail: model.BookDetailData{
+		Detail: model.BookDetail{
+			Title:        "Dune",
+			Availability: model.DetailAvailability{TotalCopies: 3, AvailableCopies: 2},
+			Copies: []model.CopyDetail{
+				{ID: c1, Barcode: "C01", Status: "checked_out"},
+				{ID: c2, Barcode: "C02", Status: "available"},
+				{ID: c3, Barcode: "C03", Status: "available"},
+			},
+		},
+		Locations: map[uuid.UUID]model.LocationRow{c1: loc(c1, "P/1"), c2: loc(c2, "P/2"), c3: loc(c3, "P/3")},
+		Statuses:  []string{"available", "checked_out"},
+	}}
+	svc := catalog.New(repo, fakeEmb{})
+	d, err := svc.Detail(context.Background(), uuid.NewString(), uuid.Nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Availability.State != "available" || d.Wayfinding == nil || d.Wayfinding.Path != "P/2" {
+		t.Fatalf("home shelf must be the first available copy: %+v %+v", d.Availability, d.Wayfinding)
+	}
+	if d.Copies[0].Location == nil || d.Copies[0].Location.Path != "P/1" || !strings.Contains(d.Copies[0].Location.Ladder, "Floor 0") {
+		t.Fatalf("copy location %+v", d.Copies[0].Location)
+	}
+
+	// All copies out → shared status, home shelf falls back to any shelved copy.
+	repo.detail.Detail.Copies = repo.detail.Detail.Copies[:1]
+	repo.detail.Detail.Availability = model.DetailAvailability{TotalCopies: 1}
+	repo.detail.Statuses = []string{"checked_out"}
+	d, _ = svc.Detail(context.Background(), uuid.NewString(), uuid.Nil)
+	if d.Availability.State != "checked_out" || d.Wayfinding == nil || d.Wayfinding.Path != "P/1" {
+		t.Fatalf("%+v %+v", d.Availability, d.Wayfinding)
+	}
+
+	// No copies → not_in_building, no wayfinding.
+	repo.detail = model.BookDetailData{Detail: model.BookDetail{Title: "Z", Copies: []model.CopyDetail{}}}
+	d, _ = svc.Detail(context.Background(), uuid.NewString(), uuid.Nil)
+	if d.Availability.State != "not_in_building" || d.Wayfinding != nil {
+		t.Fatalf("%+v %+v", d.Availability, d.Wayfinding)
+	}
+}
+
+func TestDetailBadIDAndMissingBook(t *testing.T) {
+	repo := &fakeRepo{detailErr: model.New(model.CodeNotFound, "Book not found.")}
+	svc := catalog.New(repo, fakeEmb{})
+	for _, id := range []string{"not-a-uuid", uuid.NewString()} {
+		if _, err := svc.Detail(context.Background(), id, uuid.Nil); !errors.Is(err, model.ErrNotFound) {
+			t.Errorf("%s: %v", id, err)
+		}
 	}
 }

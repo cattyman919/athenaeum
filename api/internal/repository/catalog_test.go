@@ -2,9 +2,11 @@ package repository_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/cattyman919/athenaeum/api/internal/logging"
@@ -239,5 +241,80 @@ func TestSemanticAndHybridSearch(t *testing.T) {
 	want := 1.0/61 + 1.0/61 // rank 1 in both lists
 	if d := p.Items[0].Score - want; d > 1e-9 || d < -1e-9 {
 		t.Fatalf("hybrid score %v, want %v", p.Items[0].Score, want)
+	}
+}
+
+func TestBookDetail(t *testing.T) {
+	ctx := context.Background()
+	pool, svc := seededCatalog(t)
+
+	var duneID, zeroID string
+	_ = pool.QueryRow(ctx, `SELECT id::text FROM books WHERE title = 'Dune'`).Scan(&duneID)
+	_ = pool.QueryRow(ctx, `SELECT id::text FROM books WHERE title = 'The Oxford Guide to Library Research'`).Scan(&zeroID)
+
+	d, err := svc.Detail(ctx, duneID, uuid.Nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Title != "Dune" || d.Publisher == nil || *d.Publisher != "Ace Books" || d.DeweyNum == nil || *d.DeweyNum != "813.54" ||
+		d.LOCNum == nil || *d.LOCNum != "PS3558.E63 D8 1965" || d.ISBN13 == nil {
+		t.Fatalf("metadata %+v", d)
+	}
+	if d.Section == nil || d.Section.Code != "SF" {
+		t.Fatalf("section %+v", d.Section)
+	}
+	if d.Availability.TotalCopies != 3 || d.Availability.AvailableCopies != 2 || d.Availability.State != "available" {
+		t.Fatalf("availability %+v", d.Availability)
+	}
+	if len(d.Copies) != 3 || d.Copies[0].Barcode != "ATH-002941-C01" || d.Copies[0].Status != "checked_out" ||
+		d.Copies[2].Barcode != "ATH-002941-C03" || d.Copies[2].Location.Path != "MAIN/3F/SF/A-1/S-3" {
+		t.Fatalf("copies %+v", d.Copies)
+	}
+	wantLadder := "Athenaeum Main Building (North Stacks) → Floor 3 → Science Fiction & Speculative → Aisle A-1 → Shelf S-2 (Row 4, Eye Level)"
+	if d.Copies[1].Location == nil || d.Copies[1].Location.Ladder != wantLadder {
+		t.Fatalf("ladder %+v", d.Copies[1].Location)
+	}
+	if d.Wayfinding == nil || d.Wayfinding.Path != "MAIN/3F/SF/A-1/S-2" || len(d.Wayfinding.LadderSteps) != 4 ||
+		d.Wayfinding.LadderSteps[0] != "Floor 3 — North Stacks" || d.Wayfinding.LadderSteps[3] != "Shelf S-2 — Row 4, Eye Level" {
+		t.Fatalf("wayfinding %+v", d.Wayfinding)
+	}
+	if len(d.Neighbors) == 0 || len(d.Neighbors) > 8 {
+		t.Fatalf("neighbors %d", len(d.Neighbors))
+	}
+	titles := map[string]bool{}
+	for _, n := range d.Neighbors {
+		titles[n.Title] = true
+	}
+	if titles["Dune"] || !titles["Neuromancer"] { // same shelf A-1/S-2 first
+		t.Fatalf("neighbors %v", titles)
+	}
+	if d.MyLibraryEntry != nil {
+		t.Fatalf("no library entry expected: %+v", d.MyLibraryEntry)
+	}
+
+	// my_library_entry reflects the caller's row.
+	uid := uuid.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO users (id, email, name) VALUES ($1, 'x@athenaeum.dev', 'X')`, uid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO user_library (id, user_id, book_id, status, is_favorite) VALUES ($1,$2,$3::uuid,'reading',true)`,
+		uuid.New(), uid, duneID); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = svc.Detail(ctx, duneID, uid)
+	if d.MyLibraryEntry == nil || d.MyLibraryEntry.Status != "reading" || !d.MyLibraryEntry.IsFavorite {
+		t.Fatalf("library entry %+v", d.MyLibraryEntry)
+	}
+
+	// Zero-copy book: 200 payload, not_in_building, empty manifest, no wayfinding.
+	z, err := svc.Detail(ctx, zeroID, uuid.Nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if z.Availability.State != "not_in_building" || len(z.Copies) != 0 || z.Wayfinding != nil {
+		t.Fatalf("zero-copy %+v", z)
+	}
+	if _, err := svc.Detail(ctx, uuid.NewString(), uuid.Nil); !errors.Is(err, model.ErrNotFound) {
+		t.Fatalf("unknown id: %v", err)
 	}
 }

@@ -245,10 +245,10 @@ Response 200:
       "status": "available",
       "condition": "good",
       "last_state_change": "2026-10-01T09:15:00Z",
-      "location": { "path": "MAIN/3F/SF/A-1/S-2", "ladder": "Main Building (North Stacks) → Floor 3 → Aisle A-1 → Shelf S-2 (Row 4, Eye Level)" }
+      "location": { "path": "MAIN/3F/SF/A-1/S-2", "ladder": "Athenaeum Main Building (North Stacks) → Floor 3 → Science Fiction & Speculative → Aisle A-1 → Shelf S-2 (Row 4, Eye Level)" }
     }
   ],
-  "wayfinding": { "path": "MAIN/3F/SF/A-1/S-2", "ladder_steps": ["Floor 3 — North Stacks", "Section: Science Fiction", "Aisle A-1", "Shelf S-2 — Row 4, Eye Level"] },
+  "wayfinding": { "path": "MAIN/3F/SF/A-1/S-2", "ladder_steps": ["Floor 3 — North Stacks", "Section: Science Fiction & Speculative", "Aisle A-1", "Shelf S-2 — Row 4, Eye Level"] },
   "neighbors": [
     { "id": "b3aa…", "title": "Hyperion", "authors": ["Dan Simmons"], "cover_url": "…" }
   ],
@@ -256,6 +256,9 @@ Response 200:
 }
 ```
 
+- `wayfinding` is `null` when no copy has a shelf; otherwise it describes the **home shelf**: the
+  first available shelved copy (by barcode), else the first shelved copy. `copies[].location.ladder`
+  uses the [05 §3](05-building-layout.md#3-location-path-tokens) template, built in the service layer.
 - `neighbors` = other available books sharing `shelf_id` or the section
   ("archival affinity carousel" — [12](./12-ui-design.md#screen-3--booksid-book-detail--spatial-wayfinding)).
 - When zero available copies this endpoint returns **200** still (details remain
