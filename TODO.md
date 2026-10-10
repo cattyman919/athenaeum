@@ -76,8 +76,8 @@ Refs: [docs/01](docs/01-architecture.md), [docs/02](docs/02-data-model.md).
 
 Refs: [docs/04](docs/04-auth.md); endpoints [docs/03 §4](docs/03-api-spec.md#4-auth-endpoints).
 
-- [ ] `pkg/hash` argon2id (m=65536,t=3,p=2, PHC format — [docs/04 §6](docs/04-auth.md#6-password-hashing))
-- [ ] `pkg/jwt` HS256 claims helper ([docs/04 §5](docs/04-auth.md#5-token-model))
+- [x] `pkg/hash` argon2id (m=65536,t=3,p=2, PHC format — [docs/04 §6](docs/04-auth.md#6-password-hashing))
+- [x] `pkg/jwt` HS256 claims helper ([docs/04 §5](docs/04-auth.md#5-token-model))
 - [ ] register / login / me handlers + typed errors (`EMAIL_TAKEN`, `INVALID_CREDENTIALS`)
 - [ ] refresh-token rotation + replay detection (`REUSED_TOKEN`), logout
 - [ ] Google SSO redirect flow (`/api/auth/google` + callback, state cookie)
