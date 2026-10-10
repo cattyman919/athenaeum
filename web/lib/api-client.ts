@@ -1,7 +1,14 @@
 // Browser API client (docs/07 §4–5): same-origin /api/* proxy, single 401 → refresh retry,
 // typed functions mirroring docs/03 route-for-route.
 
-import type { ConversationDetail, ConversationPage, ConversationSummary } from "./types";
+import type { Locale } from "./locale";
+import type { AdminBookCreate, AdminBookCreated, AdminTree, IsbnMetadata } from "./intake-types";
+import type {
+  ConversationDetail,
+  ConversationPage,
+  ConversationSummary,
+  TranscribeResponse,
+} from "./types";
 
 export interface User {
   id: string;
@@ -77,7 +84,10 @@ export function createApiClient(opts: ClientOptions = {}) {
 
   async function json<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
-    if (init.body && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    // FormData bodies keep the browser-generated multipart boundary.
+    if (init.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     const res = await request(path, { ...init, headers });
     if (!res.ok) throw await toError(res);
     if (res.status === 204) return undefined as T;
@@ -120,6 +130,16 @@ export function createApiClient(opts: ClientOptions = {}) {
     leaveWaitlist: (bookId: string) =>
       json<void>(`/api/books/${encodeURIComponent(bookId)}/waitlist`, { method: "DELETE" }),
 
+    // Book intake (docs/03 §5.3, §8.2, §8.4; docs/11). Admin only.
+    fetchIsbn: (isbn: string) =>
+      json<IsbnMetadata>("/api/books/fetch-isbn", {
+        method: "POST",
+        body: JSON.stringify({ isbn }),
+      }),
+    createAdminBook: (body: AdminBookCreate) =>
+      json<AdminBookCreated>("/api/admin/books", { method: "POST", body: JSON.stringify(body) }),
+    adminTree: () => json<AdminTree>("/api/admin/tree"),
+
     // AI Librarian conversations (docs/03 §7). The SSE turn lives in hooks/use-chat-stream.ts.
     listConversations: (perPage = 50) =>
       json<ConversationPage>(`/api/chat/conversations?per_page=${perPage}`),
@@ -132,6 +152,15 @@ export function createApiClient(opts: ClientOptions = {}) {
       json<ConversationDetail>(`/api/chat/conversations/${encodeURIComponent(id)}`),
     deleteConversation: (id: string) =>
       json<void>(`/api/chat/conversations/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+    // Push-to-talk transcription (docs/03 §7.2, docs/15 §4): multipart `audio` + optional
+    // `locale` hint. `text` may be "" for silent clips; the caller inserts it into the composer.
+    transcribe: (audio: Blob, locale?: Locale, fileName = "clip.webm") => {
+      const form = new FormData();
+      form.append("audio", audio, fileName);
+      if (locale) form.append("locale", locale);
+      return json<TranscribeResponse>("/api/chat/transcribe", { method: "POST", body: form });
+    },
   };
 }
 

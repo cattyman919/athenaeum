@@ -122,6 +122,12 @@ export interface WaitlistItem {
 }
 
 // AI Librarian chat (docs/03 §7, SSE payloads docs/06 §6).
+/** POST /api/chat/transcribe response (docs/15 §4); `text` is "" for silent clips. */
+export interface TranscribeResponse {
+  text: string;
+  language: string;
+}
+
 export interface ConversationSummary {
   id: string;
   title: string;

@@ -8,6 +8,7 @@ import {
   BookOpenCheck,
   Loader2,
   MessageSquarePlus,
+  Mic,
   RotateCcw,
   SendHorizontal,
   Sparkles,
@@ -20,11 +21,13 @@ import { AICitationCard } from "@/components/ai-citation-card";
 import { ChatTelemetry } from "@/components/chat-telemetry";
 import { Button } from "@/components/ui/button";
 import { useChatStream } from "@/hooks/use-chat-stream";
+import { useVoiceInput } from "@/hooks/use-voice-input";
 import { api } from "@/lib/api-client";
 import { STREAM_INTERRUPTED, type ChatTurn, type TurnError } from "@/lib/chat-stream";
 import type { Locale } from "@/lib/locale";
 import type { ConversationSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { formatElapsed, mergeTranscript, type VoiceError } from "@/lib/voice";
 
 const KNOWN_TOOLS = [
   "search_catalog",
@@ -184,6 +187,42 @@ function ChatSession({
   const lastPrompt = React.useRef("");
   const threadRef = React.useRef<HTMLDivElement>(null);
   const toasted = React.useRef(new Set<string>());
+  const composerRef = React.useRef<HTMLTextAreaElement>(null);
+  const tv = useTranslations("voice");
+  const [voiceNote, setVoiceNote] = React.useState<{ text: string; tone: "info" | "warn" } | null>(
+    null,
+  );
+
+  const voiceErrorText = React.useCallback(
+    (e: VoiceError) => {
+      if (e.kind === "rateLimited") {
+        return e.retryAfter
+          ? tv("errors.rateLimited", { seconds: e.retryAfter })
+          : tv("errors.rateLimitedSoon");
+      }
+      return tv(`errors.${e.kind}`);
+    },
+    [tv],
+  );
+
+  // Push-to-talk (docs/15 §2): the transcript lands beside typed text; the user presses Send.
+  const voice = useVoiceInput({
+    locale,
+    onTranscript: (text) => {
+      if (!text) {
+        setVoiceNote({ text: tv("empty"), tone: "warn" });
+        return;
+      }
+      setDraft((d) => mergeTranscript(d, text));
+      setVoiceNote({ text: tv("inserted"), tone: "info" });
+      composerRef.current?.focus();
+    },
+    onError: (e) => {
+      const text = voiceErrorText(e);
+      setVoiceNote({ text, tone: "warn" });
+      toast.error(text);
+    },
+  });
 
   const { turns, streaming, quota, send, abort } = useChatStream({
     conversationId,
@@ -194,7 +233,8 @@ function ChatSession({
 
   const submit = (text: string) => {
     const msg = text.trim();
-    if (!msg || streaming) return;
+    if (!msg || streaming || voice.busy) return;
+    setVoiceNote(null);
     lastPrompt.current = msg;
     setDraft("");
     void send(msg);
@@ -322,11 +362,15 @@ function ChatSession({
             {t("composer.label")}
           </label>
           <textarea
+            ref={composerRef}
             id="chat-composer"
             data-testid="chat-composer"
             rows={2}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              if (voiceNote?.tone === "info") setVoiceNote(null);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -336,19 +380,78 @@ function ChatSession({
             placeholder={t("composer.placeholder")}
             className="max-h-40 min-h-[2.5rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none"
           />
+          {voice.supported && (
+            <Button
+              type="button"
+              size="icon"
+              variant={voice.recording ? "destructive" : "outline"}
+              onClick={voice.toggle}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && voice.recording) {
+                  e.preventDefault();
+                  voice.cancel();
+                }
+              }}
+              disabled={voice.status === "requesting" || voice.status === "transcribing"}
+              aria-pressed={voice.recording}
+              aria-label={voice.recording ? tv("stop") : tv("start")}
+              title={voice.recording ? tv("stop") : tv("start")}
+              data-testid="chat-mic"
+              data-state={voice.status}
+              className="h-10 w-10 shrink-0"
+            >
+              {voice.status === "transcribing" || voice.status === "requesting" ? (
+                <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />
+              ) : voice.recording ? (
+                <Square className="h-4 w-4 fill-current" aria-hidden />
+              ) : (
+                <Mic className="h-4 w-4" aria-hidden />
+              )}
+            </Button>
+          )}
           {streaming ? (
             <Button type="button" variant="outline" onClick={abort} data-testid="chat-stop">
               <Square className="h-4 w-4" aria-hidden />
               {t("composer.stop")}
             </Button>
           ) : (
-            <Button type="submit" disabled={!draft.trim()} data-testid="chat-send">
+            <Button type="submit" disabled={!draft.trim() || voice.busy} data-testid="chat-send">
               <SendHorizontal className="h-4 w-4" aria-hidden />
               {t("composer.send")}
             </Button>
           )}
         </div>
-        <p className="mt-1.5 px-1 text-[11px] text-muted-foreground">{t("composer.hint")}</p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[11px]">
+          {voice.recording ? (
+            <span
+              role="status"
+              data-testid="chat-recording"
+              className="inline-flex items-center gap-1.5 font-medium text-destructive"
+            >
+              <span
+                aria-hidden
+                className="h-2 w-2 animate-pulse rounded-full bg-destructive motion-reduce:animate-none"
+              />
+              {tv("recording", { elapsed: formatElapsed(voice.elapsedMs) })}
+            </span>
+          ) : voice.status === "requesting" || voice.status === "transcribing" ? (
+            <span role="status" data-testid="chat-voice-busy" className="text-muted-foreground">
+              {tv(voice.status)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">{t("composer.hint")}</span>
+          )}
+          <span
+            aria-live="polite"
+            data-testid="chat-voice-note"
+            className={cn(
+              voiceNote?.tone === "warn" ? "text-warning" : "text-muted-foreground",
+              !voiceNote && "sr-only",
+            )}
+          >
+            {voice.busy ? "" : (voiceNote?.text ?? "")}
+          </span>
+        </div>
       </form>
     </section>
   );

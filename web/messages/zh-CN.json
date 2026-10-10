@@ -6,6 +6,11 @@
     "retry": "重试",
     "back": "返回"
   },
+  "adminGate": {
+    "title": "仅限馆员",
+    "body": "此区域仅向图书馆工作人员账户开放。",
+    "toCatalog": "返回馆藏目录"
+  },
   "shell": {
     "skipToContent": "跳到主要内容",
     "search": "搜索",
@@ -366,6 +371,27 @@
     "joined": "已加入候补",
     "left": "已退出候补",
     "error": "无法更新候补，请重试。"
+  },
+  "voice": {
+    "start": "开始语音输入",
+    "stop": "停止录音并转写",
+    "recording": "正在录音 {elapsed}",
+    "requesting": "正在等待麦克风权限…",
+    "transcribing": "正在转写…",
+    "inserted": "转写内容已加入输入框，请检查后点击发送。",
+    "empty": "抱歉，没有听清，请再试一次。",
+    "errors": {
+      "denied": "麦克风权限已被阻止。请在浏览器设置中允许后使用语音输入。",
+      "noDevice": "未找到可用的麦克风。",
+      "unsupported": "此浏览器不支持语音输入。",
+      "tooLarge": "录音过大，请将时长控制在 60 秒以内。",
+      "invalid": "无法处理这段录音，请重试。",
+      "rateLimited": "语音请求过于频繁，请在 {seconds} 秒后重试。",
+      "rateLimitedSoon": "语音请求过于频繁，请稍候再试。",
+      "unavailable": "语音转写暂时不可用，请直接输入文字。",
+      "network": "转写时出现网络错误，请检查网络连接。",
+      "generic": "语音输入失败，请重试。"
+    }
   },
   "chat": {
     "title": "AI 图书管理员",

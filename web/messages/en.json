@@ -6,6 +6,11 @@
     "retry": "Try again",
     "back": "Back"
   },
+  "adminGate": {
+    "title": "Staff only",
+    "body": "This area is limited to library staff accounts.",
+    "toCatalog": "Back to the catalog"
+  },
   "shell": {
     "skipToContent": "Skip to content",
     "search": "Search",
@@ -366,6 +371,27 @@
     "joined": "You joined the waitlist",
     "left": "You left the waitlist",
     "error": "We couldn't update the waitlist. Please try again."
+  },
+  "voice": {
+    "start": "Start voice input",
+    "stop": "Stop recording and transcribe",
+    "recording": "Recording {elapsed}",
+    "requesting": "Waiting for microphone access…",
+    "transcribing": "Transcribing…",
+    "inserted": "Transcript added to the message box. Review it, then press Send.",
+    "empty": "Sorry, I didn't catch that. Please try again.",
+    "errors": {
+      "denied": "Microphone access is blocked. Allow it in your browser settings to use voice input.",
+      "noDevice": "No working microphone was found.",
+      "unsupported": "Voice input isn't supported in this browser.",
+      "tooLarge": "That recording is too large. Keep clips under 60 seconds.",
+      "invalid": "We couldn't process that recording. Please try again.",
+      "rateLimited": "Too many voice requests. Try again in {seconds} s.",
+      "rateLimitedSoon": "Too many voice requests. Please wait a moment.",
+      "unavailable": "Voice transcription is unavailable right now. Please type your message.",
+      "network": "Network error while transcribing. Check your connection.",
+      "generic": "Voice input failed. Please try again."
+    }
   },
   "chat": {
     "title": "AI Librarian",

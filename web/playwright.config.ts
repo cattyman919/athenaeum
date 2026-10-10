@@ -64,7 +64,10 @@ export default defineConfig({
         JWT_ACCESS_SECRET: "e2e-access-secret-e2e-access-secret",
         JWT_REFRESH_SECRET: "e2e-refresh-secret-e2e-refresh-secret",
         OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
-        OFFLINE_MODE: "true",
+        // In the API only fetch-isbn reads these: Open Library is the stub's /api/books
+        // (docs/11, docs/08 §6). Seeding runs offline in scripts/e2e-prepare.sh.
+        OFFLINE_MODE: "false",
+        OPENLIBRARY_BASE_URL: STUBS_URL,
         // Chat runs the real agent/tools/SSE pipeline against the stub model (docs/01 §7).
         OPENROUTER_API_KEY: "e2e-stub-key",
         OPENROUTER_BASE_URL: STUBS_URL,
