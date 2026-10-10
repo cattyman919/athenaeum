@@ -97,23 +97,29 @@ EXPOSE 8080
 ENTRYPOINT ["/bin/api"]
 ```
 
-**`web/Dockerfile`** — pnpm build + standalone output:
+**`web/Dockerfile`** — pnpm build + `next start` (Node 25+ ships no corepack, so pnpm is
+installed from npm; `API_BASE_URL` is a build arg because the `/api/*` rewrite is baked at build):
 
 ```dockerfile
 FROM node:26-alpine AS build
 WORKDIR /src
+RUN npm install -g pnpm@9.15.9
+ARG API_BASE_URL=http://api:8080
+ENV API_BASE_URL=$API_BASE_URL
 COPY package.json pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
 FROM node:26-alpine
 WORKDIR /src
+ENV NODE_ENV=production
+COPY --from=build /src/package.json ./package.json
 COPY --from=build /src/.next ./.next
 COPY --from=build /src/public ./public
 COPY --from=build /src/node_modules ./node_modules
 EXPOSE 3000
-ENTRYPOINT ["pnpm", "start"]
+ENTRYPOINT ["node_modules/.bin/next", "start"]
 ```
 
 ## 4. Environment

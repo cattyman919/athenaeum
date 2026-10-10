@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tokens: docs/12-ui-design.md §3 (HSL triplets). */
+@layer base {
+  :root {
+    --background: 260 60% 99%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 37.7 92.1% 50.2%;
+    --success: 142.1 76.2% 36.3%;
+    --warning: 24.6 95% 53.1%;
+    --destructive: 0 84.2% 60.2%;
+    --border: 240 5.9% 90%;
+    --ring: 221.2 83.2% 53.3%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-sm leading-relaxed text-foreground antialiased;
+  }
+
+  /* Call numbers, shelf IDs, barcodes (docs/12 §4). */
+  .mono-label {
+    @apply font-mono text-xs uppercase tracking-wider;
+    font-variant-numeric: tabular-nums;
+  }
+}

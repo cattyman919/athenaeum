@@ -56,7 +56,7 @@ Refs: [docs/README.md §5](docs/README.md#5-monorepo-layout), [docs/09](docs/09-
 - [x] First commit of docs + scaffolding
 - [x] Root `Makefile` with targets from [docs/09 §5](docs/09-development.md#5-common-commands)
 - [x] `docker-compose.yml` at root (per [docs/09 §2](docs/09-development.md#2-docker-compose))
-- [ ] `api/Dockerfile` (done, builds) + `web/Dockerfile` (arrives with web scaffold, M4) ([docs/09 §3](docs/09-development.md#3-dockerfiles))
+- [x] `api/Dockerfile` + `web/Dockerfile` ([docs/09 §3](docs/09-development.md#3-dockerfiles)); both build ([docs/09 §3](docs/09-development.md#3-dockerfiles))
 
 ## 4. Phase 1 — Infrastructure & DB
 

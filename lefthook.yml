@@ -10,8 +10,9 @@ pre-commit:
       glob: "api/**/*.go"
       run: test -f api/go.mod || exit 0; command -v golangci-lint >/dev/null || { echo "golangci-lint not installed; skipping"; exit 0; }; cd api && golangci-lint run ./...
     web-lint:
-      glob: "web/**/*.{ts,tsx,js,jsx,mjs,css,json}"
-      run: test -f web/package.json || exit 0; test -d web/node_modules || { echo "web deps not installed; skipping"; exit 0; }; pnpm -C web lint && pnpm -C web exec prettier --check {staged_files}
+      root: "web/"
+      glob: "**/*.{ts,tsx,js,jsx,mjs,mts,css,json}"
+      run: test -f package.json || exit 0; test -d node_modules || { echo "web deps not installed; skipping"; exit 0; }; pnpm lint && pnpm exec prettier --check {staged_files}
 commit-msg:
   commands:
     commitlint:

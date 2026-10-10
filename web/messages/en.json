@@ -1,0 +1,116 @@
+{
+  "common": {
+    "appName": "Athenaeum Library",
+    "tagline": "Academic Catalog & Wayfinding System",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "back": "Back"
+  },
+  "shell": {
+    "skipToContent": "Skip to content",
+    "search": "Search",
+    "searchPlaceholder": "Search the catalog",
+    "nav": {
+      "catalog": "Catalog",
+      "library": "My Library",
+      "chat": "AI Librarian",
+      "admin": "Staff Admin"
+    },
+    "account": {
+      "menu": "Account menu",
+      "signedInAs": "Signed in as {name}",
+      "signOut": "Sign out"
+    },
+    "footer": {
+      "tagline": "Modern Scholarly Wayfinding System",
+      "version": "INDEX V1.0.0"
+    }
+  },
+  "language": {
+    "toggleLabel": "Language",
+    "switchTo": "Switch language to {language}",
+    "en": "EN",
+    "zh-CN": "中文"
+  },
+  "login": {
+    "badge": "Institutional Archive Portal",
+    "est": "Est. 1884",
+    "title": "Welcome back",
+    "subtitle": "Enter your library credentials to access your patron account, physical shelf bookmarks, and AI research sessions.",
+    "registerTitle": "Create your patron account",
+    "registerSubtitle": "Register to browse the catalog, keep a personal library, and ask the AI Librarian.",
+    "roles": {
+      "label": "Account type",
+      "patron": "Patron / Student",
+      "faculty": "Faculty & Scholar",
+      "staff": "Staff / Archival"
+    },
+    "fields": {
+      "name": "Full name",
+      "namePlaceholder": "Dana Reader",
+      "email": "Email address",
+      "emailPlaceholder": {
+        "patron": "patron@athenaeum.dev",
+        "faculty": "faculty@athenaeum.dev",
+        "staff": "staff@athenaeum.dev"
+      },
+      "emailValid": "Valid",
+      "password": "Password",
+      "passwordPlaceholder": "••••••••••••",
+      "passwordHint": "At least 10 characters",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password"
+    },
+    "forgot": "Forgot your password? Ask a librarian for help.",
+    "submit": "Sign In to Library",
+    "submitRegister": "Create Account",
+    "submitting": "Please wait…",
+    "divider": "or authenticate via campus single sign-on",
+    "google": "Continue with University SSO (Google Workspace)",
+    "wechat": "WeChat Academic ID",
+    "unavailable": "Unavailable",
+    "wechatTooltip": "WeChat login coming soon",
+    "noAccount": "Don't have an institutional card?",
+    "registerLink": "Register for a Patron Account",
+    "haveAccount": "Already have an account?",
+    "signInLink": "Sign in",
+    "spotlight": {
+      "badge": "Open Collection Highlight",
+      "title": "Dune",
+      "meta": "PS3558.E63 D8 1965 • Floor 3, North Stacks",
+      "copies": "2 Copies Avail",
+      "pickup": "Ready for pickup"
+    },
+    "gateway": "Campus Stacks Gateway v1",
+    "errors": {
+      "INVALID_CREDENTIALS": "Incorrect email or password.",
+      "EMAIL_TAKEN": "An account with this email already exists.",
+      "VALIDATION_FAILED": "Please check your details and try again.",
+      "RATE_LIMITED": "Too many attempts. Please wait a few minutes and try again.",
+      "UNEXPECTED": "Something went wrong. Please try again.",
+      "sso": "Google sign-in failed. Please try again.",
+      "expired": "Your session expired. Please sign in again."
+    }
+  },
+  "enums": {
+    "availability": {
+      "available": "Available",
+      "checked_out": "Checked Out",
+      "not_in_building": "Not in Building",
+      "missing_lost": "Missing / Lost",
+      "reserved_waitlist": "Reserved for Waitlist"
+    },
+    "copyStatus": {
+      "available": "Available",
+      "checked_out": "Checked Out",
+      "reserved_waitlist": "Reserved for Waitlist",
+      "missing_lost": "Missing / Lost"
+    },
+    "readingStage": {
+      "reading": "Reading",
+      "read": "Read",
+      "want_to_read": "Want to Read",
+      "favorites": "Favorites"
+    }
+  }
+}

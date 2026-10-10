@@ -1,0 +1,116 @@
+{
+  "common": {
+    "appName": "雅典娜图书馆",
+    "tagline": "学术目录与导航系统",
+    "loading": "加载中…",
+    "retry": "重试",
+    "back": "返回"
+  },
+  "shell": {
+    "skipToContent": "跳到主要内容",
+    "search": "搜索",
+    "searchPlaceholder": "搜索馆藏目录",
+    "nav": {
+      "catalog": "馆藏目录",
+      "library": "我的书架",
+      "chat": "AI 图书管理员",
+      "admin": "馆员管理"
+    },
+    "account": {
+      "menu": "账户菜单",
+      "signedInAs": "当前登录：{name}",
+      "signOut": "退出登录"
+    },
+    "footer": {
+      "tagline": "现代学术导航系统",
+      "version": "索引 V1.0.0"
+    }
+  },
+  "language": {
+    "toggleLabel": "语言",
+    "switchTo": "将语言切换为{language}",
+    "en": "EN",
+    "zh-CN": "中文"
+  },
+  "login": {
+    "badge": "机构档案门户",
+    "est": "创立于 1884",
+    "title": "欢迎回来",
+    "subtitle": "输入您的图书馆账户信息，即可访问读者账户、实体书架书签和 AI 研究会话。",
+    "registerTitle": "创建读者账户",
+    "registerSubtitle": "注册后可浏览馆藏目录、管理个人书架，并向 AI 图书管理员提问。",
+    "roles": {
+      "label": "账户类型",
+      "patron": "读者 / 学生",
+      "faculty": "教师与学者",
+      "staff": "馆员 / 档案员"
+    },
+    "fields": {
+      "name": "姓名",
+      "namePlaceholder": "张三",
+      "email": "电子邮箱",
+      "emailPlaceholder": {
+        "patron": "patron@athenaeum.dev",
+        "faculty": "faculty@athenaeum.dev",
+        "staff": "staff@athenaeum.dev"
+      },
+      "emailValid": "有效",
+      "password": "密码",
+      "passwordPlaceholder": "••••••••••••",
+      "passwordHint": "至少 10 个字符",
+      "showPassword": "显示密码",
+      "hidePassword": "隐藏密码"
+    },
+    "forgot": "忘记密码？请联系图书管理员。",
+    "submit": "登录图书馆",
+    "submitRegister": "创建账户",
+    "submitting": "请稍候…",
+    "divider": "或通过校园单点登录",
+    "google": "使用大学单点登录（Google Workspace）",
+    "wechat": "微信学术身份",
+    "unavailable": "暂不可用",
+    "wechatTooltip": "微信登录即将上线",
+    "noAccount": "还没有机构借阅证？",
+    "registerLink": "注册读者账户",
+    "haveAccount": "已有账户？",
+    "signInLink": "登录",
+    "spotlight": {
+      "badge": "开放馆藏推荐",
+      "title": "Dune",
+      "meta": "PS3558.E63 D8 1965 • 3 楼北区书库",
+      "copies": "2 册可借",
+      "pickup": "可立即取书"
+    },
+    "gateway": "校园书库入口 v1",
+    "errors": {
+      "INVALID_CREDENTIALS": "邮箱或密码不正确。",
+      "EMAIL_TAKEN": "该邮箱已被注册。",
+      "VALIDATION_FAILED": "请检查填写的信息后重试。",
+      "RATE_LIMITED": "尝试次数过多，请几分钟后再试。",
+      "UNEXPECTED": "出了点问题，请重试。",
+      "sso": "Google 登录失败，请重试。",
+      "expired": "登录已过期，请重新登录。"
+    }
+  },
+  "enums": {
+    "availability": {
+      "available": "可借",
+      "checked_out": "已借出",
+      "not_in_building": "馆内无藏",
+      "missing_lost": "遗失",
+      "reserved_waitlist": "已为候补预留"
+    },
+    "copyStatus": {
+      "available": "可借",
+      "checked_out": "已借出",
+      "reserved_waitlist": "已为候补预留",
+      "missing_lost": "遗失"
+    },
+    "readingStage": {
+      "reading": "在读",
+      "read": "已读",
+      "want_to_read": "想读",
+      "favorites": "收藏"
+    }
+  }
+}
