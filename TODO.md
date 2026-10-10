@@ -39,8 +39,8 @@ Rules for any AI session (or human) continuing this project:
 
 | Field | Value |
 | --- | --- |
-| Goal / phase | Phase 0 done; Phase 1 not started. Scope expanded (docs-only) with Phases 11–13: localization, voice input, git workflow + E2E/CI |
-| Git | repo initialized on `main`; **no commits yet** (first commit = scaffolding, Conventional Commits — [docs/09 §9](docs/09-development.md#9-git-workflow)) |
+| Goal / phase | Phase 0 in progress (docs committed; Makefile/compose/hooks/CI landing). Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M12; checkboxes below are still ticked per item |
+| Git | `main` with commits; remote `origin = git@github.com:cattyman919/athenaeum.git`; one branch per task, squash to `main`, push `main` per milestone ([docs/09 §9](docs/09-development.md#9-git-workflow)) |
 | Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist)) |
 | Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); re-exports pending + chat-screen regen for the mic ([§17](#17-open-todo-registry-from-docs)) |
 | Stack pins | Go 1.22 · Next.js 15 · Postgres 16 + pgvector · Redis 7 · Ollama `nomic-embed-text` (768) · OpenRouter Claude 3.5 Sonnet · faster-whisper `small` · next-intl · Playwright |
@@ -53,7 +53,7 @@ Refs: [docs/README.md §5](docs/README.md#5-monorepo-layout), [docs/09](docs/09-
 - [x] `git init` + monorepo layout (`api/`, `web/`, `docs/`, `.artifacts/`)
 - [x] `.gitignore`, `.env.example`, root `README.md`, `AGENTS.md`, `TODO.md`
 - [x] All 14 docs written + cross-link audit clean
-- [ ] First commit of docs + scaffolding
+- [x] First commit of docs + scaffolding
 - [ ] Root `Makefile` with targets from [docs/09 §5](docs/09-development.md#5-common-commands)
 - [ ] `docker-compose.yml` at root (per [docs/09 §2](docs/09-development.md#2-docker-compose))
 - [ ] `api/Dockerfile` + `web/Dockerfile` ([docs/09 §3](docs/09-development.md#3-dockerfiles))
