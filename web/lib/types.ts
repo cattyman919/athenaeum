@@ -74,3 +74,30 @@ export interface BookDetail {
   neighbors: Neighbor[];
   my_library_entry: { status: string; is_favorite: boolean } | null;
 }
+
+export interface LibraryItem {
+  kind: "entry";
+  book: { id: string; title: string; cover_url: string | null; authors: string[] };
+  location: { floor: number; shelf_code: string; path: string } | null;
+  status: "want_to_read" | "reading" | "read";
+  is_favorite: boolean;
+  progress_pct: number | null;
+  rating: number | null;
+  added_at: string;
+}
+
+export interface LibraryResponse {
+  items: LibraryItem[];
+  meta: PageMeta;
+  counts: { total: number; reading: number; read: number; want_to_read: number; favorites: number };
+}
+
+export interface WaitlistItem {
+  kind: "hold";
+  id: string;
+  status: "waiting" | "ready";
+  position: number;
+  ready_at?: string;
+  expires_at?: string;
+  book: { id: string; title: string; cover_url: string | null; authors: string[] };
+}

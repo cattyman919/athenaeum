@@ -244,5 +244,95 @@
       "body": "找不到该书。它可能已被剔除，或链接有误。",
       "back": "返回馆藏目录"
     }
+  },
+  "library": {
+    "title": "我的书架",
+    "subtitle": "书架、阅读进度和预约集中在这里。",
+    "kpi": {
+      "total": "馆藏总数",
+      "reading": "在读",
+      "read": "已读",
+      "favorites": "收藏与 AI"
+    },
+    "tabs": {
+      "label": "阅读状态",
+      "all": "全部",
+      "reading": "在读",
+      "read": "已读",
+      "want_to_read": "想读",
+      "favorites": "收藏",
+      "holds": "预约与候补"
+    },
+    "empty": {
+      "title": "这里还没有内容",
+      "body": "从馆藏目录添加图书，建立你的书架。",
+      "browse": "浏览馆藏目录",
+      "holds": "你没有任何候补。",
+      "holdsBody": "当一本书被借出时，可以在图书页面加入候补。"
+    },
+    "row": {
+      "shelf": "{floor} 楼 • 书架 {shelf}",
+      "noShelf": "未上架",
+      "progress": "已读 {pct}%",
+      "stage": "阅读状态",
+      "favorite": "加入收藏",
+      "unfavorite": "取消收藏",
+      "remove": "从书架移除",
+      "rate": "评 {stars} 星",
+      "rating": "你的评分：{stars} / 5"
+    },
+    "holds": {
+      "position": "排队第 {position} 位",
+      "waiting": "等待副本",
+      "ready": "可取书 — 请在 {date} 前领取",
+      "leave": "退出候补",
+      "view": "查看图书"
+    },
+    "ai": {
+      "title": "让 AI 图书管理员对照你的书架",
+      "body": "根据你读过的书，询问接下来读什么。",
+      "cta": "打开 AI 图书管理员",
+      "prefill": "根据我书架上的书，接下来我该读什么？"
+    },
+    "toast": {
+      "updated": "书架已更新",
+      "removed": "已从书架移除",
+      "left": "已退出候补",
+      "error": "出了点问题，请重试。"
+    },
+    "pagination": {
+      "prev": "上一页",
+      "next": "下一页",
+      "page": "第 {page} / {pages} 页"
+    }
+  },
+  "bookActions": {
+    "title": "我的书架",
+    "add": "加入我的书架",
+    "change": "更改阅读状态",
+    "inLibrary": "已在你的书架",
+    "favorite": "收藏",
+    "unfavorite": "取消收藏",
+    "remove": "移除",
+    "added": "已加入你的书架",
+    "updated": "书架已更新",
+    "removed": "已从书架移除",
+    "error": "出了点问题，请重试。",
+    "unavailable": {
+      "title": "这本书目前不在书架上",
+      "body": "所有副本都已借出。你可以加入候补，或仍然加入书架。",
+      "addAnyway": "仍然加入",
+      "joinWaitlist": "加入候补",
+      "dismiss": "关闭"
+    }
+  },
+  "waitlist": {
+    "join": "加入候补",
+    "leave": "退出候补",
+    "position": "你在候补队列中排第 {position} 位",
+    "ready": "你的副本已就绪 — 请在 {date} 前领取",
+    "joined": "已加入候补",
+    "left": "已退出候补",
+    "error": "无法更新候补，请重试。"
   }
 }

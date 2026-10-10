@@ -31,7 +31,7 @@ migrate() {
   go run -tags postgres "github.com/golang-migrate/migrate/v4/cmd/migrate@${MIGRATE_VERSION}" \
     -path api/migrations -database "${DATABASE_URL}" "$@"
 }
-migrate drop -f
+docker compose exec -T postgres psql -U athenaeum -d "${E2E_DB}" -v ON_ERROR_STOP=1 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 migrate up
 
 echo "==> ensuring Ollama embedding model"

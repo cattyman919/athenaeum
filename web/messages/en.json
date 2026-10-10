@@ -244,5 +244,95 @@
       "body": "We couldn't find that volume. It may have been withdrawn or the link may be wrong.",
       "back": "Back to the catalog"
     }
+  },
+  "library": {
+    "title": "My Library",
+    "subtitle": "Your shelf, reading progress and holds in one place.",
+    "kpi": {
+      "total": "In Collection",
+      "reading": "Currently Reading",
+      "read": "Completed",
+      "favorites": "Bookmarks & AI"
+    },
+    "tabs": {
+      "label": "Reading stage",
+      "all": "All",
+      "reading": "Reading",
+      "read": "Read",
+      "want_to_read": "Want to Read",
+      "favorites": "Favorites",
+      "holds": "Holds & Waitlists"
+    },
+    "empty": {
+      "title": "Nothing here yet",
+      "body": "Add books from the catalog to build your collection.",
+      "browse": "Browse the catalog",
+      "holds": "You are not on any waitlist.",
+      "holdsBody": "When a title is checked out you can join its waitlist from the book page."
+    },
+    "row": {
+      "shelf": "Floor {floor} • Shelf {shelf}",
+      "noShelf": "Not shelved",
+      "progress": "{pct}% read",
+      "stage": "Reading stage",
+      "favorite": "Add to favorites",
+      "unfavorite": "Remove from favorites",
+      "remove": "Remove from library",
+      "rate": "Rate {stars, plural, one {# star} other {# stars}}",
+      "rating": "Your rating: {stars} of 5"
+    },
+    "holds": {
+      "position": "Position {position} in queue",
+      "waiting": "Waiting for a copy",
+      "ready": "Ready for pickup — collect by {date}",
+      "leave": "Leave waitlist",
+      "view": "View book"
+    },
+    "ai": {
+      "title": "Cross-reference your shelf with the AI Librarian",
+      "body": "Ask for what to read next based on what you have finished.",
+      "cta": "Open AI Librarian",
+      "prefill": "Based on the books in my library, what should I read next?"
+    },
+    "toast": {
+      "updated": "Library updated",
+      "removed": "Removed from your library",
+      "left": "Left the waitlist",
+      "error": "Something went wrong. Please try again."
+    },
+    "pagination": {
+      "prev": "Previous",
+      "next": "Next",
+      "page": "Page {page} of {pages}"
+    }
+  },
+  "bookActions": {
+    "title": "My Library",
+    "add": "Add to My Library",
+    "change": "Change reading stage",
+    "inLibrary": "In your library",
+    "favorite": "Favorite",
+    "unfavorite": "Remove favorite",
+    "remove": "Remove",
+    "added": "Added to your library",
+    "updated": "Library updated",
+    "removed": "Removed from your library",
+    "error": "Something went wrong. Please try again.",
+    "unavailable": {
+      "title": "This title isn't on the shelf",
+      "body": "Every copy is out right now. You can join the waitlist or add it anyway.",
+      "addAnyway": "Add anyway",
+      "joinWaitlist": "Join waitlist",
+      "dismiss": "Dismiss"
+    }
+  },
+  "waitlist": {
+    "join": "Join waitlist",
+    "leave": "Leave waitlist",
+    "position": "You are #{position} in the waitlist queue",
+    "ready": "Your copy is ready — collect it by {date}",
+    "joined": "You joined the waitlist",
+    "left": "You left the waitlist",
+    "error": "We couldn't update the waitlist. Please try again."
   }
 }
