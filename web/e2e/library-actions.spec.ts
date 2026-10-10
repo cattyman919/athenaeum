@@ -1,11 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 import { ADMIN_STATE } from "./accounts";
 import { gotoReady } from "./helpers";
+import { resetRateLimits } from "./rate-limit";
 
 // Mutating journeys run as the admin account, which starts with an empty library and no holds
 // (docs/13 §6), so the demo-patron specs keep their seeded totals. Every test cleans up after
 // itself so the spec can be re-run without re-seeding.
 test.use({ storageState: ADMIN_STATE });
+
+// The admin account is also driven by the admin-* specs earlier in the run (docs/03 §2 budget).
+test.beforeAll(async () => {
+  await resetRateLimits();
+});
 
 const ZERO_COPY = "The Elements of Style"; // docs/13 §5 zero-copy #34 (not_in_building)
 

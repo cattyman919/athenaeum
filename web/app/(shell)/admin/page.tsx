@@ -1,44 +1,81 @@
 import Link from "next/link";
-import { getTranslations } from "next-intl/server";
-import { ShieldAlert } from "lucide-react";
+import { ArrowRight, Map } from "lucide-react";
+import { AdminForbidden } from "@/components/admin/admin-forbidden";
+import { AdminNav } from "@/components/admin/admin-nav";
+import { RealTimeAuditStream } from "@/components/admin/audit-stream";
+import { KpiGrid } from "@/components/admin/kpi-grid";
+import { UsersTable } from "@/components/admin/users-table";
 import { AddBookDialog } from "@/components/isbn-scanner";
+import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AUDIT_MAX_ROWS } from "@/lib/admin";
+import { adminGet } from "@/lib/admin-server";
+import type { AdminKpis, AdminUserPage, CopyEvent } from "@/lib/admin-types";
 import { getCurrentUser } from "@/lib/api-server";
 
 // Screen 6a — Stitch 3177da52… Admin (docs/07 §7, docs/12 screen 6). Admin copy stays English
-// (docs/14 §1); only the non-admin FORBIDDEN state is localized. The KPI grid and audit
-// stream (GET /api/admin/data, /api/admin/copy-events) extend this page; the Add Book
-// dialog with the ISBN scanner tab is wired here (docs/11 §5).
+// (docs/14 §1); only the non-admin FORBIDDEN state is localized. KPI grid (GET /api/admin/data),
+// RealTimeAuditStream (GET /api/admin/copy-events, 3 s poll), accounts table
+// (GET/PATCH /api/admin/users) and the Add Book dialog with the ISBN scanner tab (docs/11 §5).
 export default async function AdminPage() {
   const user = await getCurrentUser();
-  if (user?.role !== "admin") {
-    const t = await getTranslations("adminGate");
-    return (
-      <Card className="mx-auto mt-12 max-w-md" data-testid="admin-forbidden">
-        <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-          <ShieldAlert className="h-8 w-8 text-destructive" aria-hidden />
-          <h1 className="text-lg font-semibold">{t("title")}</h1>
-          <p className="text-sm text-on-surface-variant">{t("body")}</p>
-          <Link href="/catalog" className={buttonVariants({ variant: "outline", size: "sm" })}>
-            {t("toCatalog")}
-          </Link>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (user?.role !== "admin") return <AdminForbidden />;
+
+  const [kpis, events, users] = await Promise.all([
+    adminGet<AdminKpis>("/api/admin/data"),
+    adminGet<{ items: CopyEvent[] }>(`/api/admin/copy-events?limit=${AUDIT_MAX_ROWS}`),
+    adminGet<AdminUserPage>("/api/admin/users?per_page=50"),
+  ]);
 
   return (
     <div className="space-y-6" data-testid="admin-page">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
-            Staff Admin
-          </p>
-          <h1 className="text-2xl font-semibold">Collection management</h1>
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
+              Staff Admin
+            </p>
+            <h1 className="text-2xl font-semibold">Collection management</h1>
+          </div>
+          <AdminNav />
         </div>
         <AddBookDialog />
       </header>
+
+      {kpis ? (
+        <KpiGrid data={kpis} />
+      ) : (
+        <Alert variant="destructive" data-testid="kpi-error">
+          Could not load the collection metrics. Refresh to retry.
+        </Alert>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        <RealTimeAuditStream initial={events?.items ?? []} />
+        <Card className="h-fit">
+          <CardContent className="space-y-3 p-5">
+            <div className="flex items-center gap-2 font-semibold">
+              <Map className="h-4 w-4 text-primary" aria-hidden />
+              Stacks manager
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Browse the building tree, inspect shelf manifests, re-shelve copies by barcode and
+              update copy status.
+            </p>
+            <Link
+              href="/admin/layout"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+              data-testid="to-layout"
+            >
+              Open layout manager
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {users && <UsersTable initial={users.items} currentUserId={user.id} />}
     </div>
   );
 }

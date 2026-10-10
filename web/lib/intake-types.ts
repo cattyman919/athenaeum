@@ -54,6 +54,8 @@ export interface AdminTreeShelf {
   id: string;
   code: string;
   path: string;
+  row_level: number;
+  height_tier: string;
   occupied: number;
   total: number;
 }

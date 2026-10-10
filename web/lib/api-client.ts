@@ -4,6 +4,17 @@
 import type { Locale } from "./locale";
 import type { AdminBookCreate, AdminBookCreated, AdminTree, IsbnMetadata } from "./intake-types";
 import type {
+  AdminBookPage,
+  AdminCopy,
+  AdminKpis,
+  AdminUserPage,
+  CopyCreate,
+  CopyEvent,
+  CopyPatch,
+  ShelfInspectorData,
+  UserRole,
+} from "./admin-types";
+import type {
   ConversationDetail,
   ConversationPage,
   ConversationSummary,
@@ -139,6 +150,47 @@ export function createApiClient(opts: ClientOptions = {}) {
     createAdminBook: (body: AdminBookCreate) =>
       json<AdminBookCreated>("/api/admin/books", { method: "POST", body: JSON.stringify(body) }),
     adminTree: () => json<AdminTree>("/api/admin/tree"),
+
+    // Admin portal (docs/03 §8.1, §8.3–8.5).
+    adminData: () => json<AdminKpis>("/api/admin/data"),
+    adminCopyEvents: (since: string | null, limit = 50) => {
+      const q = new URLSearchParams({ limit: String(limit) });
+      if (since) q.set("since", since);
+      return json<{ items: CopyEvent[] }>(`/api/admin/copy-events?${q}`).then((r) => r.items);
+    },
+    adminShelf: (id: string) =>
+      json<ShelfInspectorData>(`/api/admin/shelves/${encodeURIComponent(id)}`),
+    /** `ref` is a copy id or barcode. */
+    patchAdminCopy: (ref: string, patch: CopyPatch) =>
+      json<AdminCopy>(`/api/admin/copies/${encodeURIComponent(ref)}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    createAdminCopy: (body: CopyCreate) =>
+      json<AdminCopy>("/api/admin/copies", { method: "POST", body: JSON.stringify(body) }),
+    deleteAdminCopy: (ref: string) =>
+      json<void>(`/api/admin/copies/${encodeURIComponent(ref)}`, { method: "DELETE" }),
+    adminBooks: (
+      params: {
+        search?: string;
+        shelf?: string;
+        page?: number;
+        per_page?: number;
+        sort?: string;
+      } = {},
+    ) => {
+      const q = new URLSearchParams();
+      for (const [k, v] of Object.entries(params))
+        if (v !== undefined && v !== "") q.set(k, String(v));
+      return json<AdminBookPage>(`/api/admin/books${q.size ? `?${q}` : ""}`);
+    },
+    adminUsers: (page = 1, perPage = 50) =>
+      json<AdminUserPage>(`/api/admin/users?page=${page}&per_page=${perPage}`),
+    patchAdminUser: (id: string, role: UserRole) =>
+      json<User>(`/api/admin/users/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      }),
 
     // AI Librarian conversations (docs/03 §7). The SSE turn lives in hooks/use-chat-stream.ts.
     listConversations: (perPage = 50) =>

@@ -97,3 +97,39 @@ describe("api client refresh retry (docs/07 §4)", () => {
     await expect(c.logout()).resolves.toBeUndefined();
   });
 });
+
+describe("admin client (docs/03 §8)", () => {
+  it("builds the copy-events cursor query and unwraps items", async () => {
+    const urls: string[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return ok({ items: [{ id: 1 }] });
+    });
+    const c = createApiClient({ fetcher: fetcher as unknown as typeof fetch });
+    expect(await c.adminCopyEvents(null)).toEqual([{ id: 1 }]);
+    await c.adminCopyEvents("2026-10-06T19:52:03.123456Z", 20);
+    expect(urls).toEqual([
+      "/api/admin/copy-events?limit=50",
+      "/api/admin/copy-events?limit=20&since=2026-10-06T19%3A52%3A03.123456Z",
+    ]);
+  });
+
+  it("patches copies by barcode with a JSON body", async () => {
+    const fetcher = vi.fn(async () => ok({ id: "c1" }));
+    const c = createApiClient({ fetcher: fetcher as unknown as typeof fetch });
+    await c.patchAdminCopy("ATH-002941-C02", { shelf_id: "s1" });
+    const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("/api/admin/copies/ATH-002941-C02");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(String(init.body))).toEqual({ shelf_id: "s1" });
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+  });
+
+  it("surfaces the self-demote 400 as an ApiError", async () => {
+    const fetcher = vi.fn(async () =>
+      ok({ error: "VALIDATION_FAILED", message: "You cannot demote yourself." }, 400),
+    );
+    const c = createApiClient({ fetcher: fetcher as unknown as typeof fetch });
+    await expect(c.patchAdminUser("me", "user")).rejects.toBeInstanceOf(ApiError);
+  });
+});
