@@ -156,7 +156,7 @@ Prettier via Next.js default settings.
 
 ```go
 // dev: colorized tint handler (console / tty)
-slog.New(tint.NewHandler(os.Stderr, &tint.Options{Level: slog.LevelDebug, TimeFormat: time.Kitchen}))
+slog.New(tint.NewTextHandler(os.Stderr, &tint.Options{Level: slog.LevelDebug, TimeFormat: time.Kitchen}))
 // prod (APP_ENV=prod): JSON handler
 slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 ```

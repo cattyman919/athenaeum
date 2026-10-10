@@ -56,7 +56,7 @@ Refs: [docs/README.md §5](docs/README.md#5-monorepo-layout), [docs/09](docs/09-
 - [x] First commit of docs + scaffolding
 - [x] Root `Makefile` with targets from [docs/09 §5](docs/09-development.md#5-common-commands)
 - [x] `docker-compose.yml` at root (per [docs/09 §2](docs/09-development.md#2-docker-compose))
-- [ ] `api/Dockerfile` + `web/Dockerfile` ([docs/09 §3](docs/09-development.md#3-dockerfiles))
+- [ ] `api/Dockerfile` (done) + `web/Dockerfile` (M4) ([docs/09 §3](docs/09-development.md#3-dockerfiles))
 
 ## 4. Phase 1 — Infrastructure & DB
 
@@ -64,13 +64,13 @@ Refs: [docs/01](docs/01-architecture.md), [docs/02](docs/02-data-model.md).
 
 - [ ] `docker compose up` green: postgres (pgvector/pg16) + redis + ollama healthy
 - [ ] `docker compose exec ollama ollama pull nomic-embed-text`
-- [ ] `api/go.mod` (module + gin, pgx v5, go-redis v9, jwt v5, uuid, argon2, checkdigit, env, eino)
-- [ ] `internal/config` typed env loader (all vars from [docs/01 §7](docs/01-architecture.md#7-environment-variables))
+- [ ] `api/go.mod` (module created; gin, env, uuid, tint in — rest added as each lands; module + gin, pgx v5, go-redis v9, jwt v5, uuid, argon2, checkdigit, env, eino)
+- [x] `internal/config` typed env loader (all vars from [docs/01 §7](docs/01-architecture.md#7-environment-variables))
 - [ ] Migrations `0001_extensions.sql` → all `CREATE TABLE` DDL verbatim from [docs/02 §4](docs/02-data-model.md#4-table-ddl-canonical-sql)
 - [ ] FTS + trigram + HNSW indexes ([docs/02 §5](docs/02-data-model.md#5-indexes))
 - [ ] `book_locations` view ([docs/02 §6](docs/02-data-model.md#6-book_locations-view))
-- [ ] `updated_at` trigger + `slog` request-id plumbing ([docs/09 §7](docs/09-development.md#7-logging))
-- [ ] `GET /api/health` ([docs/03 §4.1](docs/03-api-spec.md#41-get-apihealth))
+- [ ] `updated_at` trigger (slog request-id plumbing done) ([docs/09 §7](docs/09-development.md#7-logging))
+- [x] `GET /api/health` ([docs/03 §4.1](docs/03-api-spec.md#41-get-apihealth))
 
 ## 5. Phase 2 — Auth
 
