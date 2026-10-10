@@ -16,6 +16,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/cattyman919/athenaeum/api/internal/config"
+	"github.com/cattyman919/athenaeum/api/internal/embed"
 	"github.com/cattyman919/athenaeum/api/internal/logging"
 	"github.com/cattyman919/athenaeum/api/internal/middleware"
 	"github.com/cattyman919/athenaeum/api/internal/oauth"
@@ -23,6 +24,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/repository"
 	"github.com/cattyman919/athenaeum/api/internal/server"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
+	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 )
 
 const shutdownTimeout = 10 * time.Second
@@ -70,11 +72,15 @@ func run() error {
 	authSvc := auth.New(repository.NewUserRepository(pool), repository.NewTokenRepository(pool),
 		jm, google, cfg.RefreshTTL, log)
 
+	embedder := embed.NewOllama(cfg.OllamaBaseURL, cfg.OllamaEmbedModel, cfg.OllamaEmbedDim)
+	catalogSvc := catalog.New(repository.NewCatalogRepository(pool), embedder)
+
 	srv := server.New(server.Deps{
 		Config:  cfg,
 		Log:     log,
 		JWT:     jm,
 		Auth:    authSvc,
+		Catalog: catalogSvc,
 		Limiter: middleware.NewRateLimiter(rdb, log),
 	}, fmt.Sprintf(":%d", cfg.APIPort))
 

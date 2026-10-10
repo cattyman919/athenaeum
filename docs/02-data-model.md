@@ -519,3 +519,9 @@ ORDER BY score DESC LIMIT 20;
 ```
 
 `<=>` is cosine distance; similarity = `1 - distance`.
+
+Implementation note: fusion runs in the service layer (`catalog.FuseRRF`) over the keyword
+top-20 and the vector top-20 (best chunk per book), and returns the **union** of both
+lists, so keyword-only hits (e.g. an author match) still surface; a book ranked 1st in both
+lists scores `2/61`. Keyword relevance = `ts_rank` + title-trigram similarity + substring
+bonuses for title/author matches.

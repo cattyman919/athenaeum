@@ -105,10 +105,10 @@ Refs: [docs/08](docs/08-seed-data.md), values [docs/13](docs/13-mock-data-refere
 
 Refs: [docs/02 §7 query examples](docs/02-data-model.md#7-query-examples), [docs/03 §5.1](docs/03-api-spec.md#51-get-apibookssearch), [docs/07 page map](docs/07-frontend.md#7-page-breakdowns).
 
-- [ ] `repository`: keyword (tsvector), semantic (pgvector top-20), hybrid (RRF k=60)
-- [ ] `service`: facets (section/availability/era), pagination envelope, `availability.state` resolution
-- [ ] `GET /api/books/search` handler (30/1min bucket; `X-RateLimit-*`)
-- [ ] `web/middleware.ts` + `lib/api-server.ts` cookie forwarding
+- [x] `repository`: keyword (tsvector), semantic (pgvector top-20), hybrid (RRF k=60)
+- [x] `service`: facets (section/availability/era), pagination envelope, `availability.state` resolution
+- [x] `GET /api/books/search` handler (30/1min bucket; `X-RateLimit-*`)
+- [x] `web/middleware.ts` + `lib/api-server.ts` cookie forwarding
 - [ ] `/catalog` page: tri-modal switcher, facet sidebar, BookCard 2:3 grid, skeletons
 - [ ] ⌘K `CommandPalette` (client-only) wired to the same endpoint
 

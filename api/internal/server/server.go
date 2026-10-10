@@ -14,6 +14,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/model"
 	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
+	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 )
 
 // Deps are the collaborators wired in cmd/api (manual DI, docs/01 §2).
@@ -24,6 +25,7 @@ type Deps struct {
 	Log     *slog.Logger
 	JWT     *jwt.Manager
 	Auth    *auth.Service
+	Catalog *catalog.Service
 	Limiter *middleware.RateLimiter
 }
 
@@ -67,16 +69,16 @@ func NewRouter(d Deps) *gin.Engine {
 	api.GET("/health", handler.Health)
 
 	requireAuth := middleware.RequireAuth(handler.RespondError)
+	limit := func(b middleware.Bucket) gin.HandlerFunc {
+		if d.Limiter == nil {
+			return func(c *gin.Context) { c.Next() }
+		}
+		return d.Limiter.Limit(b, handler.RespondError, nil)
+	}
 
 	if d.Auth != nil {
 		ah := handler.NewAuthHandler(d.Auth, d.Config.IsProd(), d.Config.WebOrigin, []byte(d.Config.JWTRefreshSecret))
 		ag := api.Group("/auth")
-		limit := func(b middleware.Bucket) gin.HandlerFunc {
-			if d.Limiter == nil {
-				return func(c *gin.Context) { c.Next() }
-			}
-			return d.Limiter.Limit(b, handler.RespondError, nil)
-		}
 		ag.POST("/register", limit(middleware.BucketRegister), ah.Register)
 		ag.POST("/login", limit(middleware.BucketLogin), ah.Login)
 		ag.POST("/refresh", ah.Refresh)
@@ -84,6 +86,12 @@ func NewRouter(d Deps) *gin.Engine {
 		ag.GET("/me", requireAuth, ah.Me)
 		ag.GET("/google", ah.GoogleStart)
 		ag.GET("/google/callback", ah.GoogleCallback)
+	}
+
+	if d.Catalog != nil {
+		bh := handler.NewBooksHandler(d.Catalog)
+		bg := api.Group("/books", requireAuth)
+		bg.GET("/search", limit(middleware.BucketSearch), bh.Search)
 	}
 	return r
 }
