@@ -49,6 +49,7 @@ func newMux() *http.ServeMux {
 	mux.HandleFunc("POST /chat/completions", chatCompletions)
 	mux.HandleFunc("POST /v1/chat/completions", chatCompletions)
 	mux.HandleFunc("POST /asr", asr)
+	mux.HandleFunc("GET /api/books", openLibraryBooks) // OPENLIBRARY_BASE_URL (openlibrary.go)
 	return mux
 }
 

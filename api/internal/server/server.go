@@ -13,6 +13,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/middleware"
 	"github.com/cattyman919/athenaeum/api/internal/model"
 	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
+	"github.com/cattyman919/athenaeum/api/internal/service/admin"
 	"github.com/cattyman919/athenaeum/api/internal/service/ai"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
@@ -34,7 +35,11 @@ type Deps struct {
 	Chat     *ai.Service
 	// Transcribe serves voice input (docs/15); nil skips the route.
 	Transcribe *ai.TranscribeService
-	Limiter    *middleware.RateLimiter
+	// Admin serves /api/admin/* (docs/03 §8); nil skips the routes.
+	Admin *admin.Service
+	// ISBN serves barcode intake (docs/11); nil skips the route.
+	ISBN    *catalog.ISBNService
+	Limiter *middleware.RateLimiter
 	// ChatHeartbeat overrides the SSE heartbeat interval (tests); 0 = 15 s.
 	ChatHeartbeat time.Duration
 }
@@ -105,6 +110,13 @@ func NewRouter(d Deps) *gin.Engine {
 		bg.GET("/:id", bh.Get)
 	}
 
+	if d.ISBN != nil {
+		ih := handler.NewISBNHandler(d.ISBN)
+		// Admin "Add Book" intake (docs/11 §1); dedicated 10/min bucket (docs/03 §2).
+		api.POST("/books/fetch-isbn", requireAuth, middleware.RequireAdmin(handler.RespondError),
+			limit(middleware.BucketFetchISBN), ih.FetchISBN)
+	}
+
 	if d.Library != nil && d.Waitlist != nil {
 		lh := handler.NewLibraryHandler(d.Library, d.Waitlist)
 		lg := api.Group("/library", requireAuth)
@@ -132,6 +144,24 @@ func NewRouter(d Deps) *gin.Engine {
 	if d.Transcribe != nil {
 		th := handler.NewTranscribeHandler(d.Transcribe)
 		api.POST("/chat/transcribe", requireAuth, limit(middleware.BucketTranscribe), th.Transcribe)
+	}
+
+	if d.Admin != nil {
+		adm := handler.NewAdminHandler(d.Admin)
+		ad := api.Group("/admin", requireAuth, middleware.RequireAdmin(handler.RespondError))
+		ad.GET("/data", adm.Data)
+		ad.GET("/copy-events", adm.CopyEvents)
+		ad.GET("/books", adm.ListBooks)
+		ad.POST("/books", adm.CreateBook)
+		ad.PATCH("/books/:id", adm.PatchBook)
+		ad.DELETE("/books/:id", adm.DeleteBook)
+		ad.POST("/copies", adm.AddCopy)
+		ad.PATCH("/copies/:id", adm.PatchCopy)
+		ad.DELETE("/copies/:id", adm.DeleteCopy)
+		ad.GET("/tree", adm.Tree)
+		ad.GET("/shelves/:id", adm.Shelf)
+		ad.GET("/users", adm.Users)
+		ad.PATCH("/users/:id", adm.PatchUser)
 	}
 	return r
 }

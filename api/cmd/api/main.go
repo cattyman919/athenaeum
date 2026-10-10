@@ -23,10 +23,12 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
 	"github.com/cattyman919/athenaeum/api/internal/repository"
 	"github.com/cattyman919/athenaeum/api/internal/server"
+	"github.com/cattyman919/athenaeum/api/internal/service/admin"
 	"github.com/cattyman919/athenaeum/api/internal/service/ai"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
+	"github.com/cattyman919/athenaeum/api/internal/service/olbooks"
 	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
 )
 
@@ -79,7 +81,11 @@ func run() error {
 		jm, google, cfg.RefreshTTL, log)
 
 	embedder := embed.NewOllama(cfg.OllamaBaseURL, cfg.OllamaEmbedModel, cfg.OllamaEmbedDim)
-	catalogSvc := catalog.New(repository.NewCatalogRepository(pool), embedder)
+	catalogRepo := repository.NewCatalogRepository(pool)
+	catalogSvc := catalog.New(catalogRepo, embedder)
+	// Barcode intake (docs/11): Open Library behind OPENLIBRARY_BASE_URL, Redis cache.
+	isbnSvc := catalog.NewISBNService(catalogRepo, olbooks.New(cfg.OpenLibraryBaseURL, cfg.OfflineMode),
+		repository.NewISBNCache(rdb), log)
 
 	libRepo := repository.NewLibraryRepository(pool)
 	waitRepo := repository.NewWaitlistRepository(pool)
@@ -108,6 +114,9 @@ func run() error {
 	transcribeSvc := ai.NewTranscribeService(ai.NewWhisper(ai.WhisperConfig{BaseURL: cfg.WhisperBaseURL}), 0, log)
 	log.Info("voice input", "whisper_url", cfg.WhisperBaseURL, "whisper_model", cfg.WhisperModel)
 
+	// Admin (docs/03 §8): book/copy CRUD, audit stream, building tree, users.
+	adminSvc := admin.New(repository.NewAdminRepository(pool), catalogSvc, repository.NewBuildingRepository(pool))
+
 	srv := server.New(server.Deps{
 		Config:     cfg,
 		Log:        log,
@@ -118,6 +127,8 @@ func run() error {
 		Waitlist:   waitSvc,
 		Chat:       chatSvc,
 		Transcribe: transcribeSvc,
+		Admin:      adminSvc,
+		ISBN:       isbnSvc,
 		Limiter:    middleware.NewRateLimiter(rdb, log),
 	}, fmt.Sprintf(":%d", cfg.APIPort))
 
