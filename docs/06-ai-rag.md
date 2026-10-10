@@ -61,6 +61,12 @@ flowchart LR
 | Model | `OLLAMA_EMBED_MODEL` = `nomic-embed-text`, dim `768` |
 | Versioning | `chunker_version` ('v1') + `model` columns; stale rows re-embedded by [reindex](08-seed-data.md#7-reindex) ([02](02-data-model.md#book_embeddings)) |
 
+Implementation notes (chunker `v1`): each indexed passage is embedded as
+`search_document: {title} by {authors}. {chunk}` and each query as `search_query: {query}`
+(nomic-embed-text task prefixes); `book_embeddings.content` stores only the chunk. All
+embeddings are computed before a single write transaction, so an Ollama outage never
+leaves a partial index (exit code 3).
+
 RAG context joins the system prompt as numbered findings; the agent must cite
 `[doc#N]` markers, converted to citations by the API layer.
 

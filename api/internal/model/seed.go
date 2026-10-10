@@ -77,3 +77,28 @@ type CopyFixture struct {
 type SeedCounts struct {
 	Users, Books, Copies, Shelves, CheckedOut, ZeroCopyBooks int
 }
+
+// IndexBook is a book to be chunked and embedded (docs/06 §2).
+type IndexBook struct {
+	ID          string
+	Title       string
+	Authors     []string
+	Description string
+}
+
+// ChunkRow is one book_embeddings row to write.
+type ChunkRow struct {
+	BookID         string
+	ChunkIndex     int
+	Content        string
+	Embedding      []float32
+	Model          string
+	ChunkerVersion string
+}
+
+// StaleBook reports a book whose embedding rows differ from the current model/chunker.
+type StaleBook struct {
+	ID     string
+	Title  string
+	Chunks int
+}
