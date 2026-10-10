@@ -56,14 +56,14 @@ Refs: [docs/README.md §5](docs/README.md#5-monorepo-layout), [docs/09](docs/09-
 - [x] First commit of docs + scaffolding
 - [x] Root `Makefile` with targets from [docs/09 §5](docs/09-development.md#5-common-commands)
 - [x] `docker-compose.yml` at root (per [docs/09 §2](docs/09-development.md#2-docker-compose))
-- [ ] `api/Dockerfile` (done) + `web/Dockerfile` (M4) ([docs/09 §3](docs/09-development.md#3-dockerfiles))
+- [ ] `api/Dockerfile` (done, builds) + `web/Dockerfile` (arrives with web scaffold, M4) ([docs/09 §3](docs/09-development.md#3-dockerfiles))
 
 ## 4. Phase 1 — Infrastructure & DB
 
 Refs: [docs/01](docs/01-architecture.md), [docs/02](docs/02-data-model.md).
 
-- [ ] `docker compose up` green: postgres (pgvector/pg16) + redis + ollama healthy
-- [ ] `docker compose exec ollama ollama pull nomic-embed-text`
+- [x] `docker compose up` green: postgres (pgvector/pg16) + redis + ollama healthy
+- [x] `docker compose exec ollama ollama pull nomic-embed-text`
 - [ ] `api/go.mod` (module created; gin, env, uuid, tint in — rest added as each lands; module + gin, pgx v5, go-redis v9, jwt v5, uuid, argon2, checkdigit, env, eino)
 - [x] `internal/config` typed env loader (all vars from [docs/01 §7](docs/01-architecture.md#7-environment-variables))
 - [x] Migrations `0001_extensions.sql` → all `CREATE TABLE` DDL verbatim from [docs/02 §4](docs/02-data-model.md#4-table-ddl-canonical-sql)
@@ -225,5 +225,6 @@ Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
+| 2026-10-10 | Kilo (kilo-auto/frontier) | Milestones M0 + M1: commitlint/lefthook, Makefile, compose, CI skeleton; Go 1.27 / Node 26 pins (docs updated); API skeleton (config, slog, middleware, error mapper, `/api/health`, Dockerfile); migrations 0001–0005 + testcontainers harness (`internal/testutil/pgtest`); `make db-migrate` verified; docs/02 index DDL fixed (double parens); compose infra up + `nomic-embed-text` pulled | M2 — auth backend (`pkg/hash`, `pkg/jwt`, register/login/refresh, SSO, rate limiter) | Google SSO can only be verified against a fake `httptest` OAuth server (no Google client): manual verification pending user credentials |
 | 2026-10-09 | Kilo (kilo-auto/efficient) | Grilled + documented 4 scope additions (voice input, EN/zh-CN localization, git workflow, Playwright E2E/CI); authored `docs/14-localization.md` + `docs/15-voice-input.md`; updated README/roadmap/AGENTS/TODO + cross-links (01/03/06/07/09/12, `.env.example`); added Phases 11–13 + registry/session rows | Phase 11 (localization) → Phase 12 (voice) → Phase 13 (git/CI), interleaved with Phase 1 infra | None (docs-only; no code yet) |
 | 2026-10-07 | Kilo (kilo-auto/efficient) | git init; monorepo skeleton; all 14 docs; Stitch MCP discovery (project `4345961817697568978`); artifact reorg + verification pass; `TODO.md` | Phase 0 leftovers → Phase 1 infra | Stitch PNG re-export for 5 screens (FIFE auth failure) |
