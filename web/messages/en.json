@@ -186,5 +186,63 @@
     "seeAll": "See all results for “{query}”",
     "hint": "Type to search",
     "close": "Close"
+  },
+  "book": {
+    "breadcrumb": {
+      "catalog": "Catalog"
+    },
+    "by": "by {authors}",
+    "askAi": "Ask the AI Librarian",
+    "banner": {
+      "available": "Available in Building — {count, plural, one {# copy} other {# copies}} ready for pickup",
+      "availableHint": "{available} of {total} copies on the shelf. Follow the route below to find it.",
+      "checkedOut": "All copies are currently checked out",
+      "checkedOutHint": "Every physical copy is on loan. Waitlist options appear here.",
+      "reserved": "Copies are reserved for the waitlist",
+      "reservedHint": "This title is being held for patrons on the waitlist.",
+      "notInBuilding": "Not in this building's collection",
+      "notInBuildingHint": "The catalog lists this title, but the library holds no physical copy.",
+      "missing": "Reported missing or lost",
+      "missingHint": "Staff have marked every copy as missing or lost."
+    },
+    "wayfinding": {
+      "title": "Wayfinding",
+      "subtitle": "Turn-by-turn to the home shelf",
+      "path": "Location path",
+      "none": "No shelf location is recorded for this title."
+    },
+    "record": {
+      "title": "Catalog Record",
+      "isbn13": "ISBN-13",
+      "isbn10": "ISBN-10",
+      "dewey": "Dewey Decimal",
+      "loc": "Library of Congress",
+      "publisher": "Publisher",
+      "published": "Published",
+      "section": "Section",
+      "none": "—"
+    },
+    "synopsis": "Synopsis",
+    "manifest": {
+      "title": "Holdings & Copy Availability",
+      "count": "{count, plural, one {# cataloged copy} other {# cataloged copies}}",
+      "barcode": "Barcode",
+      "status": "Status",
+      "location": "Location",
+      "changed": "Last status change",
+      "condition": "Condition",
+      "empty": "No physical copies are cataloged for this title.",
+      "unshelved": "Not shelved"
+    },
+    "neighbors": {
+      "title": "Archival Affinity",
+      "subtitle": "Other available titles nearby",
+      "empty": "No nearby titles are available right now."
+    },
+    "notFound": {
+      "title": "Not in this building's catalog",
+      "body": "We couldn't find that volume. It may have been withdrawn or the link may be wrong.",
+      "back": "Back to the catalog"
+    }
   }
 }

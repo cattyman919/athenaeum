@@ -186,5 +186,63 @@
     "seeAll": "查看“{query}”的全部结果",
     "hint": "输入以搜索",
     "close": "关闭"
+  },
+  "book": {
+    "breadcrumb": {
+      "catalog": "馆藏目录"
+    },
+    "by": "作者：{authors}",
+    "askAi": "向 AI 图书管理员提问",
+    "banner": {
+      "available": "馆内可借 — {count} 册可立即取书",
+      "availableHint": "书架上有 {available} / {total} 册。请按下方路线前往。",
+      "checkedOut": "所有副本目前均已借出",
+      "checkedOutHint": "每一册实体书都在外借中，候补选项将显示在这里。",
+      "reserved": "副本已为候补读者预留",
+      "reservedHint": "本书正在为候补名单上的读者保留。",
+      "notInBuilding": "本馆没有该书的馆藏",
+      "notInBuildingHint": "目录收录了这本书，但图书馆没有实体副本。",
+      "missing": "已报告遗失",
+      "missingHint": "馆员已将所有副本标记为遗失。"
+    },
+    "wayfinding": {
+      "title": "导航",
+      "subtitle": "前往书架的逐步路线",
+      "path": "位置路径",
+      "none": "该书暂无书架位置记录。"
+    },
+    "record": {
+      "title": "目录记录",
+      "isbn13": "ISBN-13",
+      "isbn10": "ISBN-10",
+      "dewey": "杜威十进分类",
+      "loc": "美国国会图书馆分类",
+      "publisher": "出版社",
+      "published": "出版年份",
+      "section": "分区",
+      "none": "—"
+    },
+    "synopsis": "内容简介",
+    "manifest": {
+      "title": "馆藏与副本状态",
+      "count": "共编目 {count} 册",
+      "barcode": "条码",
+      "status": "状态",
+      "location": "位置",
+      "changed": "最近状态变更",
+      "condition": "品相",
+      "empty": "该书目前没有编目的实体副本。",
+      "unshelved": "未上架"
+    },
+    "neighbors": {
+      "title": "相邻推荐",
+      "subtitle": "附近其他可借的书目",
+      "empty": "附近暂时没有可借的书目。"
+    },
+    "notFound": {
+      "title": "本馆目录中没有这本书",
+      "body": "找不到该书。它可能已被剔除，或链接有误。",
+      "back": "返回馆藏目录"
+    }
   }
 }

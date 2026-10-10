@@ -45,6 +45,7 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
       "/catalog?mode=semantic&q=the+fall+of+a+galactic+empire+and+psychohistory",
     );
     await expect(page.getByTestId("mode-semantic")).toHaveAttribute("data-state", "active");
+    await expect(cards(page).first()).toBeVisible(); // Ollama round-trip streams in behind the skeleton
     const top = (await titles(page)).slice(0, 3);
     expect(top).toContain("Foundation");
   });
