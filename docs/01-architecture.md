@@ -144,6 +144,7 @@ plain JSON.
 | --- | --- | --- | --- | --- |
 | OpenRouter | api → openrouter.ai | chat completions (stream) via custom Eino `ChatModel` ACL adapter | `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL` | 5s connect / 120s stream; outage → 502 `UPSTREAM_ERROR` |
 | Ollama | api → localhost:11434 | embeddings, batch mode for reindex | `OLLAMA_BASE_URL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_EMBED_DIM` | 10s per call; outage → 503 `EMBEDDING_UNAVAILABLE` |
+| Whisper | api → whisper:9000 | speech-to-text for `/chat` voice input via `WhisperAdapter` (ACL) | `WHISPER_BASE_URL`, `WHISPER_MODEL` | 30s timeout; outage → 503 `TRANSCRIPTION_UNAVAILABLE` ([15 §6](15-voice-input.md#6-limits-rate--errors)) |
 | Open Library | api → openlibrary.org | metadata enrichment for ISBN intake | `OPENLIBRARY_BASE_URL`, `OFFLINE_MODE` | 3s timeout; fallback to mock/seeded values ([08-seed-data.md](08-seed-data.md#6-open-library-fallback)); 502 when all fail |
 | Google OAuth | browser → accounts.google.com | SSO redirect + code exchange | `GOOGLE_OAUTH_CLIENT_ID/SECRET` | invalid code/state → 401 ([04-auth.md](04-auth.md#3-google-sso)) |
 
@@ -155,13 +156,14 @@ File: `docker-compose.yml` at repo root; service definitions in
 
 ```mermaid
 flowchart LR
-    P["Ports:<br/>3000 web · 8080 api · 5432 pg · 6379 redis · 11434 ollama"]
+    P["Ports:<br/>3000 web · 8080 api · 5432 pg · 6379 redis · 11434 ollama · 9000 whisper"]
 
     subgraph DC["docker compose"]
         W["web:3000<br/>node:20-alpine, next start"] -- "rewrites /api → api:8080" --> A["api:8080<br/>golang:1.22 multi-stage"]
         A --> PG["postgres:16<br/>pgvector/pgvector:pg16"]
         A --> RD["redis:7<br/>redis:7-alpine"]
         A --> OL["ollama:11434<br/>ollama/ollama"]
+        A --> WH["whisper:9000<br/>faster-whisper"]
         W -. "dev only" .-> NODE["host: pnpm dev"]
     end
 ```
@@ -173,6 +175,7 @@ flowchart LR
 | `postgres` | `pgvector/pgvector:pg16` | 5432 | `pg_isready` | `pgdata` |
 | `redis` | `redis:7-alpine` | 6379 | `redis-cli ping` | `redisdata` |
 | `ollama` | `ollama/ollama` | 11434 | `ollama list` exit 0 | `ollamadata` |
+| `whisper` | faster-whisper HTTP server | 9000 | HTTP probe on transcribe route | `whisperdata` |
 
 ## 7. Environment Variables
 
@@ -196,6 +199,8 @@ Loaded by `internal/config` via `caarlos0/env` into a typed `Config` struct (no 
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | |
 | `OLLAMA_EMBED_DIM` | `768` | matches `book_embeddings.embedding` ([02](02-data-model.md#book_embeddings)) |
+| `WHISPER_BASE_URL` | `http://localhost:9000` | faster-whisper service for `/chat` voice input ([15](15-voice-input.md#5-whisper-service)) |
+| `WHISPER_MODEL` | `small` | multilingual; larger = slower on CPU ([15 §5](15-voice-input.md#5-whisper-service)) |
 | `OPENLIBRARY_BASE_URL` | `https://openlibrary.org` | overridable for tests/proxies |
 | `OFFLINE_MODE` | `false` | skips outbound metadata fetches entirely |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | set in `.env.example` | created by `cmd/seed` |

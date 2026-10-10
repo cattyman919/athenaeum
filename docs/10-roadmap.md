@@ -25,6 +25,10 @@
 | 9 | Admin UI (books, copies, layout, users) | [07 §admin](07-frontend.md#admin--screen-6a-stitch-3177da52) | ✅ |
 | 10 | Mock seed + Open Library metadata fetch | [08](08-seed-data.md) | ✅ |
 | 11 | Docker Compose one-command startup | [09 §2](09-development.md#2-docker-compose) | ✅ |
+| 12 | Voice input on `/chat` (self-hosted Whisper) | [15](15-voice-input.md) | ✅ |
+| 13 | EN/zh-CN localization (patron screens + AI replies) | [14](14-localization.md) | ✅ |
+| 14 | Conventional-commit workflow + hooks | [09 §9](09-development.md#9-git-workflow) | ✅ |
+| 15 | Playwright E2E + GitHub Actions CI | [09 §8](09-development.md#8-testing-strategy) | ✅ |
 
 ## 2. Out of Scope — Deferred
 
@@ -46,6 +50,10 @@ state — unresolved questions surface as `> ⚠️ TODO:` in their owning doc.
 | Shibboleth / SAML 2.0 SSO | broken out of demo institution | [04 §3](04-auth.md#3-google-sso) |
 | Roles beyond `user`/`admin` | fixed two-role model | [04 §7](04-auth.md#7-roles--route-protection) |
 | RFID gates, shelf robots, live audit streams | aspirational hardware | [12 §copy state machine](12-ui-design.md#10-copy-state-machine) |
+| Traditional Chinese (`zh-TW`) + extra locales | Simplified `zh-CN` only in v1 | [14 §1](14-localization.md#1-scope) |
+| Cloud / streaming STT; voice outside `/chat` | self-hosted, non-streaming, chat-only in v1 | [15 §1](15-voice-input.md#1-scope) |
+| Multilingual embeddings / query translation | English embedder kept; zh semantic retrieval degrades | [06 §2](06-ai-rag.md#2-rag-pipeline) |
+| Cross-browser / mobile-viewport E2E | Chromium desktop only in v1 | [09 §8](09-development.md#8-testing-strategy) |
 
 ## 3. Three-Week Plan
 
@@ -78,3 +86,8 @@ or the seeded fixture counts — those are demo load-bearing.
 - Full-text relevance weights per-field and reranking (BM25 vs vector weights).
 - Nightly availability crons + observed audit persistence on copy events.
 - Production deploy target (Fly.io / bare metal `systemd`), env-based TLS termination.
+- Multilingual embeddings (or query translation) so zh semantic/hybrid search matches
+  ([06 §2](06-ai-rag.md#2-rag-pipeline)).
+- Traditional Chinese (`zh-TW`) and additional locales ([14](14-localization.md)).
+- Cloud/streaming STT and voice input on other screens ([15](15-voice-input.md)).
+- Cross-browser and mobile-viewport Playwright projects ([09 §8](09-development.md#8-testing-strategy)).

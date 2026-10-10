@@ -12,6 +12,7 @@
 6. [Local Dev Workflow](#6-local-dev-workflow)
 7. [Logging](#7-logging)
 8. [Testing Strategy](#8-testing-strategy)
+9. [Git Workflow](#9-git-workflow)
 
 ## 1. Prerequisites
 
@@ -19,8 +20,10 @@
 | --- | --- | --- |
 | Go | 1.22 | `api/` |
 | Node + pnpm | 20 LTS / pnpm 9 | `web/` |
-| Docker + Compose | v2 | postgres/redis/ollama (+ optional prod-like run) |
+| Docker + Compose | v2 | postgres/redis/ollama/whisper (+ optional prod-like run) |
 | `migrate` (golang-migrate CLI) | v4.18 | SQL migrations |
+| lefthook | v1 | git hooks — commit-msg (commitlint) + pre-commit lint ([§9](#9-git-workflow)) |
+| Playwright | latest | E2E browser specs ([§8](#8-testing-strategy)) |
 | Git | any | hooks below |
 
 ## 2. Docker Compose
@@ -44,9 +47,15 @@ services:
     image: ollama/ollama
     ports: ["11434:11434"]
     volumes: [ollamadata:/root/.ollama]
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest   # faster-whisper HTTP server
+    environment: { ASR_ENGINE: faster_whisper, ASR_MODEL: small }
+    ports: ["9000:9000"]
+    volumes: [whisperdata:/data]
+    healthcheck: { test: ["CMD-SHELL", "curl -sf localhost:9000/openapi.json"], interval: 10s }
   api:
     build: { context: ./api, dockerfile: Dockerfile }
-    environment: { DATABASE_URL: postgres://athenaeum:athenaeum@postgres:5432/athenaeum?sslmode=disable, REDIS_ADDR: redis:6379, OLLAMA_BASE_URL: http://ollama:11434 }
+    environment: { DATABASE_URL: postgres://athenaeum:athenaeum@postgres:5432/athenaeum?sslmode=disable, REDIS_ADDR: redis:6379, OLLAMA_BASE_URL: http://ollama:11434, WHISPER_BASE_URL: http://whisper:9000 }
     ports: ["8080:8080"]
     depends_on: { postgres: { condition: service_healthy }, redis: { condition: service_healthy } }
   web:
@@ -54,15 +63,15 @@ services:
     environment: { API_BASE_URL: http://api:8080, WEB_ORIGIN: "http://localhost:3000" }
     ports: ["3000:3000"]
     depends_on: [api]
-volumes: { pgdata: {}, redisdata: {}, ollamadata: {} }
+volumes: { pgdata: {}, redisdata: {}, ollamadata: {}, whisperdata: {} }
 ```
 
-One-command startup (compose dev profile built the same way; pull the embed model once):
+One-command startup (compose dev profile built the same way; pull the models once):
 
 ```bash
 docker compose up -d --build
 docker compose exec ollama ollama pull nomic-embed-text
-docker compose exec web node -e "console.log('proxy /api -> api:8080 ready')"
+docker compose logs -f whisper        # faster-whisper downloads WHISPER_MODEL on first start
 docker compose logs -f api
 ```
 
@@ -113,7 +122,7 @@ defaults: [01 §7](01-architecture.md#7-environment-variables). Never commit `.e
 
 | Command | Effect |
 | --- | --- |
-| `make up` | `docker compose up -d --build` (postgres, redis, ollama) |
+| `make up` | `docker compose up -d --build` (postgres, redis, ollama, whisper) |
 | `make db-migrate` | `migrate -path api/migrations -database "$DATABASE_URL" up` |
 | `make seed` | `cd api && go run ./cmd/seed --mocks=./mocks` |
 | `make reindex` | `cd api && go run ./cmd/reindex` |
@@ -121,6 +130,8 @@ defaults: [01 §7](01-architecture.md#7-environment-variables). Never commit `.e
 | `make web` | `cd web && pnpm dev` (`:3000`) |
 | `make lint` | `golangci-lint run` + `pnpm -C web lint` |
 | `make test` | backend unit + service tests |
+| `make e2e` | `cd web && pnpm exec playwright test` (compose stack + stubs — [§8](#8-testing-strategy)) |
+| `make ci` | local replica of CI: lint + vet + unit tests + e2e |
 | `make compose` | full build/start of api+web containers (prod-like) |
 | `make down` | `docker compose down` (keeps volumes; `-v` note below) |
 
@@ -162,7 +173,50 @@ slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelIn
 | service | interface mocking | hand-written lightweight fakes (no codegen dependency) |
 | handler | `httptest` + service mocks | HTTP error envelope coverage per code ([03 §9](03-api-spec.md#9-error-catalog)) |
 | AI chat service | fake Eino streams (scripted tokens + tool events) | SSE ordering is contractual — [06 §6](06-ai-rag.md#6-sse-event-contract) |
-| web | — | unit/integration coverage deferred: [10-roadmap.md](10-roadmap.md) |
+| web unit | `pnpm test` (Vitest) | locale resolution, catalog key parity, enum label maps ([14 §12](14-localization.md#12-testing)) |
+| web e2e | Playwright (Chromium) | route smoke + key journeys against the compose stack with **stub providers** ([§8.1](#81-e2e-harness)) |
 
-> ⚠️ TODO: CI pipeline (GitHub Actions: lint + vet + go tests are out-of-scope of
-> the 3-week window; roadmap backlog).
+### 8.1 E2E harness
+
+`make e2e` boots the compose stack with a seeded DB and the AI backends stubbed via env:
+`OPENROUTER_BASE_URL` → a local fake ChatModel (scripted
+`meta`/`token`/`tool_call`/`tool_result`/`citations`/`done`, [06 §6](06-ai-rag.md#6-sse-event-contract)),
+`WHISPER_BASE_URL` → a fixed-text stub, and `OFFLINE_MODE=true`. Auth is captured once
+per role (`admin` + demo patron, [13 §6](13-mock-data-reference.md#6-demo-users--personal-library))
+into Playwright `storageState`; specs live in `web/e2e/`. **Chromium only in v1**
+(cross-browser is deferred — [10 §5](10-roadmap.md#5-future-enhancements)). The voice
+spec uses `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`.
+
+CI runs on every push/PR via GitHub Actions (`.github/workflows/ci.yml`): `gofmt` + vet +
+golangci-lint + `go test`, web lint + unit + build, and Playwright E2E. Failures upload
+Playwright traces. The E2E job is secret-free — it uses the same stub providers above.
+
+## 9. Git Workflow
+
+Commits are **part of the workflow** — commit each completed feature or bug as it lands;
+do **not** wait for an explicit request. Rules:
+
+- **Conventional Commits**: `<type>(<scope>): <imperative summary>`.
+  - **Types**: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `chore`, `build`, `ci`.
+  - **Scopes**: `api`, `web`, `db`, `infra`, `docs`, `chat`, `voice`, `i18n`.
+  - Body explains *why*; footer cites the TODO item or issue.
+- **Granularity**: one commit per feature or bug. A task = a short-lived branch off
+  `main`; commit atomically; **squash-merge** so `main` holds exactly one commit per
+  feature/bug. No WIP commits on `main`.
+- **Green before commit**: `make lint` + `make test` (plus `make e2e` for user-facing
+  flows) must pass. Never commit secrets or `.env` ([§4](#4-environment)).
+- **Hooks** (`lefthook.yml`, installed with `lefthook install`):
+  - `pre-commit` — `gofmt` + `golangci-lint` on staged `api/**`; ESLint + Prettier on
+    staged `web/**`.
+  - `commit-msg` — `commitlint` validates the subject (`commitlint.config.js`).
+
+```bash
+git switch -c feat/voice-input          # one branch per TODO task
+# ... implement + docs + tests ...
+make lint && make test
+git commit -m "feat(voice): add push-to-talk transcription to chat"   # hook-validated
+git switch main && git merge --squash feat/voice-input && git commit  # one commit on main
+```
+
+Example subjects: `feat(chat): add locale-aware replies`, `fix(i18n): keep catalog keys
+in sync`, `docs(voice): document the transcribe endpoint`, `ci: run Playwright e2e`.

@@ -17,8 +17,9 @@
 ## 1. Stack & Folder Layout
 
 Next.js 15 (App Router, React 19), TypeScript, Tailwind CSS + ShadCN UI, Lucide
-icons, `barcode-detector` ([11](./11-barcode-scanning.md)). Package manager: pnpm.
-Design tokens land in `tailwind.config.ts` + `globals.css`
+icons, `barcode-detector` ([11](./11-barcode-scanning.md)), **next-intl** for EN/zh-CN
+localization ([14](./14-localization.md)), Playwright for E2E ([09 §8](./09-development.md#8-testing-strategy)).
+Package manager: pnpm. Design tokens land in `tailwind.config.ts` + `globals.css`
 ([12 §tokens](./12-ui-design.md#3-design-tokens)).
 
 ```bash
@@ -35,6 +36,7 @@ web/
 │   └── admin/layout/page.tsx     # screen 6b
 ├── components/
 │   ├── ui/                       # ShadCN primitives
+│   ├── language-toggle.tsx       # EN ⇄ 中文 (14 §9)
 │   ├── book-card.tsx             # domain composites (12 §component hierarchy)
 │   ├── book-location-card.tsx
 │   ├── ai-citation-card.tsx
@@ -43,9 +45,13 @@ web/
 │   ├── real-time-audit-stream.tsx
 │   ├── command-palette.tsx       # ⌘K
 │   └── isbn-scanner/             # dialog + scanner tab (11)
+├── i18n/request.ts               # locale resolution (14 §4)
+├── messages/{en,zh-CN}.json      # catalogs (14 §5)
 ├── lib/{api-server.ts, api-client.ts, auth.ts, sse.ts}
-├── hooks/{use-chat-stream.ts, use-barcode-scanner.ts}
+├── hooks/{use-chat-stream.ts, use-barcode-scanner.ts, use-voice-input.ts}
+├── e2e/                          # Playwright specs (09 §8)
 ├── providers/{auth-provider.tsx, theme-provider.tsx}
+├── playwright.config.ts
 ├── middleware.ts
 └── package.json
 ```
@@ -136,7 +142,7 @@ Discrepancy notes (Stitch = visual source of truth; DESIGN.md = spec source; ver
 const res = await fetch("/api/chat", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ conversation_id, message }),
+  body: JSON.stringify({ conversation_id, message, locale }),   // locale from the cookie (14 §10)
 });
 const reader = res.body!.getReader();
 const decoder = new TextDecoder();
@@ -197,6 +203,8 @@ Two-pane: conversations drawer (`GET /api/chat/conversations`, create/delete) +
 active stream. `AICitationCard`s render `citations` events; telemetry meta bar
 shows model + latency; quota meter consumes `meta`/`done` rate data — daily limit
 50 ([03 §2](03-api-spec.md#2-rate-limiting)). SSE client: [§6](#6-chat-streaming-client).
+The composer also carries the **voice mic toggle** (push-to-talk → composer, [15 §2](./15-voice-input.md#2-ux--push-to-talk));
+requests send the active `locale` for AI reply language ([14 §10](./14-localization.md#10-ai-reply-language)).
 
 ### /admin — screen 6a (Stitch `3177da52…`)
 
@@ -247,5 +255,7 @@ Usage per page:
 | 5xx / SSE `error` event | toast + retry affordance; streaming keeps partial tokens on screen |
 | Offline | navigator.onLine banner (best effort) |
 
-> ⚠️ TODO: Playwright e2e coverage for the six routes is not in v1 scope
-> ([09 §testing](09-development.md#8-testing-strategy); revisit in [10-roadmap.md](10-roadmap.md)).
+Playwright E2E coverage for the six routes + key journeys is **in v1 scope** — suite,
+stubbing harness, and `make e2e` in [09 §8](./09-development.md#8-testing-strategy);
+localization and voice flows add specs per [14 §12](./14-localization.md#12-testing) and
+[15 §9](./15-voice-input.md#9-testing).

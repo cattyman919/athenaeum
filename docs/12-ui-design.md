@@ -116,10 +116,32 @@ graph TD
     NAV --> QB["⌘K CommandPalette"]
     NAV --> LINKS["Catalog · My Library · AI Chat"]
     NAV --> ADMLINK["Admin (admin only)"]
+    NAV --> LOC["Language toggle (EN ⇄ 中文)"]
     NAV --> AV["Avatar menu (sign out)"]
     SHELL --> MAIN["main max-w-7xl px-6 py-8"]
     SHELL --> FOOT["footer (border-t text-xs)"]
 ```
+
+### Localization & Voice (additions)
+
+Additive controls not present in the original Stitch exports — specs are owned by
+[14-localization.md](./14-localization.md) and [15-voice-input.md](./15-voice-input.md):
+
+- **Language toggle** (`EN` ⇄ `中文`, [14 §9](./14-localization.md#9-language-toggle)): in
+  the top nav next to the Avatar menu, and on the bare `/login` canvas. Text toggle with
+  `aria-label` + `aria-pressed`, keyboard-operable.
+- **Voice mic** ([15 §2](./15-voice-input.md#2-ux--push-to-talk)): a mic toggle in the
+  chat composer beside Send; a recording indicator while capturing; hidden when
+  `MediaRecorder` is unavailable.
+- **CJK typography**: the `Inter` stack gains a **Noto Sans SC** fallback
+  ([14 §8](./14-localization.md#8-typography--fonts)); `JetBrains Mono` covers no CJK and
+  stays reserved for machine strings.
+- **Language** enum labels (availability, copy status, reading stage) render localized
+  via display-label maps ([14 §6](./14-localization.md#6-enum-display-label-maps)).
+
+> ⚠️ TODO: regenerate the AI Librarian screen and app shell in Stitch to include the mic
+> and language toggle (Stitch is the visual source of truth), then re-export
+> (runbook: [§7.1.1](#711-stitch-mcp-tool-verification--export-runbook)).
 
 ## 7. Stitch Screen Gallery
 

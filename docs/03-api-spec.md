@@ -60,6 +60,7 @@ else IP (hashed). Middleware: [01-architecture.md](01-architecture.md#3-request-
 | `GET /api/books/search` | 30 | 1 min | user_id | 429 `RATE_LIMITED` |
 | `POST /api/chat` | 5 | 1 min | user_id | 429 |
 | `POST /api/chat` | 50 | 24 h | user_id | 429 (surfaced in UI quota meter — [07](./07-frontend.md#7-page-breakdowns)) |
+| `POST /api/chat/transcribe` | 10 | 1 min | user_id | 429 (dedicated bucket; CPU-expensive — [15 §6](./15-voice-input.md#6-limits-rate--errors)) |
 | `POST /api/books/fetch-isbn` | 10 | 1 min | user_id | 429 |
 
 Specific limits shadow the general one (most restrictive wins per endpoint).
@@ -93,19 +94,20 @@ Auth column: 🔓 public · 🔒 `user` · 👑 `admin`.
 | 21 | GET | `/api/chat/conversations/{id}` | 🔒 | fetch messages | [§7](#7-chat-sse) |
 | 22 | DELETE | `/api/chat/conversations/{id}` | 🔒 | delete chat | [§7](#7-chat-sse) |
 | 23 | POST | `/api/chat` | 🔒 | **SSE** stream reply | [§7.1](#71-sse-stream) |
-| 24 | GET | `/api/admin/data` | 👑 | KPI snapshot | [§8.1](#81-admin-kpis--audit) |
-| 25 | GET | `/api/admin/books` | 👑 | admin book list | [§8.2](#82-admin-books) |
-| 26 | POST | `/api/admin/books` | 👑 | create book (+copies) | [§8.2](#82-admin-books) |
-| 27 | PATCH | `/api/admin/books/{id}` | 👑 | edit book | [§8.2](#82-admin-books) |
-| 28 | DELETE | `/api/admin/books/{id}` | 👑 | remove book | [§8.2](#82-admin-books) |
-| 29 | POST | `/api/admin/copies` | 👑 | add copy | [§8.3](#83-admin-copies) |
-| 30 | PATCH | `/api/admin/copies/{id}` | 👑 | status/shelf mutation | [§8.3](#83-admin-copies) |
-| 31 | DELETE | `/api/admin/copies/{id}` | 👑 | remove copy | [§8.3](#83-admin-copies) |
-| 32 | GET | `/api/admin/tree` | 👑 | building hierarchy json | [§8.4](#84-admin-tree--building) |
-| 33 | GET | `/api/admin/shelves/{id}` | 👑 | shelf manifest inspector | [§8.4](#84-admin-tree--building) |
-| 34 | GET | `/api/admin/copy-events` | 👑 | audit stream (poll) | [§8.1](#81-admin-kpis--audit) |
-| 35 | GET | `/api/admin/users` | 👑 | user list | [§8.5](#85-admin-users) |
-| 36 | PATCH | `/api/admin/users/{id}` | 👑 | change role | [§8.5](#85-admin-users) |
+| 24 | POST | `/api/chat/transcribe` | 🔒 | voice → transcript | [§7.2](#72-post-apichattranscribe) |
+| 25 | GET | `/api/admin/data` | 👑 | KPI snapshot | [§8.1](#81-admin-kpis--audit) |
+| 26 | GET | `/api/admin/books` | 👑 | admin book list | [§8.2](#82-admin-books) |
+| 27 | POST | `/api/admin/books` | 👑 | create book (+copies) | [§8.2](#82-admin-books) |
+| 28 | PATCH | `/api/admin/books/{id}` | 👑 | edit book | [§8.2](#82-admin-books) |
+| 29 | DELETE | `/api/admin/books/{id}` | 👑 | remove book | [§8.2](#82-admin-books) |
+| 30 | POST | `/api/admin/copies` | 👑 | add copy | [§8.3](#83-admin-copies) |
+| 31 | PATCH | `/api/admin/copies/{id}` | 👑 | status/shelf mutation | [§8.3](#83-admin-copies) |
+| 32 | DELETE | `/api/admin/copies/{id}` | 👑 | remove copy | [§8.3](#83-admin-copies) |
+| 33 | GET | `/api/admin/tree` | 👑 | building hierarchy json | [§8.4](#84-admin-tree--building) |
+| 34 | GET | `/api/admin/shelves/{id}` | 👑 | shelf manifest inspector | [§8.4](#84-admin-tree--building) |
+| 35 | GET | `/api/admin/copy-events` | 👑 | audit stream (poll) | [§8.1](#81-admin-kpis--audit) |
+| 36 | GET | `/api/admin/users` | 👑 | user list | [§8.5](#85-admin-users) |
+| 37 | PATCH | `/api/admin/users/{id}` | 👑 | change role | [§8.5](#85-admin-users) |
 
 404 for unknown `id` values on every `/api/.../{id}` route.
 
@@ -362,8 +364,12 @@ Detailed event pipeline, RAG retrieval, and tool-use are specified in
 `POST /api/chat` (always `Accept: text/event-stream`):
 
 ```json
-{ "conversation_id": "c0f1…", "message": "Where can I find books on Babylonian mathematics?" }
+{ "conversation_id": "c0f1…", "message": "Where can I find books on Babylonian mathematics?", "locale": "en" }
 ```
+
+`locale` is optional (`"en"` | `"zh-CN"`, default `en`): it selects the AI reply
+language and is echoed back in the `meta` event — contract in
+[14 §10](./14-localization.md#10-ai-reply-language). Unknown values fall back to `en`.
 
 Lifecycle: rate-limit checks (5/min + 50/day, [§2](#2-rate-limiting)) → create
 conversation when `conversation_id` absent → persist user message → RAG retrieval
@@ -373,6 +379,27 @@ stream reply tokens → persist assistant + tool messages → `done`.
 Headers on the 200: `Content-Type: text/event-stream`, `Cache-Control: no-cache`,
 `Connection: keep-alive`. Errors before first byte = regular JSON envelope + status
 code; mid-stream errors emit `event: error` before `done` (no further events after).
+
+### 7.2 `POST /api/chat/transcribe`
+
+Voice input for `/chat` (🔒, full contract: [15-voice-input.md](./15-voice-input.md)).
+`multipart/form-data` with an `audio` file part and an optional `locale` form field
+(`en` | `zh-CN` → Whisper `language` hint).
+
+```json
+{ "text": "where can I find books on Babylonian mathematics", "language": "en" }
+```
+
+Audio is never persisted or logged; the transcript is returned as text and only becomes
+a chat turn when the client sends it via [§7.1](#71-sse-stream). Rate limit: 10/min
+per `user_id` ([§2](#2-rate-limiting)). Caps: 60 s / ~10 MB; 30 s upstream timeout.
+
+| Error | HTTP | When |
+| --- | --- | --- |
+| `VALIDATION_FAILED` | 400 | missing/undecodable audio, over caps |
+| `RATE_LIMITED` | 429 | over the 10/min bucket |
+| `TRANSCRIPTION_UNAVAILABLE` | 503 | Whisper service down or timeout |
+| — | 200 | silent/unintelligible clip → `{"text":"","language":"en"}` |
 
 ## 8. Admin
 
@@ -485,6 +512,7 @@ demote yourself (`409 FORBIDDEN`? — client-guarded, server 400 `VALIDATION_FAI
 | `RATE_LIMITED` | 429 | [§2](#2-rate-limiting) tracks | middleware |
 | `UPSTREAM_ERROR` | 502 | OpenRouter/OpenLibrary outage | chat, fetch-isbn |
 | `EMBEDDING_UNAVAILABLE` | 503 | Ollama down | semantic search, chat RAG |
+| `TRANSCRIPTION_UNAVAILABLE` | 503 | Whisper down or timeout | `/api/chat/transcribe` ([15](./15-voice-input.md#6-limits-rate--errors)) |
 | `UNEXPECTED` | 500 | catchall | handler top |
 
 ## 10. Traceability

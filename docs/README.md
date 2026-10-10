@@ -48,15 +48,20 @@ Locked choices — do not substitute without updating this table and [01-archite
 | Auth | Email/password (argon2id) + Google SSO (WeChat disabled placeholder) |
 | Sessions | httpOnly cookies, 15-min access + 7-day refresh |
 | Streaming | SSE (`text/event-stream`) |
+| Speech-to-text | faster-whisper `small` (local, via Go ACL adapter) |
+| Localization | next-intl — `en` + `zh-CN` (server + client components) |
+| E2E testing | Playwright (Chromium) |
+| Commit tooling | Conventional Commits · commitlint · lefthook |
+| CI | GitHub Actions (lint + vet + unit + Playwright E2E) |
 | Logging | `log/slog` + `tint` (colorized dev, JSON prod) |
-| Container | Docker Compose (Postgres, Redis, API, Web, Ollama) |
+| Container | Docker Compose (Postgres, Redis, API, Web, Ollama, Whisper) |
 
 ## 3. Feature Scope
 
 v1 scope boundary is owned by [10-roadmap.md](./10-roadmap.md). Summary:
 
-- **In v1**: email/password + Google SSO · catalog (multi-modal search) · book detail with physical location · camera barcode intake (`POST /api/books/fetch-isbn`) · "not available" 409 + waitlist · personal library · AI chat (RAG, streaming, tool use, rate limits, persisted sessions) · admin UI (books, copies, layout, users) · mock seed + Open Library enrichment · `docker compose up` one-command startup.
-- **Out of scope** (each with a `> ⚠️ TODO:` marker in the relevant doc): observability stack, production TLS/proxy/backups, self-service checkout / RFID, loan due dates + fines, multi-building, email notifications, password reset, WeChat SSO, rate-limit analytics, WebSockets, Shibboleth/SAML, roles beyond `user`/`admin`, shelf robots / live audit hardware.
+- **In v1**: email/password + Google SSO · catalog (multi-modal search) · book detail with physical location · camera barcode intake (`POST /api/books/fetch-isbn`) · "not available" 409 + waitlist · personal library · AI chat (RAG, streaming, tool use, rate limits, persisted sessions) · **voice input on `/chat`** ([15](./15-voice-input.md)) · **EN/zh-CN localization** ([14](./14-localization.md)) · **git commit workflow** + **Playwright E2E / CI** ([09 §5/§8](./09-development.md#5-common-commands)) · admin UI (books, copies, layout, users) · mock seed + Open Library enrichment · `docker compose up` one-command startup.
+- **Out of scope** (each with a `> ⚠️ TODO:` marker in the relevant doc): observability stack, production TLS/proxy/backups, self-service checkout / RFID, loan due dates + fines, multi-building, email notifications, password reset, WeChat SSO, rate-limit analytics, WebSockets, Shibboleth/SAML, roles beyond `user`/`admin`, shelf robots / live audit hardware, Traditional Chinese, cloud/streaming STT, multilingual embeddings.
 
 ## 4. Documentation Map
 
@@ -77,6 +82,8 @@ Each doc owns exactly one concern; cross-reference instead of duplicating.
 | [11-barcode-scanning.md](./11-barcode-scanning.md) | Scanner feature (frontend-only) + backend validation | [03](./03-api-spec.md), [07](./07-frontend.md), [12](./12-ui-design.md) |
 | [12-ui-design.md](./12-ui-design.md) | Design system, Stitch screen gallery, component specs | [04](./04-auth.md), [05](./05-building-layout.md), [07](./07-frontend.md) |
 | [13-mock-data-reference.md](./13-mock-data-reference.md) | Concrete mock catalog: every book, shelf, copy test case | [08](./08-seed-data.md) |
+| [14-localization.md](./14-localization.md) | EN/zh-CN locale contract, cookie resolution, message catalog, enum label maps, AI reply language | [06](./06-ai-rag.md), [07](./07-frontend.md), [12](./12-ui-design.md) |
+| [15-voice-input.md](./15-voice-input.md) | Push-to-talk UX, `/api/chat/transcribe`, Whisper service + adapter, limits/privacy | [03](./03-api-spec.md), [06](./06-ai-rag.md), [09](./09-development.md) |
 
 **Traceability rules:** every endpoint is defined in [03](./03-api-spec.md), every table
 in [02](./02-data-model.md), every page in [07](./07-frontend.md), every UI component in
@@ -111,12 +118,19 @@ athenaeum/
 ├── web/                          # Next.js app (frontend)
 │   ├── app/                      # App Router pages (see 07-frontend)
 │   ├── components/               # ShadCN + domain composites (see 12-ui-design)
+│   ├── i18n/request.ts           # locale resolution (see 14-localization)
+│   ├── messages/{en,zh-CN}.json  # message catalogs (see 14-localization)
+│   ├── e2e/                      # Playwright specs (see 09-development)
 │   ├── lib/                      # api clients, auth, SSE parser
+│   ├── hooks/                    # use-chat-stream, use-voice-input (see 15-voice-input)
 │   ├── package.json
 │   └── Dockerfile                # see 09-development
 ├── docs/                         # This documentation
 ├── .artifacts/stitch/            # Stitch manifest + screen exports (see 12-ui-design)
-├── docker-compose.yml            # postgres, redis, ollama, api, web (see 09-development)
+├── .github/workflows/ci.yml      # lint + vet + unit + Playwright E2E (see 09-development)
+├── docker-compose.yml            # postgres, redis, ollama, whisper, api, web (see 09-development)
+├── commitlint.config.js          # Conventional Commits rules (see 09-development)
+├── lefthook.yml                  # pre-commit + commit-msg hooks (see 09-development)
 ├── .env.example                  # Environment template (see 01-architecture)
 ├── AGENTS.md                     # Guidance for AI coding agents
 └── README.md                     # ← Repo entry point
@@ -143,6 +157,7 @@ flowchart LR
         OL["Ollama (local)<br/>nomic-embed-text 768-dim"]
         OR["OpenRouter<br/>Claude 3.5 Sonnet"]
         OL2["Open Library<br/>metadata + covers"]
+        WH["Whisper (local)<br/>faster-whisper small"]
     end
 
     B -- "HTTPS fetch (JSON + SSE)" --> H
@@ -151,6 +166,7 @@ flowchart LR
     AI -- "embeddings" --> OL
     AI -- "chat completion (stream)" --> OR
     S -- "ISBN metadata lookup" --> OL2
+    S -- "transcribe voice clip" --> WH
     R -- "SQL / vector search" --> PG
     R -- "rate tokens, ISBN cache" --> RD
 ```
@@ -165,8 +181,9 @@ Full details: [09-development.md](./09-development.md). Seeded accounts:
 cp .env.example .env
 
 # 1. Infrastructure
-docker compose up -d postgres redis ollama
+docker compose up -d postgres redis ollama whisper
 docker compose exec ollama ollama pull nomic-embed-text
+# faster-whisper downloads WHISPER_MODEL (small) on first start; see 15-voice-input
 
 # 2. Migrate + seed + embed (from api/)
 cd api
@@ -194,4 +211,5 @@ screen-by-screen specs are in [12-ui-design.md](./12-ui-design.md).
 - Deferred or unimplemented behavior is never silently omitted — it carries a `> ⚠️ TODO:` callout.
 - Cross-references are relative links, e.g. `[Data Model](./02-data-model.md)`.
 - Diagrams are Mermaid, rendered in the format declared per diagram (flowchart sequence, `erDiagram`, `graph TD`, `stateDiagram-v2`).
+- Commits follow Conventional Commits, one commit per feature/bug — rules in [09-development.md](./09-development.md#9-git-workflow).
 - No marketing language; precision over polish.

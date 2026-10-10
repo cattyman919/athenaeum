@@ -64,6 +64,10 @@ flowchart LR
 RAG context joins the system prompt as numbered findings; the agent must cite
 `[doc#N]` markers, converted to citations by the API layer.
 
+> ⚠️ TODO: the embedding model is English-only, so a `zh-CN` question retrieves poorly
+> from pgvector; the agent compensates by forming English `search_catalog` queries.
+> Multilingual embeddings or query translation is deferred ([14 §11](14-localization.md#11-known-limitations)).
+
 ## 3. Eino Agent Loop
 
 Eino `react` agent with tool registry; models exchange via Eino `ChatModel`
@@ -152,6 +156,7 @@ embedding:
 
 - `OPENROUTER_API_KEY` missing → `POST /api/chat` 503 before streaming (documented in [03 §7.1](03-api-spec.md#71-sse-stream)).
 - Ollama down mid-index → `503 EMBEDDING_UNAVAILABLE` for search modes requiring vectors; keyword mode unaffected.
+- Voice input adds a third adapter, `WhisperAdapter` → the faster-whisper service (`WHISPER_BASE_URL`); unreachable/timeout → `503 TRANSCRIPTION_UNAVAILABLE` ([15 §5](15-voice-input.md#5-whisper-service)).
 
 ## 6. SSE Event Contract
 
@@ -160,7 +165,7 @@ one turn is fixed:
 
 | # | event | data payload | Emitted |
 | --- | --- | --- | --- |
-| 1 | `meta` | `{"conversation_id":"c0f1…","turn":7,"model":"anthropic/claude-3.5-s"}` | always, first |
+| 1 | `meta` | `{"conversation_id":"c0f1…","turn":7,"model":"anthropic/claude-3.5-s","locale":"en"}` | always, first |
 | 2 | `tool_call` | `{"id":"call_1","name":"search_catalog","args":{"query":"babylonian math","mode":"semantic"}}` | each invocation |
 | 3 | `tool_result` | `{"id":"call_1","summary":"5 books found"}` | after each tool |
 | 4 | `token` | `{"text":"The Babylonian"}` | N streaming deltas |
@@ -170,7 +175,7 @@ one turn is fixed:
 
 ```text
 event: meta
-data: {"conversation_id":"c0f1","turn":7,"model":"anthropic/claude-3.5-s"}
+data: {"conversation_id":"c0f1","turn":7,"model":"anthropic/claude-3.5-s","locale":"en"}
 
 event: token
 data: {"text":"Babylonian arithmetic"}
@@ -214,6 +219,7 @@ stateDiagram-v2
 | System prompt scope | "recommend only books that exist in the Athenaeum catalog (use search_catalog); cite only retrieved shelf paths; do not invent titles, barcodes, or racks" |
 | PII | never stored in `messages` beyond the conversation itself; log sampling excludes message bodies ([09](09-development.md#7-logging)) |
 | Non-library questions | agent deflects politely without tool use |
+| Reply language | answer in the request `locale` (`en` / `zh-CN`); tool use and citation rules unchanged ([14 §10](14-localization.md#10-ai-reply-language)) |
 | Spam/abuse | 429 via rate limits (single line of defense, chatty patterns out of scope) |
 
 ## 9. Chat Screen (Stitch)
