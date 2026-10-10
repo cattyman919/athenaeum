@@ -159,7 +159,7 @@ flowchart LR
     P["Ports:<br/>3000 web · 8080 api · 5432 pg · 6379 redis · 11434 ollama · 9000 whisper"]
 
     subgraph DC["docker compose"]
-        W["web:3000<br/>node:20-alpine, next start"] -- "rewrites /api → api:8080" --> A["api:8080<br/>golang:1.22 multi-stage"]
+        W["web:3000<br/>node:26-alpine, next start"] -- "rewrites /api → api:8080" --> A["api:8080<br/>golang:1.27 multi-stage"]
         A --> PG["postgres:16<br/>pgvector/pgvector:pg16"]
         A --> RD["redis:7<br/>redis:7-alpine"]
         A --> OL["ollama:11434<br/>ollama/ollama"]
@@ -170,8 +170,8 @@ flowchart LR
 
 | Service | Image | Port | Health check | Volumes |
 | --- | --- | --- | --- | --- |
-| `web` | node:20-alpine, `next start` | 3000 | GET /api/health via api proxy | — |
-| `api` | golang:1.22-alpine (built binary) | 8080 | `GET /api/health` | — |
+| `web` | node:26-alpine, `next start` | 3000 | GET /api/health via api proxy | — |
+| `api` | golang:1.27-alpine (built binary) | 8080 | `GET /api/health` | — |
 | `postgres` | `pgvector/pgvector:pg16` | 5432 | `pg_isready` | `pgdata` |
 | `redis` | `redis:7-alpine` | 6379 | `redis-cli ping` | `redisdata` |
 | `ollama` | `ollama/ollama` | 11434 | `ollama list` exit 0 | `ollamadata` |

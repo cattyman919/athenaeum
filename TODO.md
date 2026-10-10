@@ -43,7 +43,7 @@ Rules for any AI session (or human) continuing this project:
 | Git | `main` with commits; remote `origin = git@github.com:cattyman919/athenaeum.git`; one branch per task, squash to `main`, push `main` per milestone ([docs/09 §9](docs/09-development.md#9-git-workflow)) |
 | Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist)) |
 | Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); re-exports pending + chat-screen regen for the mic ([§17](#17-open-todo-registry-from-docs)) |
-| Stack pins | Go 1.22 · Next.js 15 · Postgres 16 + pgvector · Redis 7 · Ollama `nomic-embed-text` (768) · OpenRouter Claude 3.5 Sonnet · faster-whisper `small` · next-intl · Playwright |
+| Stack pins | Go 1.27 · Next.js 15 · Postgres 16 + pgvector · Redis 7 · Ollama `nomic-embed-text` (768) · OpenRouter Claude 3.5 Sonnet · faster-whisper `small` · next-intl · Playwright |
 | Demo accounts | `admin@` / `demo@athenaeum.dev` · password `athenaeum-demo` ([docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library)) |
 
 ## 3. Phase 0 — Repo & Scaffolding

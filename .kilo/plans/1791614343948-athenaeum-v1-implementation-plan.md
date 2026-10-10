@@ -28,7 +28,7 @@ order); this plan only fixes **sequencing, gates, and harness decisions** the do
 | 5 | Real OpenRouter used for a manual chat check in M8/M12; E2E always uses the fake ChatModel stub. |
 | 6 | CI E2E runs **real Ollama** with `nomic-embed-text` pulled and cached (`actions/cache` on the ollama volume dir); semantic E2E asserts real relevance. Chat + Whisper are stubbed per docs/09 §8.1. |
 | 7 | Missing host tools: Makefile runs migrations via `go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.18.x`; golangci-lint installed via `brew`/`go install` (documented prereq, pinned in CI via `golangci/golangci-lint-action`). |
-| 8 | Version pins follow docs (Go 1.22, Next.js 15 / React 19, Postgres 16, Redis 7, Node 20, pnpm 9). Tailwind **v3.4** (docs require `tailwind.config.ts`). If a required dependency (e.g. Eino, pgx, x/ deps) needs a newer Go, bump the pin in `docs/01`, `docs/09`, `docs/README.md` §2, `TODO.md` §2, `api/Dockerfile`, CI in **one** `build:` commit — never silently. |
+| 8 | Version pins follow docs (latest Go 1.27 and Node 26 per user decision; Next.js 15 / React 19, Postgres 16, Redis 7, pnpm 9). Tailwind **v3.4** (docs require `tailwind.config.ts`). If a required dependency (e.g. Eino, pgx, x/ deps) needs a newer Go, bump the pin in `docs/01`, `docs/09`, `docs/README.md` §2, `TODO.md` §2, `api/Dockerfile`, CI in **one** `build:` commit — never silently. |
 | 9 | E2E stub providers live in a single Go binary `api/cmd/e2e-stubs` (OpenAI-compatible streaming `/chat/completions` scripted per docs/06 §6 + Whisper `/asr` fixed text). Record the path in docs/09 §8.1 in the same commit. |
 | 10 | Admin visuals: in M11 retry Stitch export of screen `3177da52…` via Stitch MCP (`stitch_get_screen`); if it fails, build from docs/07 §7 + docs/12 specs and keep the registry TODO open. Resolve the `/admin` vs `/admin/layout` TODO at that point. |
 
@@ -111,7 +111,7 @@ Loading/empty/error states (docs/07 §9); full one-command demo from clean volum
 
 ## Risks / failure modes
 
-- **Go 1.22 pin vs dependency minimums** → decision 8 (one explicit bump commit).
+- **Go pin vs dependency minimums** → decision 8 (one explicit bump commit).
 - **Ollama in CI** (download size, CPU embedding time) → cache model dir; reindex only the 40 fixtures; if CI time is unacceptable, revisit decision 6 by asking the user (do not silently switch to a stub).
 - **Whisper image on arm64/Apple Silicon** → only needed locally for manual voice checks; CI uses the stub.
 - **Eino API drift** → consult current docs (Context7) before writing the agent; keep it behind `service/ai` interfaces.

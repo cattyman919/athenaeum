@@ -18,10 +18,11 @@
 
 | Tool | Version | Used for |
 | --- | --- | --- |
-| Go | 1.22 | `api/` |
-| Node + pnpm | 20 LTS / pnpm 9 | `web/` |
+| Go | 1.27 | `api/` |
+| Node + pnpm | 26 / pnpm 9 | `web/` |
 | Docker + Compose | v2 | postgres/redis/ollama/whisper (+ optional prod-like run) |
 | `migrate` (golang-migrate CLI) | v4.18 | SQL migrations |
+| `golangci-lint` | v2 (`brew install golangci-lint`) | Go lint (`make lint`, pre-commit, CI) |
 | lefthook | v1 | git hooks — commit-msg (commitlint) + pre-commit lint ([§9](#9-git-workflow)) |
 | Playwright | latest | E2E browser specs ([§8](#8-testing-strategy)) |
 | Git | any | hooks below |
@@ -83,7 +84,7 @@ docker compose logs -f api
 **`api/Dockerfile`** — multi-stage Go build:
 
 ```dockerfile
-FROM golang:1.22-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -99,14 +100,14 @@ ENTRYPOINT ["/bin/api"]
 **`web/Dockerfile`** — pnpm build + standalone output:
 
 ```dockerfile
-FROM node:20-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /src
 COPY package.json pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM node:20-alpine
+FROM node:26-alpine
 WORKDIR /src
 COPY --from=build /src/.next ./.next
 COPY --from=build /src/public ./public
