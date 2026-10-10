@@ -54,8 +54,10 @@ test:
 	@if [ -f api/go.mod ]; then cd api && go test ./...; else echo "api: no go.mod yet, skipping"; fi
 	@if [ -f web/package.json ]; then pnpm -C web test; else echo "web: no package.json yet, skipping"; fi
 
-e2e:
+e2e: ## provision the e2e stack, then run Playwright (docs/09 §8.1)
 	$(call need,web/playwright.config.ts,arrives in milestone M4)
+	./scripts/e2e-prepare.sh
+	cd web && pnpm exec playwright install chromium
 	cd web && pnpm exec playwright test
 
 ci: lint vet test e2e ## local replica of CI

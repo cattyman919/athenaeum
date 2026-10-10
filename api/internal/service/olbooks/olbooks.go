@@ -20,6 +20,8 @@ var (
 	// ErrUnavailable means the lookup was skipped (offline mode) or all
 	// attempts failed; callers fall back to local values.
 	ErrUnavailable = errors.New("olbooks: upstream unavailable")
+	// ErrOffline is ErrUnavailable returned deliberately by OFFLINE_MODE / --offline.
+	ErrOffline = fmt.Errorf("%w (offline mode)", ErrUnavailable)
 )
 
 // Metadata is the normalized Open Library record.
@@ -68,7 +70,7 @@ func (c *Client) WithRetry(retries int, backoff time.Duration) *Client {
 // Lookup fetches metadata by ISBN-13.
 func (c *Client) Lookup(ctx context.Context, isbn13 string) (Metadata, error) {
 	if c.offline {
-		return Metadata{}, ErrUnavailable
+		return Metadata{}, ErrOffline
 	}
 	var lastErr error
 	for attempt := 0; attempt <= c.retries; attempt++ {

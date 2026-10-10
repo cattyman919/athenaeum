@@ -188,18 +188,30 @@ slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelIn
 
 ### 8.1 E2E harness
 
-`make e2e` boots the compose stack with a seeded DB and the AI backends stubbed via env:
-`OPENROUTER_BASE_URL` → a local fake ChatModel (scripted
-`meta`/`token`/`tool_call`/`tool_result`/`citations`/`done`, [06 §6](06-ai-rag.md#6-sse-event-contract)),
-`WHISPER_BASE_URL` → a fixed-text stub, and `OFFLINE_MODE=true`. Auth is captured once
-per role (`admin` + demo patron, [13 §6](13-mock-data-reference.md#6-demo-users--personal-library))
-into Playwright `storageState`; specs live in `web/e2e/`. **Chromium only in v1**
+`make e2e` runs `scripts/e2e-prepare.sh` (compose `postgres` + `redis` + **real `ollama`**
+with `nomic-embed-text`, an isolated `athenaeum_e2e` database that is dropped, migrated,
+seeded with `--offline` and reindexed with real embeddings, and a cleared Redis
+rate-limit state), then `pnpm exec playwright test`. `web/playwright.config.ts` starts the
+servers itself (`webServer`): the Go API on `:18080`, the production Next build on
+`:13000` (rewrite target `API_BASE_URL=http://localhost:18080`), and — from the chat
+milestone on — the stub provider binary `api/cmd/e2e-stubs` (OpenAI-compatible fake
+ChatModel scripted as `meta`/`token`/`tool_call`/`tool_result`/`citations`/`done`,
+[06 §6](06-ai-rag.md#6-sse-event-contract), plus a fixed-text Whisper `/asr` stub) wired via
+`OPENROUTER_BASE_URL` / `WHISPER_BASE_URL`; `OFFLINE_MODE=true`. Semantic search specs assert
+real relevance against the real embedding model; chat and Whisper stay stubbed so the suite
+needs no secrets. Auth is captured once per role (`admin` + demo patron,
+[13 §6](13-mock-data-reference.md#6-demo-users--personal-library)) into Playwright
+`storageState` (`web/e2e/.auth/`, gitignored); specs live in `web/e2e/`. The login bucket is
+5 attempts / 15 min per IP ([03 §2](03-api-spec.md#2-rate-limiting)), so the suite budgets its
+UI logins (setup uses 2) and the prepare script clears `rl:*` keys — re-run it (or
+`redis-cli FLUSHALL`) before repeating the suite locally. **Chromium only in v1**
 (cross-browser is deferred — [10 §5](10-roadmap.md#5-future-enhancements)). The voice
 spec uses `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`.
 
 CI runs on every push/PR via GitHub Actions (`.github/workflows/ci.yml`): `gofmt` + vet +
-golangci-lint + `go test`, web lint + unit + build, and Playwright E2E. Failures upload
-Playwright traces. The E2E job is secret-free — it uses the same stub providers above.
+golangci-lint + `go test`, web lint + unit + build, and the Playwright E2E job (compose
+override `docker-compose.ci.yml` keeps the Ollama model in `.ollama-cache`, persisted with
+`actions/cache`). Failures upload Playwright traces. The E2E job is secret-free.
 
 ## 9. Git Workflow
 

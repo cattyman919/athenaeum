@@ -106,6 +106,8 @@ func enrich(ctx context.Context, enr Enricher, b model.BookFixture, log *slog.Lo
 		}
 	case errors.Is(err, olbooks.ErrNotFound):
 		// keep mock values; open_library_key stays NULL
+	case errors.Is(err, olbooks.ErrOffline):
+		// deliberate: no network lookups in offline mode
 	default:
 		log.Warn("enrich_failed", "isbn13", b.ISBN13, "err", err)
 	}

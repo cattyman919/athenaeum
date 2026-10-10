@@ -25,6 +25,15 @@ export function AuthProvider({
   const [user, setUser] = React.useState<User | null>(initialUser);
   const [loading, setLoading] = React.useState(initialUser === null);
 
+  // Server components re-render the layout after login/logout (router.refresh()); follow the
+  // freshly resolved user instead of keeping the first render's value.
+  const initialId = initialUser?.id ?? null;
+  React.useEffect(() => {
+    setUser(initialUser);
+    if (initialUser) setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by id on purpose
+  }, [initialId]);
+
   React.useEffect(() => {
     let cancelled = false;
     api

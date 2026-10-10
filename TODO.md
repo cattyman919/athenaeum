@@ -83,9 +83,9 @@ Refs: [docs/04](docs/04-auth.md); endpoints [docs/03 §4](docs/03-api-spec.md#4-
 - [x] Google SSO redirect flow (`/api/auth/google` + callback, state cookie) — verified only against a fake OIDC server; manual Google check pending credentials
 - [x] `requireAuth` / `requireAdmin` middleware; role guard tests
 - [x] Redis rate limiter middleware + all buckets from [docs/03 §2](docs/03-api-spec.md#2-rate-limiting) + headers
-- [ ] `web/`: pnpm init, ShadCN + tokens in `tailwind.config.ts`/`globals.css` ([docs/12 §3](docs/12-ui-design.md#3-design-tokens))
-- [ ] `web/` AuthProvider + middleware guard + refresh retry ([docs/07 §4](docs/07-frontend.md#4-auth-context--guards))
-- [ ] `/login` page per Stitch screen 1 (role tabs, disabled WeChat — no SAML row) · [docs/12 §8 screen 1](docs/12-ui-design.md#screen-1--login-institution-gateway)
+- [x] `web/`: pnpm init, ShadCN + tokens in `tailwind.config.ts`/`globals.css` ([docs/12 §3](docs/12-ui-design.md#3-design-tokens))
+- [x] `web/` AuthProvider + middleware guard + refresh retry ([docs/07 §4](docs/07-frontend.md#4-auth-context--guards))
+- [x] `/login` page per Stitch screen 1 (role tabs, disabled WeChat — no SAML row) · [docs/12 §8 screen 1](docs/12-ui-design.md#screen-1--login-institution-gateway)
 
 ## 6. Phase 3 — Seed Data & Embeddings
 
@@ -176,11 +176,11 @@ Refs: [docs/03 §8](docs/03-api-spec.md#8-admin), [docs/07 §7 admin](docs/07-fr
 
 Refs: [docs/14](docs/14-localization.md).
 
-- [ ] `next-intl` setup + cookie-based locale resolution (cookie → `Accept-Language` → `en`) ([docs/14 §3–4](docs/14-localization.md#3-storage--routing))
-- [ ] `messages/en.json` + `messages/zh-CN.json` catalogs, key-parity test ([docs/14 §5](docs/14-localization.md#5-message-catalog))
-- [ ] Externalize strings on screens 1–5 + shell; zh enum display-label maps ([docs/14 §6](docs/14-localization.md#6-enum-display-label-maps))
-- [ ] CJK font fallback (Noto Sans SC) + `<html lang>` ([docs/14 §8](docs/14-localization.md#8-typography--fonts))
-- [ ] `LanguageToggle` in top nav + `/login` ([docs/14 §9](docs/14-localization.md#9-language-toggle))
+- [x] `next-intl` setup + cookie-based locale resolution (cookie → `Accept-Language` → `en`) ([docs/14 §3–4](docs/14-localization.md#3-storage--routing))
+- [x] `messages/en.json` + `messages/zh-CN.json` catalogs, key-parity test ([docs/14 §5](docs/14-localization.md#5-message-catalog))
+- [ ] Externalize strings on screens 1–5 + shell; zh enum display-label maps (DONE: shell, login, enum maps; remaining screens land with their milestones) ([docs/14 §6](docs/14-localization.md#6-enum-display-label-maps))
+- [x] CJK font fallback (Noto Sans SC) + `<html lang>` ([docs/14 §8](docs/14-localization.md#8-typography--fonts))
+- [x] `LanguageToggle` in top nav + `/login` ([docs/14 §9](docs/14-localization.md#9-language-toggle))
 - [ ] Chat `locale` field + system-prompt directive + `meta.locale` ([docs/14 §10](docs/14-localization.md#10-ai-reply-language), [docs/06 §6/§8](docs/06-ai-rag.md#6-sse-event-contract))
 - [ ] zh RAG limitation recorded ([docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline))
 
@@ -199,9 +199,9 @@ Refs: [docs/09 §8–9](docs/09-development.md#8-testing-strategy).
 
 - [x] `commitlint.config.js` (type/scope vocabulary) + `lefthook.yml` (`pre-commit` + `commit-msg`) ([docs/09 §9](docs/09-development.md#9-git-workflow))
 - [x] First commit = scaffolding (`chore: …`); one branch per task, squash-merged ([docs/09 §9](docs/09-development.md#9-git-workflow))
-- [ ] `web/playwright.config.ts` + `web/e2e/` specs: route smoke ×6 + login guard, three search modes, 409 waitlist, library tabs, chat SSE turn, admin gate, i18n toggle, voice composer ([docs/09 §8](docs/09-development.md#8-testing-strategy))
-- [ ] Test harness: fake ChatModel + Whisper stub via env; `storageState` auth; `make e2e` ([docs/15 §9](docs/15-voice-input.md#9-testing))
-- [ ] `.github/workflows/ci.yml` (lint + vet + unit + e2e); the docs/09 §8 CI `> ⚠️ TODO:` removed
+- [ ] (done so far: harness, login guard, route smoke /catalog, i18n toggle) `web/playwright.config.ts` + `web/e2e/` specs: route smoke ×6 + login guard, three search modes, 409 waitlist, library tabs, chat SSE turn, admin gate, i18n toggle, voice composer ([docs/09 §8](docs/09-development.md#8-testing-strategy))
+- [ ] (done: storageState auth, make e2e, real-Ollama CI) Test harness: fake ChatModel + Whisper stub via env; `storageState` auth; `make e2e` ([docs/15 §9](docs/15-voice-input.md#9-testing))
+- [x] `.github/workflows/ci.yml` (lint + vet + unit + e2e); the docs/09 §8 CI `> ⚠️ TODO:` removed
 
 ## 17. Open TODO Registry (from docs)
 

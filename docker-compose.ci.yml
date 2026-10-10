@@ -1,0 +1,6 @@
+# CI override: keeps the Ollama model on a host directory so actions/cache can persist it.
+# Usage: COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml docker compose up -d ollama
+services:
+  ollama:
+    volumes: !override
+      - ./.ollama-cache:/root/.ollama

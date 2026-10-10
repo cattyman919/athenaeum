@@ -24,3 +24,8 @@ web/coverage/
 *.swp
 .idea/
 .vscode/
+web/*.tsbuildinfo
+web/playwright-report/
+web/test-results/
+web/e2e/.auth/
+.ollama-cache/
