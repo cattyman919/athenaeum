@@ -43,6 +43,10 @@
 
 ### 2a. Live (interim) transcript
 
+> ⚠️ TODO: render the interim transcript as **ghost text inside the composer textarea** (muted, appended
+> after the typed text, never part of the draft) instead of the muted line shown below the input today.
+> Tracked in [TODO.md §2a](../TODO.md#2a-handoff-brief-read-first-when-resuming) next action 0.
+
 While recording, the composer shows an **interim transcript** that refreshes as the user
 speaks (chunked re-transcription — no streaming protocol):
 

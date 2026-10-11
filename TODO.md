@@ -57,6 +57,14 @@ Docs in `docs/` are the contract; deviations were edited into the owning doc in 
 Local `make e2e` = 69 passing. Check `gh run list` for CI on the latest push.
 
 **Next actions, in order**
+0. **Ghost-text interim voice (user request, do first next session):** show the live partial transcript as ghost
+   text *inside* the composer textarea (muted, after the typed text, replaced/committed by the final pass) instead of the
+   separate italic line under it (`data-testid="chat-voice-interim"` in `web/components/chat-workspace.tsx`; hook output
+   `interim` from `web/hooks/use-voice-input.ts`). Suggested approach: wrap the textarea in a relative container with an
+   absolutely positioned, `aria-hidden`, pointer-events-none mirror layer that renders `<span invisible>{draft}</span>
+   <span muted>{interim}</span>` with identical font/padding/wrapping, auto-grow and scroll sync; keep the sr-only
+   live region for the interim text; never write interim text into `draft`; Esc cancels and clears it. Update docs/15 §2a +
+   docs/07 §7 (/chat) and the Playwright voice spec (assert ghost text element instead of the line below). Tracked as Phase 12 item.
 1. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
 2. Open decisions: `copy_events` rows cascade-delete with a copy (docs/03 §8.3 says audit keeps its last row); new/edited books
    are not re-embedded until `cmd/reindex`; `fetch-isbn` is admin-only (docs/03 §3 table says any user); `/api/library` rating
@@ -253,6 +261,7 @@ Refs: [docs/15](docs/15-voice-input.md).
 - [x] whisper service in `docker-compose.yml` + `WHISPER_BASE_URL`/`WHISPER_MODEL` ([docs/15 §5](docs/15-voice-input.md#5-whisper-service))
 - [x] `WhisperAdapter` (ACL) + `POST /api/chat/transcribe` (auth, caps, 30s timeout, 10/min bucket, error codes) ([docs/15 §4/§6](docs/15-voice-input.md#4-transcription-endpoint))
 - [x] `hooks/use-voice-input.ts` + composer mic toggle (recording indicator, Send gating, empty/error states) ([docs/15 §8](docs/15-voice-input.md#8-frontend-wiring))
+- [ ] Ghost-text interim transcript inside the composer textarea (replaces the line below the input) — see §2a next action 0 ([docs/15 §2a](docs/15-voice-input.md))
 - [x] Privacy: audio never persisted or logged ([docs/15 §7](docs/15-voice-input.md#7-privacy))
 
 ## 16. Phase 13 — Git Workflow and CI
