@@ -207,6 +207,12 @@ shows model + latency; quota meter consumes `meta`/`done` rate data — daily li
 50 ([03 §2](03-api-spec.md#2-rate-limiting)). SSE client: [§6](#6-chat-streaming-client).
 The composer also carries the **voice mic toggle** (push-to-talk → composer, [15 §2](./15-voice-input.md#2-ux--push-to-talk));
 requests send the active `locale` for AI reply language ([14 §10](./14-localization.md#10-ai-reply-language)).
+Assistant replies render as **Markdown** (`components/markdown.tsx`: `react-markdown` + GFM — headings,
+lists, bold/italic, inline/block code, tables, links; raw HTML is escaped and images are dropped;
+`/…` links use the router, external links open in a new tab with `noopener noreferrer`) and carry a
+**Copy reply** button. The composer has a **microphone picker** (saved in `localStorage`, re-found by
+label if the device id rotates) with a live input-level meter while recording
+([15 §2](./15-voice-input.md#2-ux--push-to-talk)); the ⌘K palette rows also show cover thumbnails.
 
 ### /admin — screen 6a (Stitch `3177da52…`)
 
@@ -242,6 +248,10 @@ Usage per page:
 | `Select` / `Slider` | era buckets, per_page, rating | |
 
 ## 9. Loading, Empty & Error States
+
+**Destructive actions are confirmed.** Deleting a chat, removing a book from My Library and leaving a
+waitlist open `ConfirmDialog` (`role="alertdialog"`, Cancel focused first, Escape/overlay cancel, copy
+under the `confirm.*` catalog keys in both locales). New destructive UI must use it.
 
 | State | Convention |
 | --- | --- |

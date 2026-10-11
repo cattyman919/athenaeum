@@ -52,8 +52,9 @@ Rules for any AI session (or human) continuing this project:
 **Source of truth for order of work:** `.kilo/plans/1791614343948-athenaeum-v1-implementation-plan.md` (milestones M0–M12).
 Docs in `docs/` are the contract; deviations were edited into the owning doc in the same commit.
 
-**State at last session (2026-10-10, session 2):** `main` is pushed; M0–M12 code complete; only manual/credentialed verification remains.
-Local `make e2e` = 64 passing. Check `gh run list` for CI on the latest push.
+**State at last session (2026-10-11, end of session 2):** `main` is pushed; M0–M12 code complete plus post-review additions
+(persisted citations + cover thumbnails, live voice partials, mic picker, markdown replies, confirm dialogs). Only manual/credentialed verification remains.
+Local `make e2e` = 69 passing. Check `gh run list` for CI on the latest push.
 
 **Next actions, in order**
 1. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
@@ -69,9 +70,14 @@ Local `make e2e` = 64 passing. Check `gh run list` for CI on the latest push.
   catalog (`/api/books/search` keyword/semantic/hybrid, `/api/books/{id}`), library + waitlist (+5-min sweeper),
   seed (`cmd/seed`), reindex (`cmd/reindex`), migrations 0001–0005. Layering: handler → service (defines repo
   interfaces) → repository; manual DI in `cmd/api/main.go`. Test helpers: `internal/testutil/{pgtest,memauth}`.
-- Web (`web/`): Next 15.5 App Router, Tailwind 3.4 tokens, next-intl (cookie `athenaeum_lang`, no URL prefix),
-  middleware guard with refresh rotation, pages `/login`, `/catalog`, `/books/[id]`, `/library` (read-only so far);
-  `/chat` is a placeholder, `/admin` does not exist.
+- API adds: chat (`internal/service/ai`: OpenRouter adapter, 4 tools, Eino agent, SSE, persisted citations with `cover_url`),
+  voice (`WhisperAdapter`, `/api/chat/transcribe`, `?partial=true` + `whisper-fast`), `fetch-isbn`, 13 `/api/admin/*` endpoints,
+  `cmd/e2e-stubs` (fake OpenRouter/Whisper/Open Library for Playwright).
+- Web (`web/`): Next 15.5 App Router, Tailwind 3.4 tokens, next-intl (cookie `athenaeum_lang`; the toggle writes the cookie and
+  hard-reloads), middleware guard with refresh rotation; pages `/login`, `/catalog` (+ ⌘K with thumbnails), `/books/[id]`
+  (library menu, waitlist CTA), `/library` (inline editing), `/chat` (SSE, markdown, citations, voice + mic picker), `/admin`
+  (KPIs, audit stream, Add Book + ISBN scanner, users), `/admin/layout` (tree, mini-map, shelf inspector); shared
+  `ConfirmDialog` for destructive actions; `error.tsx`/`not-found.tsx`/offline banner.
 - Mock data: `api/mocks/{building,books,library}.json` (docs/13 parity enforced by tests).
 
 **Decisions / deviations already recorded in docs** (do not re-litigate): Go 1.27 + Node 26; barcodes use 2-digit copy
@@ -95,7 +101,8 @@ profile `app`; web Dockerfile installs pnpm via npm (no corepack in Node 26); E2
 - `golangci-lint` v2 is installed locally (`brew`); web lint is `eslint . && tsc --noEmit`.
 
 **Manual verification still owed (no credentials / working mic in session)**
-- Real microphone + real Whisper dictation (dev Mac mic hardware is broken; automated tests use Chromium fake media + stub).
+- Real microphone + real Whisper dictation incl. live interim text with `WHISPER_PARTIAL_BASE_URL=http://localhost:9001` (built-in mic broken; external mic confirmed working for final transcripts; automated tests use Chromium fake media + stubs).
+- Real OpenRouter chat turn confirmed working by the user in en (zh-CN turn not yet confirmed).
 - Google SSO against a real client (only a fake OIDC server was used).
 - One real OpenRouter chat turn in en + zh-CN (M8/M12). `OPENROUTER_API_KEY` is expected from the user.
 - Stitch export of the Admin screen `3177da52…` (retry in M11; registry item stays open if it fails).
@@ -232,21 +239,21 @@ Refs: [docs/14](docs/14-localization.md).
 
 - [x] `next-intl` setup + cookie-based locale resolution (cookie → `Accept-Language` → `en`) ([docs/14 §3–4](docs/14-localization.md#3-storage--routing))
 - [x] `messages/en.json` + `messages/zh-CN.json` catalogs, key-parity test ([docs/14 §5](docs/14-localization.md#5-message-catalog))
-- [ ] Externalize strings on screens 1–5 + shell; zh enum display-label maps (DONE: shell, login, enum maps; remaining screens land with their milestones) ([docs/14 §6](docs/14-localization.md#6-enum-display-label-maps))
+- [x] Externalize strings on screens 1–5 + shell; zh enum display-label maps (DONE: shell, login, enum maps; remaining screens land with their milestones) ([docs/14 §6](docs/14-localization.md#6-enum-display-label-maps))
 - [x] CJK font fallback (Noto Sans SC) + `<html lang>` ([docs/14 §8](docs/14-localization.md#8-typography--fonts))
 - [x] `LanguageToggle` in top nav + `/login` ([docs/14 §9](docs/14-localization.md#9-language-toggle))
-- [ ] **Wayfinding i18n (bug found in review: `/books/[id]` ladder stays English in zh-CN)** — add structured `wayfinding.parts` + `copies[].location.parts` to `GET /api/books/{id}` ([docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid)); add `wayfinding.*` keys (building, floor, section, tier slug, step templates, shelfLine) to both catalogs with parity + coverage tests ([docs/14 §6.1](docs/14-localization.md#61-wayfinding-vocabulary)); compose localized ladder in `BookLocationCard`, copy manifest, `/library` shelf coordinates, catalog facet + book-page section chips, and chat citation cards; Playwright zh-CN spec asserts Chinese steps while the `MAIN/…` path token stays unchanged
-- [ ] Chat `locale` field + system-prompt directive + `meta.locale` ([docs/14 §10](docs/14-localization.md#10-ai-reply-language), [docs/06 §6/§8](docs/06-ai-rag.md#6-sse-event-contract))
-- [ ] zh RAG limitation recorded ([docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline))
+- [x] **Wayfinding i18n (bug found in review: `/books/[id]` ladder stays English in zh-CN)** — add structured `wayfinding.parts` + `copies[].location.parts` to `GET /api/books/{id}` ([docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid)); add `wayfinding.*` keys (building, floor, section, tier slug, step templates, shelfLine) to both catalogs with parity + coverage tests ([docs/14 §6.1](docs/14-localization.md#61-wayfinding-vocabulary)); compose localized ladder in `BookLocationCard`, copy manifest, `/library` shelf coordinates, catalog facet + book-page section chips, and chat citation cards; Playwright zh-CN spec asserts Chinese steps while the `MAIN/…` path token stays unchanged
+- [x] Chat `locale` field + system-prompt directive + `meta.locale` ([docs/14 §10](docs/14-localization.md#10-ai-reply-language), [docs/06 §6/§8](docs/06-ai-rag.md#6-sse-event-contract))
+- [x] zh RAG limitation recorded ([docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline))
 
 ## 15. Phase 12 — Voice Input
 
 Refs: [docs/15](docs/15-voice-input.md).
 
-- [ ] whisper service in `docker-compose.yml` + `WHISPER_BASE_URL`/`WHISPER_MODEL` ([docs/15 §5](docs/15-voice-input.md#5-whisper-service))
-- [ ] `WhisperAdapter` (ACL) + `POST /api/chat/transcribe` (auth, caps, 30s timeout, 10/min bucket, error codes) ([docs/15 §4/§6](docs/15-voice-input.md#4-transcription-endpoint))
-- [ ] `hooks/use-voice-input.ts` + composer mic toggle (recording indicator, Send gating, empty/error states) ([docs/15 §8](docs/15-voice-input.md#8-frontend-wiring))
-- [ ] Privacy: audio never persisted or logged ([docs/15 §7](docs/15-voice-input.md#7-privacy))
+- [x] whisper service in `docker-compose.yml` + `WHISPER_BASE_URL`/`WHISPER_MODEL` ([docs/15 §5](docs/15-voice-input.md#5-whisper-service))
+- [x] `WhisperAdapter` (ACL) + `POST /api/chat/transcribe` (auth, caps, 30s timeout, 10/min bucket, error codes) ([docs/15 §4/§6](docs/15-voice-input.md#4-transcription-endpoint))
+- [x] `hooks/use-voice-input.ts` + composer mic toggle (recording indicator, Send gating, empty/error states) ([docs/15 §8](docs/15-voice-input.md#8-frontend-wiring))
+- [x] Privacy: audio never persisted or logged ([docs/15 §7](docs/15-voice-input.md#7-privacy))
 
 ## 16. Phase 13 — Git Workflow and CI
 
@@ -283,6 +290,7 @@ Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
+| 2026-10-11 | Kilo (kilo-auto/frontier), parallel subagents | Post-review work: chat citations persisted + `cover_url` thumbnails (also in ⌘K palette); live voice partials (`?partial=true`, `whisper-fast`, 60/min bucket, one in flight); microphone picker + level meter (user's built-in mic is broken; external mic works); markdown AI replies + copy button; `suppressHydrationWarning` on `<html>` (browser extensions); `ConfirmDialog` for chat delete / library remove / waitlist leave; language toggle now cookie + hard reload (server-action refresh raced prefetches); M12 states, self-hosted barcode WASM; README quickstart; e2e 69 green, CI green | Manual checks (below), then any new scope from docs/10 | Not run: clean-volume demo (wipes models), real Whisper accuracy/speed of `whisper-fast`, Google SSO, Stitch admin export |
 | 2026-10-10 | Kilo (kilo-auto/frontier), parallel subagents | M7 web (library menu, 409 waitlist dialog, inline editing); wayfinding i18n (`parts`); M8 chat (OpenRouter adapter, 4 tools, Eino agent, SSE, `/chat`, e2e-stubs); M9 voice (Whisper adapter, `/api/chat/transcribe`, mic hook); M10 scanner (`fetch-isbn`, Add-Book dialog); M11 admin (13 endpoints, KPI grid, audit stream, stacks manager, users); e2e 56 green | M12 polish (see §2a) | Real OpenRouter turn, real Whisper, Google SSO, Stitch admin export still unverified |
 | 2026-10-10 | Kilo (kilo-auto/frontier) | Milestones M0–M7 partial (M7: library+waitlist API, 48h sweeper, demo library seed, read-only /library page with KPIs/tabs/holds + leave; STILL OPEN for M7: book-detail "Add to My Library"/favorite/rating controls, 409 → waitlist dialog, banner waitlist CTA, inline row editing; M6: book detail API + /books/[id] page with wayfinding ladder, banner, manifest, neighbors; M5: tri-modal search API + /catalog UI + ⌘K + e2e vs real embeddings; Next 15.5 note: a route-level loading.tsx froze soft navigation in prod, so skeletons use in-page Suspense; M4: Next 15 web scaffold, i18n, auth guard + refresh, /login, Playwright harness w/ real-Ollama e2e DB, CI e2e job; M3: mock fixtures with docs/13 parity, ResolvePath, olbooks, cmd/seed, Ollama embedder + cmd/reindex, barcodes C01 doc fix; M2: auth backend: argon2id, JWT, register/login/refresh/logout/me, Google OIDC vs fake provider, role guards, Redis rate limiter): commitlint/lefthook, Makefile, compose, CI skeleton; Go 1.27 / Node 26 pins (docs updated); API skeleton (config, slog, middleware, error mapper, `/api/health`, Dockerfile); migrations 0001–0005 + testcontainers harness (`internal/testutil/pgtest`); `make db-migrate` verified; docs/02 index DDL fixed (double parens); compose infra up + `nomic-embed-text` pulled | Finish M7 web interactions (messages `bookActions.*`/`waitlist.*` already in catalogs), then M8 AI chat | Google SSO can only be verified against a fake `httptest` OAuth server (no Google client): manual verification pending user credentials |
 | 2026-10-09 | Kilo (kilo-auto/efficient) | Grilled + documented 4 scope additions (voice input, EN/zh-CN localization, git workflow, Playwright E2E/CI); authored `docs/14-localization.md` + `docs/15-voice-input.md`; updated README/roadmap/AGENTS/TODO + cross-links (01/03/06/07/09/12, `.env.example`); added Phases 11–13 + registry/session rows | Phase 11 (localization) → Phase 12 (voice) → Phase 13 (git/CI), interleaved with Phase 1 infra | None (docs-only; no code yet) |
