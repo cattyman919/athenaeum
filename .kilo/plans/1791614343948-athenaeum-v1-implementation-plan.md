@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build the full v1 defined by `docs/` (Phases 0–13 in `TODO.md`) from a docs-only repo
+Build the full v1 defined by `docs/` (Phases 0–14 in `TODO.md`) from a docs-only repo
 to a green, pushed, one-command demo. The docs are the contract (`AGENTS.md` precedence
 order); this plan only fixes **sequencing, gates, and harness decisions** the docs leave open.
 
@@ -31,6 +31,7 @@ order); this plan only fixes **sequencing, gates, and harness decisions** the do
 | 8 | Version pins follow docs (latest Go 1.27 and Node 26 per user decision; Next.js 15 / React 19, Postgres 16, Redis 7, pnpm 9). Tailwind **v3.4** (docs require `tailwind.config.ts`). If a required dependency (e.g. Eino, pgx, x/ deps) needs a newer Go, bump the pin in `docs/01`, `docs/09`, `docs/README.md` §2, `TODO.md` §2, `api/Dockerfile`, CI in **one** `build:` commit — never silently. |
 | 9 | E2E stub providers live in a single Go binary `api/cmd/e2e-stubs` (OpenAI-compatible streaming `/chat/completions` scripted per docs/06 §6 + Whisper `/asr` fixed text). Record the path in docs/09 §8.1 in the same commit. |
 | 10 | Admin visuals: in M11 retry Stitch export of screen `3177da52…` via Stitch MCP (`stitch_get_screen`); if it fails, build from docs/07 §7 + docs/12 specs and keep the registry TODO open. Resolve the `/admin` vs `/admin/layout` TODO at that point. |
+| 11 | Scanner (M13, added 2026-10-15): one `BarcodeScannerDialog` with Patron Lookup / Staff Intake; patron endpoints `POST /api/books/scan` + `POST /api/copies/{id}/return`; self-service **return** is in v1 but self-service checkout + loans/RFID/label/MARC stay deferred (docs/10 §2). `fetch-isbn` is 👑 admin-only. |
 
 ## Milestones
 
@@ -101,6 +102,16 @@ Retry Stitch admin export (decision 10). `GET /api/admin/data`, `copy-events` po
 ### M12 — Polish & verification (Phase 10)
 Loading/empty/error states (docs/07 §9); full one-command demo from clean volumes (`docker compose up --build` → migrate → seed → reindex → three searches → chat turn); manual bilingual QA checklist; README quickstart check; TODO.md registry re-grep (`grep -n "> ⚠️ TODO" docs/*.md`). axe-core audit stays ⚠️ TODO.
 
+### M13 — Patron barcode scanner (Phase 14; scope added 2026-10-15)
+Docs re-scoped in docs/11 + docs/03 §5.4/§6.4 (v1 item 16). One dialog, two audiences; artifact `.artifacts/stitch/barscanner_ISBN/code.html`.
+1. `feat(api)`: `POST /api/books/scan` — local resolver (ISBN-13 → `books` by `isbn13`; `ATH-…-CYY` → `book_copies`), reusing `pkg/checkdigit`; `200 in_catalog:false` when validated but not local; service + handler tests.
+2. `feat(api)`: `POST /api/copies/{id}/return` — `checked_out → available` (or `reserved_waitlist` + oldest-hold turnover per docs/12 §10); appends `copy_events` (`source='self_return'`, actor = caller); 409 `CONFLICT` when not `checked_out`.
+3. `feat(api)`: rate-limit buckets (scan 30/1min, return 10/1min) + endpoint index + error catalog.
+4. `feat(web)`: `BarcodeScannerDialog` (Patron Lookup / Staff Intake, `formats:['ean_13','code_128']`, manual code fallback) + `hooks/use-barcode-scanner.ts`; nav **Scan** button (all users) + `/library` "Scan to return" + `/admin` Staff Intake entry; patron result card (record + ladder + other-copy availability + waitlist CTA) and copy result (**Return this copy**).
+5. `feat(i18n)`: `scanner.*` keys in both catalogs (parity); Staff Intake stays English (docs/14 §1).
+6. `test`: Go resolver + return state-machine + waitlist-turnover tests; Playwright patron ISBN lookup + self-service return via the manual code path (camera path unit-only).
+Gate: the docs/11 §11 deferral (RFID encode / thermal label print / Edit-MARC) stays unbuilt.
+
 ## Milestone gate (every milestone)
 
 1. `make lint` and `make test` green; `make e2e` green from M4 onward.
@@ -124,5 +135,5 @@ Everything in docs/10 §2; Stitch PNG re-exports for screens 2–5 (exporter tas
 
 ## Validation (end state)
 
-- Fresh clone → `cp .env.example .env` → `make up && make db-migrate && make seed && make reindex` → `make api` + `make web` → log in as `demo@athenaeum.dev` / `athenaeum-demo`, run keyword/semantic/hybrid searches, open a book's wayfinding, hit the 409 waitlist, chat (stub and real), toggle zh-CN, dictate via mic, scan/enter an ISBN as admin, manage layout.
+- Fresh clone → `cp .env.example .env` → `make up && make db-migrate && make seed && make reindex` → `make api` + `make web` → log in as `demo@athenaeum.dev` / `athenaeum-demo`, run keyword/semantic/hybrid searches, open a book's wayfinding, hit the 409 waitlist, chat (stub and real), toggle zh-CN, dictate via mic, scan/enter an ISBN as a patron (lookup + return) and as an admin (staff intake), manage layout.
 - `make ci` green locally; GitHub Actions green on `main`; seed parity counts hold.

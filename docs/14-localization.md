@@ -22,7 +22,7 @@
 
 | In scope | Out of scope |
 | --- | --- |
-| UI strings for screens 1–5 (`/login`, `/catalog`, `/books/[id]`, `/library`, `/chat`) and the app shell | Admin screens 6a/6b — stay English |
+| UI strings for screens 1–5 (`/login`, `/catalog`, `/books/[id]`, `/library`, `/chat`), the app shell, and the **Barcode Scanner dialog's Patron Lookup** (nav Scan button, `/library` return) | Admin screens 6a/6b **and the scanner's Staff Intake tab** — stay English |
 | zh display-label maps for API enums (availability, copy status, reading stage, badges) | Translating catalog records: book titles, authors, descriptions, and the [13](./13-mock-data-reference.md) mock contract stay English |
 | **Wayfinding text** — the turn-by-turn ladder, copy-manifest locations, library shelf coordinates, citation shelf lines, section chips/facets (floor names, section names, height tiers; [§6.1](#61-wayfinding-vocabulary)) | Machine tokens: location path `MAIN/3F/SF/A-1/S-2`, barcodes, aisle/shelf codes, Dewey/LOC call numbers — always as stored |
 | AI Librarian answers in the selected language | Spoken/voice output (input only — [15](./15-voice-input.md)) |
@@ -74,7 +74,7 @@ web/
 
 - One JSON catalog per locale at `web/messages/{locale}.json`.
 - **Keys are namespaced by area** (`shell.nav.catalog`, `catalog.filters.available`,
-  `chat.composer.placeholder`, …) so screens stay greppable.
+  `chat.composer.placeholder`, `scanner.patron.*`, …) so screens stay greppable.
 - No user-facing literals in components — every string resolves through the catalog.
 - ICU messages cover interpolation and plurals; the en and zh-CN catalogs MUST stay
   key-for-key in sync (a unit test enforces parity — §12).

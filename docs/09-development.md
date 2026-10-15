@@ -215,7 +215,10 @@ needs no secrets. Auth is captured once per role (`admin` + demo patron,
 UI logins (setup uses 2) and the prepare script clears `rl:*` keys — re-run it (or
 `redis-cli FLUSHALL`) before repeating the suite locally. **Chromium only in v1**
 (cross-browser is deferred — [10 §5](10-roadmap.md#5-future-enhancements)). The voice
-spec uses `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`.
+spec uses `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`. The scanner
+specs drive the dialog's **manual code input** (deterministic in CI): a patron ISBN lookup and a
+self-service return against a seeded `checked_out` copy; the camera decode loop stays unit-tested
+([11 §9](11-barcode-scanning.md#9-endpoints--validation)).
 
 CI runs on every push/PR via GitHub Actions (`.github/workflows/ci.yml`): `gofmt` + vet +
 golangci-lint + `go test`, web lint + unit + build, and the Playwright E2E job (compose

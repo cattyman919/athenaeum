@@ -217,5 +217,5 @@ Loaded by `internal/config` via `caarlos0/env` into a typed `Config` struct (no 
 - **Emails:** lowercase-normalized (`lower(email)`, unique index — [02](02-data-model.md#users)).
 - **Time zone:** datetimes stored as `TIMESTAMPTZ`; `web` renders in the library building's `America/New_York`.
 - **Graceful shutdown:** `SIGTERM` → 10s drain, `slog` per-route summary.
-- **No loan/fining logic** anywhere (out of scope — [10-roadmap.md](./10-roadmap.md)); `checked_out` copies carry no due dates in v1.
+- **No loan/fining logic** anywhere (out of scope — [10-roadmap.md](./10-roadmap.md)); `checked_out` copies carry no due dates and **no borrower link** in v1. Self-service **return** (`POST /api/copies/{id}/return`, [11](11-barcode-scanning.md)) only flips a scanned copy's status — it records the acting user in `copy_events`, not a loan.
 - **Health:** `GET /api/health` returns `{"status":"ok"}` (public) — defined in [03-api-spec.md](./03-api-spec.md#41-get-apihealth).

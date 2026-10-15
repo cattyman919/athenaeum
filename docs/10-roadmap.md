@@ -29,6 +29,7 @@
 | 13 | EN/zh-CN localization (patron screens + AI replies) | [14](14-localization.md) | ✅ |
 | 14 | Conventional-commit workflow + hooks | [09 §9](09-development.md#9-git-workflow) | ✅ |
 | 15 | Playwright E2E + GitHub Actions CI | [09 §8](09-development.md#8-testing-strategy) | ✅ |
+| 16 | Barcode scanner for patrons + staff: ISBN lookup ("other copies left"), self-service return, staff intake | [11](./11-barcode-scanning.md), [03 §5.4/§6.4](03-api-spec.md#54-post-apibooksscan) | ✅ |
 
 ## 2. Out of Scope — Deferred
 
@@ -39,8 +40,8 @@ state — unresolved questions surface as `> ⚠️ TODO:` in their owning doc.
 | --- | --- | --- |
 | Observability stack (Prometheus, tracing, Grafana) | only `slog` + `tint` v1 | [09 §7](09-development.md#7-logging) |
 | Production deployment topology (TLS, reverse proxy, backups) | demo runs on one machine | [01 §6](01-architecture.md#6-docker-compose-topology) |
-| Self-service checkout, RFID integration | hardware dependency | [10-roadmap.md](./10-roadmap.md) (this file) |
-| Loan/checkout due dates and fines | circulation policies out of demo scope ([01 §8](01-architecture.md#8-cross-cutting-rules)) | — |
+| Self-service **checkout** (borrowing) + RFID integration | return-only ships in v1 (item 16); checkout is a hardware/policy dependency | [11 §11](11-barcode-scanning.md#11-scope-impact) |
+| Loan/checkout borrower tracking, due dates and fines | circulation policies out of demo scope; v1 self-service return flips copy status with no borrower ([01 §8](01-architecture.md#8-cross-cutting-rules)) | — |
 | Multi-building support | single `MAIN` building ([05 §1](05-building-layout.md#1-hierarchy)) | — |
 | Email delivery for waitlist notifications | in-app only ([03 §6.3](03-api-spec.md#63-waitlist)) | — |
 | Password reset flow | accounts recoverable by admin | [04 §8](04-auth.md#8-identity-edge-cases) |
@@ -61,7 +62,7 @@ state — unresolved questions surface as `> ⚠️ TODO:` in their owning doc.
 | --- | --- | --- |
 | 1 | Monorepo + compose up, migrations, argon2id auth + Google SSO, `cmd/seed` on mocks | [01](01-architecture.md), [02](02-data-model.md), [04](04-auth.md), [08](08-seed-data.md) |
 | 2 | Catalog search (3 modes), book detail + wayfinding, personal library + waitlist, ShadCN screens 1–4 | [03](03-api-spec.md), [05](05-building-layout.md), [07](07-frontend.md), [12](12-ui-design.md) |
-| 3 | AI chat (RAG + tools + SSE), barcode scanner admin intake, admin/stacks pages, polish + camera demo | [06](06-ai-rag.md), [11](11-barcode-scanning.md), [07 §admin](07-frontend.md#admin--screen-6a-stitch-3177da52) |
+| 3 | AI chat (RAG + tools + SSE), scanner (staff intake + patron lookup/self-service return), admin/stacks pages, polish + camera demo | [06](06-ai-rag.md), [11](11-barcode-scanning.md), [07 §admin](07-frontend.md#admin--screen-6a-stitch-3177da52) |
 
 ## 4. Cut List
 
@@ -79,8 +80,9 @@ or the seeded fixture counts — those are demo load-bearing.
 
 ## 5. Future Enhancements
 
-- Loan circulation at the copy status level (real `checked_out → due dates` model
-  built on top of the existing state machine — [12](12-ui-design.md#10-copy-state-machine)).
+- Self-service **checkout** and loan circulation at the copy status level (real
+  `checked_out → due dates` + borrower model built on top of the existing state machine and the v1
+  self-service return — [12](12-ui-design.md#10-copy-state-machine)).
 - Auto-request lending from availability + waitlist notifications (still via UI events).
 - Institutional SSO aggregator beyond Google (WeChat, Shibboleth Waved onto SP setup).
 - Full-text relevance weights per-field and reranking (BM25 vs vector weights).

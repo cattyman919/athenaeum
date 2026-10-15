@@ -21,13 +21,13 @@
 | `users` | Accounts (email/password + Google SSO), roles | [auth](./04-auth.md), admin users API | all authenticated APIs |
 | `refresh_tokens` | Rotating sessions | auth refresh/logout | auth middleware |
 | `books` | Bibliographic records | seed, admin, `fetch-isbn` | search, detail, chat RAG |
-| `book_copies` | Physical copies w/ status + shelf | seed, admin, scanner intake | detail, admin, wayfinding |
+| `book_copies` | Physical copies w/ status + shelf | seed, admin, staff intake, patron self-return | detail, admin, wayfinding |
 | `buildings` `floors` `sections` `aisles` `shelves` | Physical hierarchy | seed, admin layout | detail, admin tree |
 | `user_library` | Personal reading list | personal library API | `/library` page |
 | `waitlist` | Holds queue per book | waitlist API | detail, `/library` holds |
 | `book_embeddings` | 768-dim description chunks | `cmd/reindex` | semantic + hybrid search, chat RAG |
 | `conversations` `messages` | AI chat sessions | chat service | `/chat` page ([06](./06-ai-rag.md#7-conversation-persistence)) |
-| `copy_events` | Admin audit-stream rows | copy mutations | admin audit stream |
+| `copy_events` | Admin audit-stream rows | copy + return mutations | admin audit stream |
 | `book_locations` | **VIEW** — denormalized copy→building path | — | detail, wayfinding, export |
 
 Entities erased by codegen (IDs, FKs) are per-table below. Nested Hierarchy:
@@ -404,7 +404,7 @@ CREATE TABLE copy_events (
   copy_id     UUID NOT NULL REFERENCES book_copies(id) ON DELETE CASCADE,
   from_status TEXT,                       -- NULL on initial insert
   to_status   TEXT NOT NULL,
-  source      TEXT NOT NULL,              -- 'admin_patch' | 'scanner' | 'waitlist' | 'seed'
+  source      TEXT NOT NULL,              -- 'admin_patch' | 'scanner' | 'waitlist' | 'seed' | 'self_return'
   actor_id    UUID REFERENCES users(id),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );

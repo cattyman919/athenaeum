@@ -62,7 +62,9 @@ else IP (hashed). Middleware: [01-architecture.md](01-architecture.md#3-request-
 | `POST /api/chat` | 50 | 24 h | user_id | 429 (surfaced in UI quota meter — [07](./07-frontend.md#7-page-breakdowns)) |
 | `POST /api/chat/transcribe` | 10 | 1 min | user_id | 429 (dedicated bucket; CPU-expensive — [15 §6](./15-voice-input.md#6-limits-rate--errors)) |
 | `POST /api/chat/transcribe?partial=true` | 60 | 1 min | user_id | 429 (live partials; own bucket, never drains the 10/min one; plus **1 in flight per user** → 429 `RATE_LIMITED` with `Retry-After: 1` — [15 §6](./15-voice-input.md#6-limits-rate--errors)) |
-| `POST /api/books/fetch-isbn` | 10 | 1 min | user_id | 429 |
+| `POST /api/books/fetch-isbn` | 10 | 1 min | user_id | 429 (admin intake) |
+| `POST /api/books/scan` | 30 | 1 min | user_id | 429 (`RATE_LIMITED`; patron ISBN / copy-tag lookup — [11 §9](./11-barcode-scanning.md#9-endpoints--validation)) |
+| `POST /api/copies/{id}/return` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; patron self-service return — [11 §9](./11-barcode-scanning.md#9-endpoints--validation)) |
 
 Specific limits shadow the general one (most restrictive wins per endpoint).
 
@@ -82,7 +84,7 @@ Auth column: 🔓 public · 🔒 `user` · 👑 `admin`.
 | 8 | GET | `/api/auth/me` | 🔒 | current user | [§4.6](#46-get-apiauthme) |
 | 9 | GET | `/api/books/search` | 🔒 | tri-modal search | [§5.1](#51-get-apibookssearch) |
 | 10 | GET | `/api/books/{id}` | 🔒 | detail + copies + wayfinding | [§5.2](#52-get-apibooksid) |
-| 11 | POST | `/api/books/fetch-isbn` | 🔒 | barcode intake metadata | [§5.3](#53-post-apibooksfetch-isbn) |
+| 11 | POST | `/api/books/fetch-isbn` | 👑 | admin ISBN intake metadata | [§5.3](#53-post-apibooksfetch-isbn) |
 | 12 | POST | `/api/books/{id}/waitlist` | 🔒 | join waitlist | [§6.3](#63-waitlist) |
 | 13 | DELETE | `/api/books/{id}/waitlist` | 🔒 | leave waitlist | [§6.3](#63-waitlist) |
 | 14 | GET | `/api/waitlist` | 🔒 | my active holds | [§6.3](#63-waitlist) |
@@ -109,6 +111,8 @@ Auth column: 🔓 public · 🔒 `user` · 👑 `admin`.
 | 35 | GET | `/api/admin/copy-events` | 👑 | audit stream (poll) | [§8.1](#81-admin-kpis--audit) |
 | 36 | GET | `/api/admin/users` | 👑 | user list | [§8.5](#85-admin-users) |
 | 37 | PATCH | `/api/admin/users/{id}` | 👑 | change role | [§8.5](#85-admin-users) |
+| 38 | POST | `/api/books/scan` | 🔒 | resolve scanned ISBN / copy tag | [§5.4](#54-post-apibooksscan) |
+| 39 | POST | `/api/copies/{id}/return` | 🔒 | self-service return | [§6.4](#64-post-apicopiesidreturn) |
 
 404 for unknown `id` values on every `/api/.../{id}` route.
 
@@ -308,6 +312,48 @@ rate limit 10/1min per user.
   when the network fetch fails after 2 retries the endpoint **still returns the
   barcode-validated partial record**: `title:""`,`source:"offline_partial"`,
   `covers:[]`, `warnings:["upstream_unavailable"]` (never blocks intake).
+- **Admin-only (👑)**: this is the *intake* path (it may create a book). Patron barcode
+  scanning uses the local resolver [§5.4](#54-post-apibooksscan) instead and never hits Open Library.
+
+### 5.4 POST /api/books/scan
+
+Patron barcode/ISBN lookup ([11-barcode-scanning.md](./11-barcode-scanning.md#9-endpoints--validation),
+🔒 any signed-in user); rate limit 30/1min per user. Resolves a scanned code **locally** — no
+upstream call: an ISBN-13 looks up `books` (by `isbn13`), a copy tag looks up `book_copies`.
+
+```json
+// request
+{ "code": "9780441013593" }          // ISBN-13/EAN-13 or an Athenaeum copy tag ATH-002941-C01
+// response 200
+{
+  "code": "9780441013593",
+  "code_type": "isbn13",             // "isbn13" | "copy_barcode"
+  "in_catalog": true,
+  "match": "book",                   // "book" | "copy" | "none"
+  "book": {
+    "id": "8c14…", "title": "Dune", "authors": ["Frank Herbert"],
+    "isbn13": "9780441013593", "cover_url": "…",
+    "section": { "code": "SF", "name": "Science Fiction & Speculative", "color": "#3B82F6" }
+  },
+  "copy": null,                      // populated only for a copy-tag match
+  "availability": { "total_copies": 3, "available_copies": 2, "state": "available" },
+  "wayfinding": { "path": "MAIN/3F/SF/A-1/S-2", "parts": { … }, "ladder_steps": [ … ] },
+  "returnable": false                // true only for a copy-tag match whose status is "checked_out"
+}
+```
+
+- `match:"copy"` (copy tag): `copy` = `{id,barcode,status,condition,location:{path,parts,ladder_steps}}`;
+  `book` is the copy's book; `wayfinding` is that copy's location; `returnable` =
+  `copy.status == "checked_out"` → the client may call [§6.4](#64-post-apicopiesidreturn).
+- `match:"book"` (ISBN): `copy:null`, `returnable:false`; `wayfinding`/`availability` follow the
+  home-shelf + availability rules of [§5.2](#52-get-apibooksid), so the client reads *other copies
+  left* and offers the waitlist CTA when `available_copies == 0`.
+- `in_catalog:false`, `match:"none"`, `book:null` when the code validates but no local row matches
+  (patron cannot create a book; staff use [§5.3](#53-post-apibooksfetch-isbn)).
+- Normalization: strip spaces/hyphens; `ATH-…` uppercased and matched against
+  `^ATH-[0-9]{6}-C[0-9]{2}$`; an EAN-13 payload is re-validated with `checkdigit` → 400
+  `INVALID_ISBN` on failure. The full `copies[]`/`neighbors` are **not** returned — the client
+  deep-links to [§5.2](#52-get-apibooksid) for detail.
 
 ## 6. Personal Library & Waitlist
 
@@ -361,9 +407,38 @@ for the KPI cards regardless of the active filter.
 - Expiry sweep (every 5 min in the API process): `ready` rows past `expires_at` (ready_at + 48 h)
   become `expired`; the freed hold goes to the oldest `waiting` patron (→ `ready`, new 48 h window), or,
   with nobody waiting, one `reserved_waitlist` copy returns to `available` (`copy_events.source='waitlist'`).
-  Cancelling a `ready` hold does the same. Marking copies `reserved_waitlist` on turnover arrives with the
-  admin copy PATCH.
+  Cancelling a `ready` hold does the same. Marking copies `reserved_waitlist` on turnover happens
+  via the admin copy PATCH **or** a patron self-service return ([§6.4](#64-post-apicopiesidreturn)).
 - `notify_when_available` UX is in-app only — no email delivery ([10-roadmap.md](./10-roadmap.md)).
+
+### 6.4 POST /api/copies/{id}/return
+
+Patron **self-service return** (🔒 any signed-in user — [11](./11-barcode-scanning.md#2-scan-flows));
+rate limit 10/1min per user. This is return-only: no borrower link and no due dates exist
+([01 §8](./01-architecture.md#8-cross-cutting-rules)), so any patron scanning a `checked_out`
+copy's tag may return it (trust-based desk return). Body is empty.
+
+```json
+// response 200
+{
+  "copy": { "id": "b1e3…", "barcode": "ATH-002941-C01", "status": "available", "condition": "good",
+            "last_state_change": "2026-10-15T09:12:00Z",
+            "location": { "path": "MAIN/3F/SF/A-1/S-2", "parts": { … }, "ladder_steps": [ … ] } },
+  "availability": { "total_copies": 3, "available_copies": 3, "state": "available" },
+  "hold": null
+}
+```
+
+- Effect: `book_copies.status` `checked_out → available` (re-shelved at its existing `shelf_id`),
+  `last_state_change = now()`, and a `copy_events` row is appended
+  (`from_status:"checked_out"`, `to_status:"available"`, `source:"self_return"`,
+  `actor_id` = caller — [02 §copy_events](02-data-model.md#copy_events)).
+- **Waitlist turnover:** when the book has `waiting` holds, the returned copy becomes
+  `reserved_waitlist` and the oldest `waiting` hold goes `ready` (`ready_at = now()`,
+  `expires_at = +48h`) — the same turnover the [§6.3](#63-waitlist) sweep performs. The `hold`
+  field then names the promoted hold (`{"id","status":"ready","expires_at"}`), else `null`.
+- Errors: unknown copy → 404 `NOT_FOUND`; `status != "checked_out"` → 409 `CONFLICT`
+  (`{"error":"CONFLICT","message":"Copy is not checked out","current_status":"available"}`).
 
 ## 7. Chat (SSE)
 
@@ -526,13 +601,13 @@ demote yourself (`409 FORBIDDEN`? — client-guarded, server 400 `VALIDATION_FAI
 | Code | HTTP | Meaning | Raised by |
 | --- | --- | --- | --- |
 | `VALIDATION_FAILED` | 400 | generic body/param validation | all request binders |
-| `INVALID_ISBN` | 400 | EAN-13 checksum failure | `fetch-isbn`, [11](./11-barcode-scanning.md) |
+| `INVALID_ISBN` | 400 | EAN-13 checksum failure | `fetch-isbn`, `books/scan`, [11](./11-barcode-scanning.md) |
 | `UNAUTHENTICATED` | 401 | no/invalid access token | auth middleware |
 | `REUSED_TOKEN` | 401 | refresh token replay — session killed | `/api/auth/refresh` |
 | `INVALID_CREDENTIALS` | 401 | login mismatch (exact same text) | login |
 | `FORBIDDEN` | 403 | non-admin on admin route / foreign resource | middleware, ownership checks |
 | `NOT_FOUND` | 404 | unknown id/path resolution | all `…/{id}` routes |
-| `CONFLICT` | 409 | generic uniqueness | admin create/update |
+| `CONFLICT` | 409 | generic uniqueness / invalid state transition | admin create/update, self-service return |
 | `EMAIL_TAKEN` | 409 | register duplicate | register |
 | `ISBN_CONFLICT` | 409 | fetch-isbn existing | `fetch-isbn` |
 | `BOOK_NOT_AVAILABLE` | 409 | availability rules above | detail/library actions |
@@ -551,6 +626,6 @@ demote yourself (`409 FORBIDDEN`? — client-guarded, server 400 `VALIDATION_FAI
 | Building path/ladder fields | [05-building-layout.md](./05-building-layout.md) |
 | RAG retrieval params (Top-K, chunking) | [06-ai-rag.md](./06-ai-rag.md) |
 | Page-by-page usage | [07-frontend.md](./07-frontend.md) |
-| Barcode intake pages / dialog | [11-barcode-scanning.md](./11-barcode-scanning.md) |
+| Barcode scanner (patron lookup + self-service return + staff intake) | [11-barcode-scanning.md](./11-barcode-scanning.md) |
 | Component expectations per payload | [12-ui-design.md](./12-ui-design.md) |
 | Seeded fixture values | [13-mock-data-reference.md](./13-mock-data-reference.md) |

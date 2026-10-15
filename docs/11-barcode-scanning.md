@@ -1,59 +1,107 @@
-# Barcode Scanning (Book Intake)
+# Barcode Scanning (Universal Patron & Staff Scanner)
 
-> Frontend-only camera barcode scanning (EAN-13/ISBN) feeding `POST /api/books/fetch-isbn`, with server-side checkdigit verification — lives in the admin "Add Book" dialog; endpoint in [03-api-spec.md](./03-api-spec.md#53-post-apibooksfetch-isbn), page wiring in [07-frontend.md](./07-frontend.md#admin--screen-6a-stitch-3177da52).
+> Camera barcode/ISBN scanning for both audiences in one dialog: **Patron Lookup** (scan an ISBN → the record + other available copies; scan a copy tag → **self-service return**) and **Staff Intake** (scan an ISBN → add a book). Two patron endpoints plus the existing admin intake — endpoints in [03-api-spec.md](./03-api-spec.md#54-post-apibooksscan), page wiring in [07-frontend.md](./07-frontend.md#scanner-dialog--patron-lookup--staff-intake), component in [12-ui-design.md](./12-ui-design.md#9-component-hierarchy).
 
 ## Contents
 
 1. [Overview](#1-overview)
-2. [Scan Flow](#2-scan-flow)
+2. [Scan Flows](#2-scan-flows)
 3. [Library Choice](#3-library-choice)
 4. [Comparison](#4-comparison)
 5. [Next.js Integration](#5-nextjs-integration)
 6. [Component Structure](#6-component-structure)
 7. [UI/UX Specification](#7-uiux-specification)
 8. [Error Handling](#8-error-handling)
-9. [Backend Validation](#9-backend-validation)
+9. [Endpoints & Validation](#9-endpoints--validation)
 10. [Mobile Considerations](#10-mobile-considerations)
 11. [Scope Impact](#11-scope-impact)
 
 ## 1. Overview
 
-- Purpose: catalogers add physical books by scanning the volume's ISBN barcode
-  (EAN-13) instead of typing.
-- **Frontend-only feature**: the scanner produces an ISBN-13 string and hands it to
-  `POST /api/books/fetch-isbn` ([03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn));
-  the backend has no camera logic, only validation.
-- Location: `web/components/isbn-scanner/`, rendered as a **tab inside the admin
-  "Add Book" dialog** on `/admin` ([07](07-frontend.md#admin--screen-6a-stitch-3177da52),
-  screen 6 Stitch ID `3177da52…`). Demo note: modern smartphone with PDAF autofocus (e.g.
-  Redmi Note 15) is recommended over laptop webcams for reliability ([§10](#10-mobile-considerations)).
+One **Universal Barcode & ISBN Scanner** dialog serves both audiences (Stitch artifact:
+`.artifacts/stitch/barscanner_ISBN/code.html`, a modal with a Patron/Staff mode switcher):
 
-## 2. Scan Flow
+- **Patron Lookup** (default; every signed-in user):
+  - scan an **ISBN-13/EAN-13** → the matching catalog record, its home shelf, and **how many
+    other copies are left**; CTA "View Full Record & Map", or the waitlist CTA when zero copies
+    are available.
+  - scan an **Athenaeum copy tag** (`ATH-XXXXXX-CYY`) → that specific copy, with a
+    **Return this copy** action when it is `checked_out` (self-service return — [12 §10](12-ui-design.md#10-copy-state-machine)).
+- **Staff Intake** (👑 admin only): scan an ISBN → prefill the Add-Book form (existing
+  behaviour), with the local copy-tag that intake will assign.
+
+Accepted codes and their symbols:
+
+| Code | Symbology | Resolves to |
+| --- | --- | --- |
+| ISBN-13 / EAN-13 (`978…`, `979…`) | EAN-13 | `books` row (via `isbn13`) |
+| Athenaeum copy tag `ATH-002941-C01` | Code 128 | `book_copies` row (+ its `book_locations` path) |
+
+- **Frontend-first, but no longer frontend-only**: the camera, decode loop and dialog are
+  browser-only; ISBN lookup and self-service return are new patron endpoints
+  ([03 §5.4](03-api-spec.md#54-post-apibooksscan) / [§6.4](03-api-spec.md#64-post-apicopiesidreturn)).
+- **ISBN-10 is not supported** (out of v1): a scanned ISBN-10 fails the EAN-13 pre-check and
+  surfaces as an unusable-barcode hint. Everything canonical is ISBN-13 ([02](02-data-model.md#books)).
+- Demo note: a modern smartphone with PDAF autofocus (e.g. Redmi Note 15) is recommended over
+  laptop webcams for reliability ([§10](#10-mobile-considerations)).
+
+> ℹ️ The artifact's **Staff Intake** panel also sketches *RFID encode*, *thermal label print* and
+> *Edit MARC*. Those stay out of v1 — see [§11](#11-scope-impact).
+
+## 2. Scan Flows
+
+### 2a. Patron lookup (ISBN → record + other copies)
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant C as Camera getUserMedia
-    participant S as ISBNScanner client comp
+    participant S as Scanner client comp
     participant D as BarcodeDetector polyfill
-    participant A as api POST /api/books/fetch-isbn
-    participant OL as Open Library
+    participant A as api POST /api/books/scan
+    participant PG as Postgres (books + copies)
 
     S->>C: request stream: facingMode environment
     C-->>S: MediaStream video track
     S->>D: detect(videoFrame) every 200 ms
     D-->>S: result rawValue "9780441013593" format ean_13
     S->>S: local EAN-13 checkdigit pre-check
-    S->>A: POST isbn (10 per min per user)
-    A->>OL: metadata lookup (3 s timeout)
-    OL-->>A: normalized record (fallback: docs/08 §6)
-    A-->>S: 200 book fields source openlibrary
+    S->>A: POST code (30 per min per user)
+    A->>PG: books by isbn13 + copy availability
+    A-->>S: 200 match=book, availability, wayfinding
     S->>S: haptics vibrate(50) + confirmation beep
-    S-->>Dialog: prefill Add Book form; cataloger confirms
+    S-->>Dialog: show record; "View Full Record & Map" / waitlist CTA when 0 available
 ```
 
-Offline/no-camera is a legitimate state — the manual ISBN input in the same
-dialog remains the fallback path ([§8](#8-error-handling)).
+### 2b. Patron self-service return (copy tag → return)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Scanner client comp
+    participant A as api POST /api/books/scan
+    participant R as api POST /api/copies/{id}/return
+    participant PG as Postgres (copies + waitlist + copy_events)
+
+    S->>A: POST code "ATH-002941-C01"
+    A-->>S: 200 match=copy, copy.status=checked_out, returnable=true
+    S-->>Dialog: show copy + "Return this copy"
+    S->>R: POST return (10 per min per user)
+    R->>PG: status checked_out -> available (or reserved_waitlist on hold turnover)
+    R->>PG: append copy_events (source=self_return, actor=patron)
+    R-->>S: 200 copy.status + availability (+ promoted hold)
+    S-->>Dialog: success toast; "Scan Next"
+```
+
+### 2c. Staff intake (ISBN → add book)
+
+Existing flow: scan → `POST /api/books/fetch-isbn` (👑 admin) → prefill Add-Book form →
+`POST /api/admin/books` (+ `/api/admin/copies`). Unchanged from the v1 intake contract
+([03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn)); the dialog now also surfaces the
+auto-generated copy tag the server will assign.
+
+Camera denied / no device / no camera is a legitimate state — the manual code input in the
+same dialog remains the fallback path for every mode ([§8](#8-error-handling)).
 
 ## 3. Library Choice
 
@@ -65,17 +113,20 @@ run the WASM polyfill — one code path, `BarcodeDetector` interface either way.
 | Criterion | Why it matters here |
 | --- | --- |
 | Standard-shaped API | `new BarcodeDetector({ formats })` — no bespoke glue, future-proof |
-| ZXing-C++ WASM backend | strong multi-format decode quality incl. EAN-13 |
+| ZXing-C++ WASM backend | strong multi-format decode quality incl. EAN-13 and Code 128 |
 | Wheels: ships WASM binary | no service worker hacks |
 | Maintained by zxing org contributors | actively updated |
 | SSR constraints | requires dynamic import — handled explicitly ([§5](#5-nextjs-integration)) |
 
-Restricted formats: `formats: ['ean_13']` scanning profile (ISBN barcodes are
-EAN-13). The `isbn` format label is display-only in the UX copy.
+Scanning profile: `formats: ['ean_13', 'code_128']` — EAN-13 for ISBN barcodes, Code 128 for
+the Athenaeum copy tag (`ATH-XXXXXX-CYY`, [12 §10](12-ui-design.md#10-copy-state-machine)).
+Both payloads are validated again server-side: EAN-13 with the `checkdigit` verifier, the copy
+tag against `^ATH-[0-9]{6}-C[0-9]{2}$` ([§9](#9-endpoints--validation)). The `isbn` format label
+is display-only in the UX copy.
 
 ## 4. Comparison
 
-| Library | API | WASM dependency | EAN-13 | Maintenance | SSR | Notes |
+| Library | API | WASM dependency | EAN-13 / Code 128 | Maintenance | SSR | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | `barcode-detector` | Web-standard `BarcodeDetector` | optional (native) / included | ✅ best | active (zxing org) | needs `ssr:false` | chosen |
 | `zxing-wasm` (raw) | JS classes | included | ✅ | active | fine | more glue for camera loop |
@@ -85,15 +136,16 @@ EAN-13). The `isbn` format label is display-only in the UX copy.
 ## 5. Next.js Integration
 
 The scanner runs in the browser only (getUserMedia + WASM), so it is loaded as a
-**Client Component with `ssr: false`**:
+**Client Component with `ssr: false`** and mounted in the app shell so the nav Scan
+button and the admin toolbar share one instance:
 
 ```tsx
-// web/app/admin/page.tsx (Admin screen 6a)
+// web/components/barcode-scanner/index.tsx
 "use client";
 import dynamic from "next/dynamic";
 
-const ISBNScanner = dynamic(
-  () => import("@/components/isbn-scanner").then((m) => m.ISBNScanner),
+export const BarcodeScannerDialog = dynamic(
+  () => import("./scanner-dialog").then((m) => m.BarcodeScannerDialog),
   { ssr: false, loading: () => <Skeleton className="h-64 w-full" /> }
 );
 ```
@@ -101,8 +153,8 @@ const ISBNScanner = dynamic(
 Camera loop essentials:
 
 ```ts
-// web/components/isbn-scanner/use-scanner.ts
-const detector = new BarcodeDetector({ formats: ["ean_13"] });
+// web/hooks/use-barcode-scanner.ts
+const detector = new BarcodeDetector({ formats: ["ean_13", "code_128"] });
 const stream = await navigator.mediaDevices.getUserMedia({
   video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 } },
   audio: false,
@@ -132,65 +184,94 @@ const loop = async () => {
 
 ```mermaid
 graph TD
-    ADD["AddBookDialog<br/>Tabs: Manual / ISBN / Scan"] --> SC["ISBNScanner<br/>use-scanner.ts + video surface"]
-    SC --> CO["useScannerCamera hook"]
-    SC --> D["BarcodeDetector polyfill"]
-    ADD --> FF["Copy-Form step<br/>barcode auto + shelf select"]
-    FF --> API["POST /api/admin/copies<br/>POST /api/admin/books"]
+    NAV["AppShell top nav — Scan button"] --> DLG["BarcodeScannerDialog<br/>Tabs: Patron Lookup / Staff Intake"]
+    ADMIN["/admin toolbar + /library 'Scan to return'"] --> DLG
+    DLG --> PL["PatronLookupPanel"]
+    DLG --> SI["StaffIntakePanel (admin only)"]
+    PL --> CAM["CameraViewfinder + useBarcodeScanner hook"]
+    SI --> CAM
+    SI --> FF["Add-Book form step<br/>Manual / ISBN / Scan"]
+    PL --> API1["POST /api/books/scan"]
+    PL --> API2["POST /api/copies/{id}/return"]
+    SI --> API3["POST /api/books/fetch-isbn (admin)"]
+    FF --> API4["POST /api/admin/books<br/>POST /api/admin/copies"]
 ```
 
 | Prop | Type | Purpose |
 | --- | --- | --- |
-| `onDetected` | `(isbn: string) => void` | parent prefill/call of fetch-isbn |
-| `formats` | `['ean_13']` | restricted profile |
+| `open` / `onOpenChange` | bool / handler | Radix `Dialog` control (focus-trapped) |
+| `mode` | `'patron' \| 'staff'` | initial tab; staff tab hidden for non-admins |
+| `onDetected` | `(code: string, format: string) => void` | dispatch to the active panel resolver |
+| `formats` | `['ean_13','code_128']` | restricted scanning profile |
 | `region` | bbox overlay config | scan target rectangle |
-| `active` | bool | pause/resume when tab unmounts |
+| `active` | bool | pause/resume camera when the tab/dialog unmounts |
 
 ## 7. UI/UX Specification
 
+Artifact: `.artifacts/stitch/barscanner_ISBN/code.html` (bento 7/5 split — viewfinder left,
+telemetry + result right). Stitch is the visual source of truth for layout; this table fixes
+behaviour.
+
 | Element | Behavior |
 | --- | --- |
-| Dialog tab | third tab in Add-Book dialog — icon `ScanLine`, label "Scan ISBN" |
-| Video surface | full-width, `aspect-video`, rounded card, mirrored when front camera |
-| Scan region | corner-bracket overlay + dimmed background; EAN codes sit flat, so use a wide 3:2 region, not a 2:3 book-jacket shape |
-| Preflight | "No camera access?" instruction line + Manual fallback link ([§9](#9-backend-validation)) |
+| Mode switcher | segmented `Patron Lookup` / `Staff Intake`; Staff carries a `STAFF` badge and is hidden for non-admins |
+| Video surface | full-width, `aspect-[4/3]` → `16/10`, rounded card, mirrored when front camera |
+| Scan region | corner-bracket overlay + dimmed background; wide 3:2 region (EAN codes sit flat; the ATH tag is a short 1D symbol) |
+| Viewfinder HUD | camera-active telemetry + decoder status (decorative; `aria-hidden`) |
 | Torch toggle | `track.applyConstraints({ advanced: [{ torch: true }] })` on supported tracks |
 | Camera flip | cycles `facingMode` between `environment`/`user` |
 | Feedback | `navigator.vibrate(50)` (haptics), WebAudio 880 Hz 40 ms beep, green focus ring |
-| Cooldown | 1.5 s lockout after a detection to prevent duplicate prefills |
+| Cooldown | 1.5 s lockout after a detection to prevent duplicate lookups |
+| Manual fallback | text input accepting an ISBN-13 or `ATH-…` tag, with a client check-digit hint ([§8](#8-error-handling)) |
+| Result — book | cover (2:3), title/author, ISBN, call numbers; availability chip (`N Copies on Shelf`); shelf coordinates block |
+| Result — copy | copy `barcode`, status, condition, shelf coordinates; **Return this copy** button only when `returnable` |
+| Patron actions | `View Full Record & Map` → `/books/{id}`; `Scan Next` (clears result, keeps camera) |
+| Staff module | next inventory copy tag (`ATH-…-CY`), commit intake → Add-Book form |
 
 ## 8. Error Handling
 
 | Scenario | Trigger | UX behavior |
 | --- | --- | --- |
 | Permission denied | `NotAllowedError` | explainer card + "Open camera settings" / manual input |
-| No device | `NotFoundError` | "Connect a camera" + manual tab auto-select |
+| No device | `NotFoundError` | "Connect a camera" + manual input auto-focus |
 | Insecure origin | getUserMedia absent | banner: "Camera requires HTTPS" + manual input |
-| WASM load failure | network/CDN issue | manual tab + retry button |
+| WASM load failure | network/CDN issue | manual input + retry button |
 | Invalid checksum | local pre-check fails | red shake on the region: "Barcode unusable — scan a different surface" |
-| `400 INVALID_ISBN` from API | server re-validation ([§9](#9-backend-validation)) | toast + manual-tutorial link |
-| `409 ISBN_CONFLICT` from API | book exists | toast + "Open in catalog" deep link ([03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn)) |
-| `429 RATE_LIMITED` (>10/min) | intake throttle | toast with reset seconds |
-| UPC (12-digit) scanned | wrong barcode format | hint: that is the store barcode — scan the ISBN/EAN-13 may need barcode labels in publisher libraries |
+| ISBN-10 scanned | non-EAN-13 ISBN | hint: ISBN-10 is unsupported — scan the ISBN-13/EAN-13 barcode |
+| UPC (12-digit) scanned | wrong barcode format | hint: that is the store barcode — scan the ISBN/EAN-13 (publisher libraries may need barcode labels) |
+| `400 INVALID_ISBN` from API | server re-validation ([§9](#9-endpoints--validation)) | toast + manual-input hint |
+| `200 in_catalog:false` | ISBN validates but no local row | "Not in this building's catalog" card; staff → "Add this book" (Staff Intake) |
+| `409 CONFLICT` on return | copy is not `checked_out` | toast showing `current_status`; result refreshes to the copy's real state |
+| `404 NOT_FOUND` on return | copy removed between scan and return | toast + "Scan Next" |
+| `429 RATE_LIMITED` | scan/return throttle | toast with reset seconds |
+| `409 ISBN_CONFLICT` (staff) | ISBN already in catalog | toast + "Open in catalog" deep link ([03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn)) |
 
-## 9. Backend Validation
+## 9. Endpoints & Validation
 
-Intake endpoint re-validates with `github.com/osamingo/checkdigit` (EAN-13
-verifier) — mirrors the client-side pre-check:
+| Endpoint | Auth | Purpose |
+| --- | --- | --- |
+| `POST /api/books/scan` | 🔒 user | resolve a scanned ISBN / copy tag locally (no upstream) — [03 §5.4](03-api-spec.md#54-post-apibooksscan) |
+| `POST /api/copies/{id}/return` | 🔒 user | self-service return (checked_out → available / reserved_waitlist) — [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn) |
+| `POST /api/books/fetch-isbn` | 👑 admin | metadata intake for a **new** book — [03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn) |
+| `POST /api/admin/books` · `/api/admin/copies` | 👑 admin | staff create book / copy (auto copy tag) — [03 §8](03-api-spec.md#8-admin) |
+
+Checksum validation is shared: EAN-13 via `github.com/osamingo/checkdigit` and the copy tag by
+regex, both mirrored client-side as best effort:
 
 ```go
 import ean "github.com/osamingo/checkdigit/ean"
 
-var v = ean.EAN13{} // or generic EAN verifier used per checksum table
-if ok, _ := v.Verify([]byte(strings.TrimSpace(req.ISBN))); !ok {
+var v = ean.EAN13{}
+if ok, _ := v.Verify([]byte(strings.TrimSpace(code))); !ok {
     return model.AppError{Code: model.ErrInvalidISBN}   // -> 400 INVALID_ISBN
 }
 ```
 
-- Runs in `internal/service/catalog.ValidateISBN` — used by `fetch-isbn`, admin
-  book creation, **and** `cmd/seed` fixture validation ([08 §4](08-seed-data.md#4-seed-algorithm)).
-- Mock books all carry checksum-valid ISBNs ([13](13-mock-data-reference.md#2-book-catalog-all-40)
-  shows catalog ISBN demo values precomputed checksum-valid).
+- Runs in `internal/service/catalog` — used by `scan`, `fetch-isbn`, admin book creation,
+  **and** `cmd/seed` fixture validation ([08 §4](08-seed-data.md#4-seed-algorithm)).
+- Mock books all carry checksum-valid ISBNs ([13](13-mock-data-reference.md#2-book-catalog-all-40)).
+- The copy tag is matched (case-insensitively, uppercased) against
+  `^ATH-[0-9]{6}-C[0-9]{2}$`; a valid-shaped but unknown tag → `200 in_catalog:false`.
 
 ## 10. Mobile Considerations
 
@@ -204,10 +285,16 @@ if ok, _ := v.Verify([]byte(strings.TrimSpace(req.ISBN))); !ok {
 
 ## 11. Scope Impact
 
-- **No new backend surface** beyond the existing `POST /api/books/fetch-isbn` +
-  admin copy endpoints ([03 §8.3](03-api-spec.md#83-admin-copies)) — everything
-  else the feature needs already exists.
-- Frontend-first, contained in one dialog + one hook + one component folder; the
-  camera scanner is also reusable from the `/admin/layout` quick-assign input as
-  a secondary trigger ([07 §admin/layout](07-frontend.md#adminlayout--screen-6b-stitch-3177da52)).
+- **New backend surface (v1 scope expansion):** `POST /api/books/scan` and
+  `POST /api/copies/{id}/return` ([10 §1](10-roadmap.md#1-in-scope-v1--checklist) item 16),
+  plus a patron-facing read of `book_locations`. `fetch-isbn` stays the admin intake path.
+- **Self-service return is return-only:** no borrower link and no due dates ([01 §8](01-architecture.md#8-cross-cutting-rules));
+  any patron may return a `checked_out` copy (trust-based desk return). Self-service **checkout**,
+  loans, and fines remain deferred ([10 §2](10-roadmap.md#2-out-of-scope--deferred)).
+- Frontend: one dialog folder (`web/components/barcode-scanner/`), one hook
+  (`use-barcode-scanner.ts`), one nav entry — reused by `/catalog`, `/library`, and `/admin`.
 - Pattern parity: the dialog works on tablet and 375 px mobile layouts unchanged.
+
+> ⚠️ TODO: RFID encoding, thermal label printing and Edit-MARC (sketched in the scanner artifact)
+> stay unimplemented — hardware/scope deferrals ([10 §2](10-roadmap.md#2-out-of-scope--deferred));
+> the Staff Intake panel renders only ISBN intake + copy-tag assignment.

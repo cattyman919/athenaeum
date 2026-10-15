@@ -44,7 +44,7 @@ web/
 │   ├── building-tree-browser.tsx
 │   ├── real-time-audit-stream.tsx
 │   ├── command-palette.tsx       # ⌘K
-│   └── isbn-scanner/             # dialog + scanner tab (11)
+│   └── barcode-scanner/          # universal dialog: Patron Lookup + Staff Intake (11)
 ├── i18n/request.ts               # locale resolution (14 §4)
 ├── messages/{en,zh-CN}.json      # catalogs (14 §5)
 ├── lib/{api-server.ts, api-client.ts, auth.ts, sse.ts}
@@ -71,8 +71,10 @@ flowchart LR
     NAV["top nav (shell)"] --> CATALOG
     NAV --> LIB
     NAV --> CHAT
+    NAV -->|"Scan button (all users)"| SCAN["Barcode Scanner dialog<br/>Patron Lookup · Staff Intake"]
     NAV -->|"role=admin only"| ADMIN["/admin<br/>screen 6a"]
     ADMIN --> ADMINL["/admin/layout<br/>screen 6b"]
+    ADMIN -->|"Staff Intake"| SCAN
 ```
 
 Route guard (`web/middleware.ts`): missing `athenaeum_at` + `athenaeum_rt` cookies →
@@ -180,6 +182,8 @@ Tri-modal search switcher (Keyword/Semantic/Hybrid — `mode` param), faceted
 sidebar (sections [02 §5](02-data-model.md#5-indexes), availability toggle, era
 buckets), `BookCard` 2:3 grid with availability beacons, `⌘K`
 `command-palette.tsx` calling the same search endpoint. URL params drive state.
+The shell **Scan** button opens ISBN lookup from here (and everywhere else — see
+[Scanner dialog](#scanner-dialog--patron-lookup--staff-intake)).
 
 ### /books/[id] — screen 3 (Stitch `723960ca…`)
 
@@ -195,7 +199,8 @@ metadata; tri-state availability banner; `BookLocationCard` ladder (localized fr
 reading-stage tabs (All/Reading/Read/Want to Read/Favorites/Holds & Waitlists —
 `GET /api/library?status=…`), `LibraryRowItem` rows (shelf coordinates, progress,
 rating), hold rows from `GET /api/waitlist`, AI cross-reference banner →
-`/chat?prefill=my-library`.
+`/chat?prefill=my-library`. A **Scan to return** action opens the shared
+[Barcode Scanner dialog](#scanner-dialog--patron-lookup--staff-intake) in Patron Lookup mode.
 
 ### /chat — screen 5 (Stitch `70530f16…`)
 
@@ -217,8 +222,9 @@ label if the device id rotates) with a live input-level meter while recording
 ### /admin — screen 6a (Stitch `3177da52…`)
 
 Executive KPI grid (`GET /api/admin/data`), recent `copy_events` via
-`RealTimeAuditStream` (3 s poll), quick nav to layout manager and Add Book dialog
-(scanner tab — [11](./11-barcode-scanning.md#5-nextjs-integration)).
+`RealTimeAuditStream` (3 s poll), quick nav to layout manager and the shared
+Barcode Scanner dialog opened on its **Staff Intake** tab
+([Scanner dialog](#scanner-dialog--patron-lookup--staff-intake), [11](./11-barcode-scanning.md#6-component-structure)).
 
 ### /admin/layout — screen 6b (Stitch `3177da52…`)
 
@@ -226,6 +232,25 @@ Executive KPI grid (`GET /api/admin/data`), recent `copy_events` via
 `shelf manifest inspector` panel (GET `/api/admin/shelves/{id}`, slot occupancy
 meter, quick-assign input for barcodes — mutates `PATCH /api/admin/copies/{id}`),
 floor mini-map (simple SVG grid highlighting the selected aisle).
+
+### Scanner dialog — Patron Lookup / Staff Intake
+
+One `BarcodeScannerDialog` (`components/barcode-scanner/`, Client Component `ssr:false` — Stitch
+artifact `.artifacts/stitch/barscanner_ISBN/`) mounted in the app shell. Opened from the top-nav
+**Scan** button (all users, default **Patron Lookup**), from `/library` as "Scan to return", and
+from `/admin` on the **Staff Intake** tab (admin only). Behaviour + error states:
+[11 §7/§8](./11-barcode-scanning.md#7-uiux-specification).
+
+- **Patron Lookup** — each decode calls `POST /api/books/scan`
+  ([03 §5.4](03-api-spec.md#54-post-apibooksscan)). An ISBN result shows the record, shelf ladder
+  and other-copy availability with **View Full Record & Map** (→ `/books/{id}`) and the waitlist CTA
+  when `available_copies == 0`; a copy-tag result shows the copy and, when `returnable`, a
+  **Return this copy** action calling `POST /api/copies/{id}/return`
+  ([03 §6.4](03-api-spec.md#64-post-apicopiesidreturn)). Camera + manual code input.
+- **Staff Intake** — the Add-Book flow (Manual / ISBN / Scan tabs) driving
+  `POST /api/books/fetch-isbn` → Add-Book form → `POST /api/admin/books` (+ `/api/admin/copies`).
+  RFID encode / label print / Edit-MARC are **not** implemented
+  ([11 §11](./11-barcode-scanning.md#11-scope-impact)).
 
 ## 8. ShadCN Component Usage
 
@@ -236,12 +261,12 @@ Usage per page:
 | --- | --- | --- |
 | `Button` (primary/secondary/ghost/destructive) | all | CTAs, tabs submit |
 | `Input`, `Label`, `Form` | login, admin forms, quick-assign | validation per [03 §9](03-api-spec.md#9-error-catalog) |
-| `Tabs` + `TabsList` | login role switcher, catalog modes, library stages, Add-Book dialog | segmented switchers |
+| `Tabs` + `TabsList` | login role switcher, catalog modes, library stages, scanner dialog modes | segmented switchers |
 | `Card` | everywhere | surfaces w/ `shadow-sm border` |
 | `Badge` | status beacons, section dots, call-number mono chips | [12 §badges](12-ui-design.md#3-design-tokens) |
 | `Alert` | tri-state banner, waitlist notices | destructive/warning/success variants |
 | `Command` (+Dialog) | ⌘K palette | client-only quick search |
-| `Dialog` / `Sheet` | Add-Book dialog, citation card details, shelf inspector | focus-trapped (Radix) |
+| `Dialog` / `Sheet` | Barcode Scanner dialog (Patron Lookup / Staff Intake), citation card details, shelf inspector | focus-trapped (Radix) |
 | `Table` | copy manifest, admin books/users | mono numerics |
 | `Skeleton` | loading states ([§9](#9-loading-empty--error-states)) | shimmer |
 | `Toast` (sonner) | mutations, 409 waitlist hints | error surface |
@@ -263,6 +288,8 @@ under the `confirm.*` catalog keys in both locales). New destructive UI must use
 | 403 | inline FORBIDDEN panel |
 | 404 book | full-page "Not in this building's catalog" + back to catalog |
 | 409 `BOOK_NOT_AVAILABLE` | banner swaps to waitlist CTA (suggested_actions rendered literally) |
+| Scan — not in catalog | "Not in this building's catalog" card (staff: Staff Intake CTA) |
+| Return 409 `CONFLICT` | toast with `current_status`; result refreshes to the copy's real state |
 | 429 | toast with remaining time from `X-RateLimit-Reset` |
 | 5xx / SSE `error` event | toast + retry affordance; streaming keeps partial tokens on screen |
 | Offline | navigator.onLine banner (best effort) |

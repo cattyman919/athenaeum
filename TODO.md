@@ -21,8 +21,9 @@
 14. [Phase 11 — Localization](#14-phase-11--localization)
 15. [Phase 12 — Voice Input](#15-phase-12--voice-input)
 16. [Phase 13 — Git Workflow and CI](#16-phase-13--git-workflow-and-ci)
-17. [Open TODO Registry (from docs)](#17-open-todo-registry-from-docs)
-18. [Session Log](#18-session-log)
+17. [Phase 14 — Patron Barcode Scanner](#17-phase-14--patron-barcode-scanner)
+18. [Open TODO Registry (from docs)](#18-open-todo-registry-from-docs)
+19. [Session Log](#19-session-log)
 
 ## 1. How to Use This File
 
@@ -32,7 +33,7 @@ Rules for any AI session (or human) continuing this project:
 2. Work top-down within the current phase; do not skip ahead across phase boundaries without logging why.
 3. While implementing: update the checkboxes in **this** file as tasks complete; add new discovered tasks here instead of inventing scope in code.
 4. "Complete" means: code compiles, relevant `make lint` / `make test` pass, and behavior matches the owning doc. Do not tick otherwise.
-5. Never mark deferred features ([§14](#14-open-todo-registry-from-docs)) as done — they stay ⚠️ TODO until [10-roadmap.md](docs/10-roadmap.md) changes.
+5. Never mark deferred features ([§18](#18-open-todo-registry-from-docs)) as done — they stay ⚠️ TODO until [10-roadmap.md](docs/10-roadmap.md) changes.
 6. End the session with a Session Log row: date, engine/session id, tasks completed, current cursor ("resume from: …"), blockers.
 7. Mock/book/shelf values are a contract: change data only by editing `api/mocks/` + [docs/13-mock-data-reference.md](docs/13-mock-data-reference.md) together.
 
@@ -40,10 +41,10 @@ Rules for any AI session (or human) continuing this project:
 
 | Field | Value |
 | --- | --- |
-| Goal / phase | Phase 0 in progress (docs committed; Makefile/compose/hooks/CI landing). Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M12; checkboxes below are still ticked per item |
+| Goal / phase | M0–M12 code complete; **Phase 14 (patron barcode scanner) planned, not built**. Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M13; checkboxes below are still ticked per item |
 | Git | `main` with commits; remote `origin = git@github.com:cattyman919/athenaeum.git`; one branch per task, squash to `main`, push `main` per milestone ([docs/09 §9](docs/09-development.md#9-git-workflow)) |
-| Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist)) |
-| Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); re-exports pending + chat-screen regen for the mic ([§17](#17-open-todo-registry-from-docs)) |
+| Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist); **11 re-scoped** to the universal patron+staff scanner) |
+| Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); + scanner dialog `barscanner_ISBN/code.html`; re-exports pending + chat-screen regen for the mic ([§18](#18-open-todo-registry-from-docs)) |
 | Stack pins | Go 1.27 · Next.js 15 · Postgres 16 + pgvector · Redis 7 · Ollama `nomic-embed-text` (768) · OpenRouter Claude 3.5 Sonnet · faster-whisper `small` · next-intl · Playwright |
 | Demo accounts | `admin@` / `demo@athenaeum.dev` · password `athenaeum-demo` ([docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library)) |
 
@@ -65,12 +66,17 @@ Local `make e2e` = 69 passing. Check `gh run list` for CI on the latest push.
    <span muted>{interim}</span>` with identical font/padding/wrapping, auto-grow and scroll sync; keep the sr-only
    live region for the interim text; never write interim text into `draft`; Esc cancels and clears it. Update docs/15 §2a +
    docs/07 §7 (/chat) and the Playwright voice spec (assert ghost text element instead of the line below). Tracked as Phase 12 item.
-1. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
-2. Open decisions: `copy_events` rows cascade-delete with a copy (docs/03 §8.3 says audit keeps its last row); new/edited books
-   are not re-embedded until `cmd/reindex`; `fetch-isbn` is admin-only (docs/03 §3 table says any user); `/api/library` rating
-   missing from book detail `my_library_entry`.
-3. zh RAG note (docs/06 §2 English-only embeddings) remains a documented deferral.
-4. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.
+1. **Phase 14 — Patron barcode scanner (docs done 2026-10-15, code pending):** universal `BarcodeScannerDialog`
+   (Patron Lookup / Staff Intake) + nav Scan button; `POST /api/books/scan` (local ISBN/copy-tag resolve) +
+   `POST /api/copies/{id}/return` (self-service return, `copy_events.source='self_return'`, waitlist turnover).
+   Contract: [docs/11](docs/11-barcode-scanning.md), [docs/03 §5.4/§6.4](docs/03-api-spec.md#54-post-apibooksscan); tasks in
+   [§17](#17-phase-14--patron-barcode-scanner) (implementation-plan M13). Start here next session unless the ghost-text item above is preferred.
+2. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
+3. Open decisions: `copy_events` rows cascade-delete with a copy (docs/03 §8.3 says audit keeps its last row); new/edited books
+   are not re-embedded until `cmd/reindex`; `/api/library` rating missing from book detail `my_library_entry`.
+   **Resolved 2026-10-15:** `fetch-isbn` is now documented 👑 admin-only (the patron path is `POST /api/books/scan`).
+4. zh RAG note (docs/06 §2 English-only embeddings) remains a documented deferral.
+5. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.
 
 **Implemented surface (for orientation)**
 - API (`api/`): config, slog, middleware (request-id, recover, CORS, Redis rate limiter with all docs/03 buckets),
@@ -216,7 +222,7 @@ Refs: [docs/06](docs/06-ai-rag.md); HTTP shell [docs/03 §7](docs/03-api-spec.md
 Refs: [docs/11](docs/11-barcode-scanning.md).
 
 - [x] `barcode-detector` hook (`formats:["ean_13"]`, getUserMedia + cleanup) ([docs/11 §5](docs/11-barcode-scanning.md#5-nextjs-integration))
-- [x] `POST /api/books/fetch-isbn` + `pkg/checkdigit` EAN-13 validation ([docs/11 §9](docs/11-barcode-scanning.md#9-backend-validation))
+- [x] `POST /api/books/fetch-isbn` + `pkg/checkdigit` EAN-13 validation ([docs/11 §9](docs/11-barcode-scanning.md#9-endpoints--validation))
 - [x] `ISBNScanner` component: overlay, torch, flip, haptics/beep, 1.5 s cooldown
 - [x] Add-Book dialog (Manual / ISBN / Scan tabs) + error handling table ([docs/11 §8](docs/11-barcode-scanning.md#8-error-handling))
 
@@ -274,7 +280,23 @@ Refs: [docs/09 §8–9](docs/09-development.md#8-testing-strategy).
 - [ ] (done: storageState auth, make e2e, real-Ollama CI) Test harness: fake ChatModel + Whisper stub via env; `storageState` auth; `make e2e` ([docs/15 §9](docs/15-voice-input.md#9-testing))
 - [x] `.github/workflows/ci.yml` (lint + vet + unit + e2e); the docs/09 §8 CI `> ⚠️ TODO:` removed
 
-## 17. Open TODO Registry (from docs)
+## 17. Phase 14 — Patron Barcode Scanner
+
+Refs: [docs/11](docs/11-barcode-scanning.md) (re-scoped 2026-10-15 to the universal patron + staff scanner),
+[docs/03 §5.4/§6.4](docs/03-api-spec.md#54-post-apibooksscan), [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist) item 16.
+One dialog, two audiences; scanner artifact `.artifacts/stitch/barscanner_ISBN/code.html`.
+
+- [ ] `POST /api/books/scan` — local resolver (ISBN-13 → `books`, copy tag → `book_copies`) reusing `pkg/checkdigit`; `200 in_catalog:false` when no local match; service + handler tests ([docs/03 §5.4](docs/03-api-spec.md#54-post-apibooksscan))
+- [ ] `POST /api/copies/{id}/return` — self-service return (`checked_out → available`, or `reserved_waitlist` + oldest-hold turnover); appends `copy_events` (`source='self_return'`); 409 `CONFLICT` when not `checked_out` ([docs/03 §6.4](docs/03-api-spec.md#64-post-apicopiesidreturn))
+- [ ] Rate-limit buckets: `books/scan` 30/1min, `copies/{id}/return` 10/1min ([docs/03 §2](docs/03-api-spec.md#2-rate-limiting))
+- [ ] `BarcodeScannerDialog` (Patron Lookup / Staff Intake tabs, viewfinder, manual code input, torch/flip, haptics/beep, 1.5 s cooldown) + `hooks/use-barcode-scanner.ts` ([docs/11 §5–7](docs/11-barcode-scanning.md#5-nextjs-integration))
+- [ ] Nav **Scan** button (all users, Patron Lookup default) + `/library` "Scan to return" + `/admin` opens Staff Intake ([docs/07 §Scanner dialog](docs/07-frontend.md#scanner-dialog--patron-lookup--staff-intake))
+- [ ] Patron result card (record + shelf ladder + other-copy availability + waitlist CTA on zero) and copy result (**Return this copy**) ([docs/11 §7](docs/11-barcode-scanning.md#7-uiux-specification))
+- [ ] Localize Patron Lookup strings (`scanner.*` keys, en/zh-CN parity); Staff Intake stays English ([docs/14 §1](docs/14-localization.md#1-scope), [§5](docs/14-localization.md#5-message-catalog))
+- [ ] Playwright: patron ISBN lookup + self-service return via the manual code path; camera path stays unit-only ([docs/09 §8](docs/09-development.md#8-testing-strategy))
+- [ ] > ⚠️ TODO: RFID encode / thermal label print / Edit-MARC stay out of v1 ([docs/11 §11](docs/11-barcode-scanning.md#11-scope-impact))
+
+## 18. Open TODO Registry (from docs)
 
 Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after changes: `grep -n "> ⚠️ TODO" docs/*.md`):
 
@@ -292,13 +314,15 @@ Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after chang
 | [docs/15 §1](docs/15-voice-input.md#1-scope) | cloud/streaming STT; voice input outside `/chat` | deferred feature |
 | [docs/12 §6](docs/12-ui-design.md#6-app-shell--navigation) | Stitch: regenerate chat screen for the mic + nav language toggle | exporter task |
 | [docs/12 §12](docs/12-ui-design.md#12-accessibility-requirements) | axe-core audit; verify contrast ratios | polish |
+| [docs/11 §11](docs/11-barcode-scanning.md#11-scope-impact) | scanner Staff-Intake extras: RFID encode, thermal label print, Edit-MARC | deferred feature |
 
-## 18. Session Log
+## 19. Session Log
 
 Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
+| 2026-10-15 | Kilo (kilo-auto/efficient) | **Docs-only planning** — re-scoped the scanner to a universal **patron + staff** feature (docs/10 §1 item 16). Added `POST /api/books/scan` (§5.4, local ISBN/copy-tag resolve, 30/1min) and `POST /api/copies/{id}/return` (§6.4, self-service return `checked_out → available`/`reserved_waitlist` + hold turnover, `copy_events.source='self_return'`, 10/1min); documented `fetch-isbn` as 👑 admin-only (resolves a prior open decision); new `BarcodeScannerDialog` (Patron Lookup / Staff Intake) + nav Scan button. Updated docs 01/02/03/07/10/11/12/14/README, TODO (Phase 14), `.kilo` plan (M13). No code; no deferrals removed (RFID/label/MARC stay out of v1). | Phase 14 / M13 (patron scanner), else ghost-text voice (§2a item 0) | None (docs-only) |
 | 2026-10-11 | Kilo (kilo-auto/frontier), parallel subagents | Post-review work: chat citations persisted + `cover_url` thumbnails (also in ⌘K palette); live voice partials (`?partial=true`, `whisper-fast`, 60/min bucket, one in flight); microphone picker + level meter (user's built-in mic is broken; external mic works); markdown AI replies + copy button; `suppressHydrationWarning` on `<html>` (browser extensions); `ConfirmDialog` for chat delete / library remove / waitlist leave; language toggle now cookie + hard reload (server-action refresh raced prefetches); M12 states, self-hosted barcode WASM; README quickstart; e2e 69 green, CI green | Manual checks (below), then any new scope from docs/10 | Not run: clean-volume demo (wipes models), real Whisper accuracy/speed of `whisper-fast`, Google SSO, Stitch admin export |
 | 2026-10-10 | Kilo (kilo-auto/frontier), parallel subagents | M7 web (library menu, 409 waitlist dialog, inline editing); wayfinding i18n (`parts`); M8 chat (OpenRouter adapter, 4 tools, Eino agent, SSE, `/chat`, e2e-stubs); M9 voice (Whisper adapter, `/api/chat/transcribe`, mic hook); M10 scanner (`fetch-isbn`, Add-Book dialog); M11 admin (13 endpoints, KPI grid, audit stream, stacks manager, users); e2e 56 green | M12 polish (see §2a) | Real OpenRouter turn, real Whisper, Google SSO, Stitch admin export still unverified |
 | 2026-10-10 | Kilo (kilo-auto/frontier) | Milestones M0–M7 partial (M7: library+waitlist API, 48h sweeper, demo library seed, read-only /library page with KPIs/tabs/holds + leave; STILL OPEN for M7: book-detail "Add to My Library"/favorite/rating controls, 409 → waitlist dialog, banner waitlist CTA, inline row editing; M6: book detail API + /books/[id] page with wayfinding ladder, banner, manifest, neighbors; M5: tri-modal search API + /catalog UI + ⌘K + e2e vs real embeddings; Next 15.5 note: a route-level loading.tsx froze soft navigation in prod, so skeletons use in-page Suspense; M4: Next 15 web scaffold, i18n, auth guard + refresh, /login, Playwright harness w/ real-Ollama e2e DB, CI e2e job; M3: mock fixtures with docs/13 parity, ResolvePath, olbooks, cmd/seed, Ollama embedder + cmd/reindex, barcodes C01 doc fix; M2: auth backend: argon2id, JWT, register/login/refresh/logout/me, Google OIDC vs fake provider, role guards, Redis rate limiter): commitlint/lefthook, Makefile, compose, CI skeleton; Go 1.27 / Node 26 pins (docs updated); API skeleton (config, slog, middleware, error mapper, `/api/health`, Dockerfile); migrations 0001–0005 + testcontainers harness (`internal/testutil/pgtest`); `make db-migrate` verified; docs/02 index DDL fixed (double parens); compose infra up + `nomic-embed-text` pulled | Finish M7 web interactions (messages `bookActions.*`/`waitlist.*` already in catalogs), then M8 AI chat | Google SSO can only be verified against a fake `httptest` OAuth server (no Google client): manual verification pending user credentials |

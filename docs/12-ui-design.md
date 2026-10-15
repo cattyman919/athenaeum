@@ -98,7 +98,7 @@ Checked Out `#FFEDD5` / `#C2410C` / `#EA580C` · Not Available `#FEE2E2` / `#B91
 ```
 ┌────────────────────────────────────────────────────────────┐
 │ Top Nav (h-16, sticky, backdrop-blur-md)                   │
-│ [ Crest + Athenaeum ] [ ⌘K Search ] [ Nav ] [ Admin | 👤 ] │
+│ [ Crest + Athenaeum ] [ ⌘K Search ] [ Scan ] [ Nav ] [ Admin | 👤 ] │
 ├────────────────────────────────────────────────────────────┤
 │ Page Content (max-w-7xl mx-auto px-6 py-8)                 │
 ├────────────────────────────────────────────────────────────┤
@@ -106,8 +106,8 @@ Checked Out `#FFEDD5` / `#C2410C` / `#EA580C` · Not Available `#FEE2E2` / `#B91
 └────────────────────────────────────────────────────────────┘
 ```
 
-- Authenticated shell: nav bar w/ ⌘K, Catalog, My Library, AI Librarian, Staff
-  Admin (role-gated), alerts, avatar. Unauthenticated `/login`: bare canvas, no
+- Authenticated shell: nav bar w/ ⌘K, Catalog, My Library, AI Librarian, Scan
+  (barcode/ISBN — all users), Staff Admin (role-gated), alerts, avatar. Unauthenticated `/login`: bare canvas, no
   shell ([04 §1](04-auth.md#1-login-screen-stitch)).
 
 ```mermaid
@@ -115,6 +115,7 @@ graph TD
     SHELL["AppShell"] --> NAV["Top Nav (h-16 sticky)"]
     NAV --> QB["⌘K CommandPalette"]
     NAV --> LINKS["Catalog · My Library · AI Chat"]
+    NAV --> SCANBTN["Scan (barcode / ISBN lookup + return)"]
     NAV --> ADMLINK["Admin (admin only)"]
     NAV --> LOC["Language toggle (EN ⇄ 中文)"]
     NAV --> AV["Avatar menu (sign out)"]
@@ -166,6 +167,14 @@ Document artifacts on the canvas (not app screens): **DESIGN.md mirror exported 
 → [../.artifacts/stitch/modern_scholarly_wayfinding/DESIGN.md](../.artifacts/stitch/modern_scholarly_wayfinding/DESIGN.md);
 "Book Library UI Specification" (`bcca77dc…`) and PRD (`f1b260d6…`) remain
 manifest-only rows in `.artifacts/stitch/stitch-manifest.json`.
+
+The **Universal Barcode & ISBN Scanner** dialog is a newer artifact (not one of the six app
+screens; it is a modal on any route): local export
+[../.artifacts/stitch/barscanner_ISBN/code.html](../.artifacts/stitch/barscanner_ISBN/code.html) —
+the visual reference for Patron Lookup + Staff Intake ([11](./11-barcode-scanning.md#7-uiux-specification),
+wiring [07 §Scanner dialog](07-frontend.md#scanner-dialog--patron-lookup--staff-intake)). It is a
+behavioural addition, not a Stitch screen ID; the RFID/label/MARC affordances it sketches stay
+deferred ([§13](#13-deferred-ui-items)).
 
 > ⚠️ TODO: Admin Portal + draft variant exports; `screen.png` re-export for the
 > four FIFE failures (rows 2–5). HTML is complete for rows 1–5 — export verified:
@@ -306,7 +315,7 @@ graph TD
     DC --> LRI["LibraryRowItem — progress, ratings, shelf coords"]
     DC --> BTB["BuildingTreeBrowser — stack navigator"]
     DC --> RAS["RealTimeAuditStream — copy state feed"]
-    DC --> ISC["ISBNScanner — barcode intake (11-barcode-scanning)"]
+    DC --> ISC["BarcodeScannerDialog — patron lookup + staff intake (11-barcode-scanning)"]
 ```
 
 ## 10. Copy State Machine
@@ -316,11 +325,11 @@ DB statuses: [02 §book_copies](02-data-model.md#book_copies).
 
 ```mermaid
 stateDiagram-v2
-    [*] --> InCatalog: registered (seed or admin intake)
+    [*] --> InCatalog: registered (seed or staff intake)
     InCatalog --> Available: assigned to shelf coordinate
     Available --> CheckedOut: scanned at desk/turnstile
-    CheckedOut --> Available: Returned and Re-shelved (home shelf scan)
-    CheckedOut --> ReservedWaitlist: queued patron hold, 48h expiration
+    CheckedOut --> Available: Returned & Re-shelved (staff desk or patron self-service scan)
+    CheckedOut --> ReservedWaitlist: return with a waiting hold, or queued patron hold (48h)
     ReservedWaitlist --> Available: expired or not picked up
     Available --> MissingLost: stack audit flags
     MissingLost --> Available: RestoredToAvailable via audit
@@ -330,8 +339,8 @@ stateDiagram-v2
 | --- | --- | --- |
 | `InCatalog → Available` | admin assigns shelf | `POST /api/admin/copies`, [03 §8.3](03-api-spec.md#83-admin-copies) |
 | `Available → CheckedOut` | staff scan at desk | `PATCH /api/admin/copies/{id}` |
-| `CheckedOut → Available` ("Returned & Re-shelved") | staff returns + re-shelves | same PATCH (shelf update audible) |
-| `CheckedOut → ReservedWaitlist` | waitlist turnover (48 h) | `PATCH` + `waitlist.ready_at` set — [03 §6.3](03-api-spec.md#63-waitlist) |
+| `CheckedOut → Available` ("Returned & Re-shelved") | staff desk return **or patron self-service return** | staff: `PATCH /api/admin/copies/{id}`; patron: `POST /api/copies/{id}/return` (`copy_events.source='self_return'` — [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn)) |
+| `CheckedOut → ReservedWaitlist` | waitlist turnover (48 h) on return | `PATCH` **or** `POST /api/copies/{id}/return` + `waitlist.ready_at` set — [03 §6.3](03-api-spec.md#63-waitlist) |
 | `MissingLost → Available` ("RestoredToAvailable") | audit restores | PATCH |
 
 Every transition appends a `copy_events` row (`from_status`, `to_status`,
@@ -347,7 +356,7 @@ Every transition appends a `copy_events` row (`from_status`, `to_status`,
 | `LibraryRowItem` | `Table` row / `Card` + `Slider`-less progress + star `Rating` |
 | `BuildingTreeBrowser` | nested `Collapsible`/`Tree` list + `Badge` occupancy |
 | `RealTimeAuditStream` | `Table` + `Badge` + Toaster hooks |
-| `ISBNScanner` | `Dialog` + `Tabs` + `<video/>` + overlay frames — [11](11-barcode-scanning.md) |
+| `BarcodeScannerDialog` | `Dialog` + `Tabs` + `<video/>` + overlay frames — [11](11-barcode-scanning.md) |
 | Availability banner | `Alert` variants (`success`/`warning`/`destructive`) |
 
 ## 12. Accessibility Requirements
@@ -367,6 +376,7 @@ Every transition appends a `copy_events` row (`from_status`, `to_status`,
 | Item | Marker |
 | --- | --- |
 | RFID hardware UI (gates/robots) & live audit hardware streams | mimic in the audit stream only; hardware out of scope — [10](10-roadmap.md) |
+| Scanner Staff-Intake extras: RFID encode, thermal label print, Edit MARC | deferred — the scanner artifact sketches them but v1 renders ISBN intake + copy-tag assignment only ([11 §11](11-barcode-scanning.md#11-scope-impact)) |
 | Shibboleth/SAML row on login screen | disabled placeholder only ([04](04-auth.md#3-google-sso)) |
 | Rate-limit analytics dashboard | quota meters only — [03 §2](03-api-spec.md#2-rate-limiting) |
 | Draft Stitch variant screen `77cc…` | kept for provenance; do not implement |

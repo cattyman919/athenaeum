@@ -25,7 +25,8 @@
 | UI design source | Google Stitch (screen gallery: [12-ui-design.md](./12-ui-design.md)) |
 
 Core v1 capabilities: keyword / semantic / hybrid catalog search, book detail with
-turn-by-turn shelf wayfinding, camera barcode scanning for book intake, personal
+turn-by-turn shelf wayfinding, camera barcode scanning for both audiences (patrons: ISBN
+lookup + self-service return; staff: book intake), personal
 library (favorite / read / reading), availability + waitlist, streamed AI librarian
 chat over RAG with tool use, and an admin stacks manager.
 
@@ -60,8 +61,8 @@ Locked choices — do not substitute without updating this table and [01-archite
 
 v1 scope boundary is owned by [10-roadmap.md](./10-roadmap.md). Summary:
 
-- **In v1**: email/password + Google SSO · catalog (multi-modal search) · book detail with physical location · camera barcode intake (`POST /api/books/fetch-isbn`) · "not available" 409 + waitlist · personal library · AI chat (RAG, streaming, tool use, rate limits, persisted sessions) · **voice input on `/chat`** ([15](./15-voice-input.md)) · **EN/zh-CN localization** ([14](./14-localization.md)) · **git commit workflow** + **Playwright E2E / CI** ([09 §5/§8](./09-development.md#5-common-commands)) · admin UI (books, copies, layout, users) · mock seed + Open Library enrichment · `docker compose up` one-command startup.
-- **Out of scope** (each with a `> ⚠️ TODO:` marker in the relevant doc): observability stack, production TLS/proxy/backups, self-service checkout / RFID, loan due dates + fines, multi-building, email notifications, password reset, WeChat SSO, rate-limit analytics, WebSockets, Shibboleth/SAML, roles beyond `user`/`admin`, shelf robots / live audit hardware, Traditional Chinese, cloud/streaming STT, multilingual embeddings.
+- **In v1**: email/password + Google SSO · catalog (multi-modal search) · book detail with physical location · **barcode scanner** — patron ISBN lookup + self-service return (`POST /api/books/scan`, `POST /api/copies/{id}/return`) and staff intake (`POST /api/books/fetch-isbn`) ([11](./11-barcode-scanning.md)) · "not available" 409 + waitlist · personal library · AI chat (RAG, streaming, tool use, rate limits, persisted sessions) · **voice input on `/chat`** ([15](./15-voice-input.md)) · **EN/zh-CN localization** ([14](./14-localization.md)) · **git commit workflow** + **Playwright E2E / CI** ([09 §5/§8](./09-development.md#5-common-commands)) · admin UI (books, copies, layout, users) · mock seed + Open Library enrichment · `docker compose up` one-command startup.
+- **Out of scope** (each with a `> ⚠️ TODO:` marker in the relevant doc): observability stack, production TLS/proxy/backups, self-service **checkout** (return-only ships in v1) / RFID, loan borrower tracking + due dates + fines, multi-building, email notifications, password reset, WeChat SSO, rate-limit analytics, WebSockets, Shibboleth/SAML, roles beyond `user`/`admin`, shelf robots / live audit hardware, scanner RFID/label/MARC extras, Traditional Chinese, cloud/streaming STT, multilingual embeddings.
 
 ## 4. Documentation Map
 
@@ -79,7 +80,7 @@ Each doc owns exactly one concern; cross-reference instead of duplicating.
 | [08-seed-data.md](./08-seed-data.md) | Mock file schemas, seed + reindex algorithms, Open Library | [02](./02-data-model.md), [05](./05-building-layout.md), [13](./13-mock-data-reference.md) |
 | [09-development.md](./09-development.md) | Prereqs, Docker Compose, Dockerfiles, workflow, testing | [01](./01-architecture.md), [10](./10-roadmap.md) |
 | [10-roadmap.md](./10-roadmap.md) | Scope checklist, 3-week plan, cut list | all |
-| [11-barcode-scanning.md](./11-barcode-scanning.md) | Scanner feature (frontend-only) + backend validation | [03](./03-api-spec.md), [07](./07-frontend.md), [12](./12-ui-design.md) |
+| [11-barcode-scanning.md](./11-barcode-scanning.md) | Universal scanner: patron ISBN lookup + self-service return, staff intake, backend validation | [03](./03-api-spec.md), [07](./07-frontend.md), [12](./12-ui-design.md) |
 | [12-ui-design.md](./12-ui-design.md) | Design system, Stitch screen gallery, component specs | [04](./04-auth.md), [05](./05-building-layout.md), [07](./07-frontend.md) |
 | [13-mock-data-reference.md](./13-mock-data-reference.md) | Concrete mock catalog: every book, shelf, copy test case | [08](./08-seed-data.md) |
 | [14-localization.md](./14-localization.md) | EN/zh-CN locale contract, cookie resolution, message catalog, enum label maps, AI reply language | [06](./06-ai-rag.md), [07](./07-frontend.md), [12](./12-ui-design.md) |
