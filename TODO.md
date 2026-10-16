@@ -41,7 +41,7 @@ Rules for any AI session (or human) continuing this project:
 
 | Field | Value |
 | --- | --- |
-| Goal / phase | M0–M12 code complete; **Phase 14 (patron barcode scanner) planned, not built**. Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M13; checkboxes below are still ticked per item |
+| Goal / phase | M0–M13 code complete (Phase 14 patron + staff barcode scanner built 2026-10-16). Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M13; checkboxes below are still ticked per item |
 | Git | `main` with commits; remote `origin = git@github.com:cattyman919/athenaeum.git`; one branch per task, squash to `main`, push `main` per milestone ([docs/09 §9](docs/09-development.md#9-git-workflow)) |
 | Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist); **11 re-scoped** to the universal patron+staff scanner) |
 | Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); + scanner dialog `barscanner_ISBN/code.html`; re-exports pending + chat-screen regen for the mic ([§18](#18-open-todo-registry-from-docs)) |
@@ -53,24 +53,14 @@ Rules for any AI session (or human) continuing this project:
 **Source of truth for order of work:** `.kilo/plans/1791614343948-athenaeum-v1-implementation-plan.md` (milestones M0–M12).
 Docs in `docs/` are the contract; deviations were edited into the owning doc in the same commit.
 
-**State at last session (2026-10-11, end of session 2):** `main` is pushed; M0–M12 code complete plus post-review additions
-(persisted citations + cover thumbnails, live voice partials, mic picker, markdown replies, confirm dialogs). Only manual/credentialed verification remains.
-Local `make e2e` = 69 passing. Check `gh run list` for CI on the latest push.
+**State at last session (2026-10-16):** M0–M13 code complete — Phase 14 barcode scanner built and the voice interim
+transcript now shows as ghost text inside the composer — plus the 2026-10-11 post-review additions (persisted citations +
+cover thumbnails, live voice partials, mic picker, markdown replies, confirm dialogs). Only manual/credentialed verification remains.
+Local `make e2e` = 75 passing (2026-10-16). Check `gh run list` for CI on the latest push.
 
 **Next actions, in order**
-0. **Ghost-text interim voice (user request, do first next session):** show the live partial transcript as ghost
-   text *inside* the composer textarea (muted, after the typed text, replaced/committed by the final pass) instead of the
-   separate italic line under it (`data-testid="chat-voice-interim"` in `web/components/chat-workspace.tsx`; hook output
-   `interim` from `web/hooks/use-voice-input.ts`). Suggested approach: wrap the textarea in a relative container with an
-   absolutely positioned, `aria-hidden`, pointer-events-none mirror layer that renders `<span invisible>{draft}</span>
-   <span muted>{interim}</span>` with identical font/padding/wrapping, auto-grow and scroll sync; keep the sr-only
-   live region for the interim text; never write interim text into `draft`; Esc cancels and clears it. Update docs/15 §2a +
-   docs/07 §7 (/chat) and the Playwright voice spec (assert ghost text element instead of the line below). Tracked as Phase 12 item.
-1. **Phase 14 — Patron barcode scanner (docs done 2026-10-15, code pending):** universal `BarcodeScannerDialog`
-   (Patron Lookup / Staff Intake) + nav Scan button; `POST /api/books/scan` (local ISBN/copy-tag resolve) +
-   `POST /api/copies/{id}/return` (self-service return, `copy_events.source='self_return'`, waitlist turnover).
-   Contract: [docs/11](docs/11-barcode-scanning.md), [docs/03 §5.4/§6.4](docs/03-api-spec.md#54-post-apibooksscan); tasks in
-   [§17](#17-phase-14--patron-barcode-scanner) (implementation-plan M13). Start here next session unless the ghost-text item above is preferred.
+1. **Done 2026-10-16:** Phase 14 patron + staff barcode scanner (§17, implementation-plan M13) and ghost-text interim
+   voice in the composer (Phase 12, [docs/15 §2a](docs/15-voice-input.md#2a-live-interim-transcript)).
 2. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
 3. Open decisions: `copy_events` rows cascade-delete with a copy (docs/03 §8.3 says audit keeps its last row); new/edited books
    are not re-embedded until `cmd/reindex`; `/api/library` rating missing from book detail `my_library_entry`.
@@ -267,7 +257,7 @@ Refs: [docs/15](docs/15-voice-input.md).
 - [x] whisper service in `docker-compose.yml` + `WHISPER_BASE_URL`/`WHISPER_MODEL` ([docs/15 §5](docs/15-voice-input.md#5-whisper-service))
 - [x] `WhisperAdapter` (ACL) + `POST /api/chat/transcribe` (auth, caps, 30s timeout, 10/min bucket, error codes) ([docs/15 §4/§6](docs/15-voice-input.md#4-transcription-endpoint))
 - [x] `hooks/use-voice-input.ts` + composer mic toggle (recording indicator, Send gating, empty/error states) ([docs/15 §8](docs/15-voice-input.md#8-frontend-wiring))
-- [ ] Ghost-text interim transcript inside the composer textarea (replaces the line below the input) — see §2a next action 0 ([docs/15 §2a](docs/15-voice-input.md))
+- [x] Ghost-text interim transcript inside the composer textarea (replaces the line below the input) ([docs/15 §2a](docs/15-voice-input.md#2a-live-interim-transcript))
 - [x] Privacy: audio never persisted or logged ([docs/15 §7](docs/15-voice-input.md#7-privacy))
 
 ## 16. Phase 13 — Git Workflow and CI
@@ -322,6 +312,7 @@ Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
+| 2026-10-16 | Kilo (kilo-auto/frontier), subagents | **Phase 14 / M13 scanner:** `POST /api/books/scan` + `POST /api/copies/{id}/return` (waitlist turnover, `copy_events.source='self_return'`, rate buckets, tests); `BarcodeScannerDialog` (Patron Lookup / Staff Intake), `use-barcode-scanner`, nav Scan + `/library` "Scan to return" + `/admin` Staff Intake; e2e scanner spec. **Ghost-text voice:** live partial transcript now renders as muted ghost text inside the composer textarea (aria-hidden mirror layer, auto-grow + scroll sync, sr-only live region, Esc in composer cancels), replacing the italic line; docs/15 §2a + docs/07 /chat + voice e2e updated; e2e 75 green | Remaining M12 manual checks (§2a item 2), open decisions (§2a item 3) | Not run: clean-volume demo, real OpenRouter/Whisper/Google SSO |
 | 2026-10-15 | Kilo (kilo-auto/efficient) | **Docs-only planning** — re-scoped the scanner to a universal **patron + staff** feature (docs/10 §1 item 16). Added `POST /api/books/scan` (§5.4, local ISBN/copy-tag resolve, 30/1min) and `POST /api/copies/{id}/return` (§6.4, self-service return `checked_out → available`/`reserved_waitlist` + hold turnover, `copy_events.source='self_return'`, 10/1min); documented `fetch-isbn` as 👑 admin-only (resolves a prior open decision); new `BarcodeScannerDialog` (Patron Lookup / Staff Intake) + nav Scan button. Updated docs 01/02/03/07/10/11/12/14/README, TODO (Phase 14), `.kilo` plan (M13). No code; no deferrals removed (RFID/label/MARC stay out of v1). | Phase 14 / M13 (patron scanner), else ghost-text voice (§2a item 0) | None (docs-only) |
 | 2026-10-11 | Kilo (kilo-auto/frontier), parallel subagents | Post-review work: chat citations persisted + `cover_url` thumbnails (also in ⌘K palette); live voice partials (`?partial=true`, `whisper-fast`, 60/min bucket, one in flight); microphone picker + level meter (user's built-in mic is broken; external mic works); markdown AI replies + copy button; `suppressHydrationWarning` on `<html>` (browser extensions); `ConfirmDialog` for chat delete / library remove / waitlist leave; language toggle now cookie + hard reload (server-action refresh raced prefetches); M12 states, self-hosted barcode WASM; README quickstart; e2e 69 green, CI green | Manual checks (below), then any new scope from docs/10 | Not run: clean-volume demo (wipes models), real Whisper accuracy/speed of `whisper-fast`, Google SSO, Stitch admin export |
 | 2026-10-10 | Kilo (kilo-auto/frontier), parallel subagents | M7 web (library menu, 409 waitlist dialog, inline editing); wayfinding i18n (`parts`); M8 chat (OpenRouter adapter, 4 tools, Eino agent, SSE, `/chat`, e2e-stubs); M9 voice (Whisper adapter, `/api/chat/transcribe`, mic hook); M10 scanner (`fetch-isbn`, Add-Book dialog); M11 admin (13 endpoints, KPI grid, audit stream, stacks manager, users); e2e 56 green | M12 polish (see §2a) | Real OpenRouter turn, real Whisper, Google SSO, Stitch admin export still unverified |

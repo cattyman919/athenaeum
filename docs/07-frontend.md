@@ -211,6 +211,9 @@ history loads ([06 §7](./06-ai-rag.md#7-conversation-persistence)); telemetry m
 shows model + latency; quota meter consumes `meta`/`done` rate data — daily limit
 50 ([03 §2](03-api-spec.md#2-rate-limiting)). SSE client: [§6](#6-chat-streaming-client).
 The composer also carries the **voice mic toggle** (push-to-talk → composer, [15 §2](./15-voice-input.md#2-ux--push-to-talk));
+while recording, the live partial transcript shows as muted **ghost text inside the textarea** after the typed
+draft (aria-hidden mirror layer, never part of the textarea value; Esc cancels and clears it;
+[15 §2a](./15-voice-input.md#2a-live-interim-transcript));
 requests send the active `locale` for AI reply language ([14 §10](./14-localization.md#10-ai-reply-language)).
 Assistant replies render as **Markdown** (`components/markdown.tsx`: `react-markdown` + GFM — headings,
 lists, bold/italic, inline/block code, tables, links; raw HTML is escaped and images are dropped;

@@ -43,10 +43,6 @@
 
 ### 2a. Live (interim) transcript
 
-> ⚠️ TODO: render the interim transcript as **ghost text inside the composer textarea** (muted, appended
-> after the typed text, never part of the draft) instead of the muted line shown below the input today.
-> Tracked in [TODO.md §2a](../TODO.md#2a-handoff-brief-read-first-when-resuming) next action 0.
-
 While recording, the composer shows an **interim transcript** that refreshes as the user
 speaks (chunked re-transcription — no streaming protocol):
 
@@ -55,11 +51,21 @@ speaks (chunked re-transcription — no streaming protocol):
   later chunks are not independently decodable) to `POST /api/chat/transcribe?partial=true`.
 - Each partial carries a sequence number; responses older than the newest applied one, or
   arriving after stop/cancel, are **ignored** (no out-of-order flicker).
-- The interim text renders below the textarea in a **muted, italic** style
-  (`data-testid="chat-voice-interim"`); typed text in the textarea is never touched.
+- The interim text renders as **ghost text inside the composer textarea**, muted and
+  appended after the typed draft (one space separator, as in §2's merge rule). An
+  `aria-hidden`, `pointer-events-none` mirror layer (`data-testid="chat-composer-ghost"`)
+  sits exactly over the textarea with identical font, padding, wrapping and scrollbar gutter;
+  it renders the draft invisibly followed by the muted interim span
+  (`data-testid="chat-voice-interim"`). The textarea auto-grows to fit draft + ghost (up to
+  its max height) and the layer's scroll follows the textarea's. The placeholder is hidden
+  while ghost text shows.
+- The interim text is **never written into the draft** — the textarea value only ever holds
+  typed text, so the user can keep typing while speaking. Screen readers get the interim text
+  from a separate sr-only `aria-live="polite"` region (`data-testid="chat-voice-interim-live"`).
 - On stop, polling ends and the normal **final pass** (no `partial`, `WHISPER_MODEL`)
   runs; its transcript replaces the interim text and is merged into the composer (§2).
-  Cancel (Esc) or leaving the page stops polling and discards the interim text.
+  Cancel (Esc, on the mic button or in the composer) or leaving the page stops polling and
+  discards the ghost text.
 - Partial failures (`429`, `503`, `400`, network) are **silent**: recording continues, the
   last interim text stays, and no toast/note is shown. The 60 s cap (§6) still stops the
   recording.

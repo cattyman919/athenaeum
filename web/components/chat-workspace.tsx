@@ -68,6 +68,9 @@ const KNOWN_TOOLS = [
 ] as const;
 const SUGGESTIONS = ["babylonian", "scifi", "availability"] as const;
 
+const COMPOSER_TEXT =
+  "max-h-40 min-h-[2.5rem] px-2 py-1.5 text-sm leading-relaxed [scrollbar-gutter:stable]";
+
 /** Mirrors the server title rule (docs/06 §7): first 6 words + "…". */
 function provisionalTitle(prompt: string): string {
   const words = prompt.trim().split(/\s+/);
@@ -289,6 +292,27 @@ function ChatSession({
     onMeta: (meta) => onConversation(meta.conversation_id, lastPrompt.current),
   });
 
+  const ghostRef = React.useRef<HTMLDivElement>(null);
+  const ghost =
+    voice.interim && (voice.recording || voice.status === "transcribing") ? voice.interim : "";
+  const ghostLead = draft && !/\s$/.test(draft) ? `${draft} ` : draft;
+
+  const syncGhostScroll = React.useCallback(() => {
+    const ta = composerRef.current;
+    const layer = ghostRef.current;
+    if (ta && layer) layer.scrollTop = ta.scrollTop;
+  }, []);
+
+  React.useLayoutEffect(() => {
+    const ta = composerRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    const content = Math.max(ta.scrollHeight, ghostRef.current?.scrollHeight ?? 0);
+    ta.style.height = `${content}px`;
+    if (ghost) ta.scrollTop = ta.scrollHeight;
+    syncGhostScroll();
+  }, [draft, ghost, syncGhostScroll]);
+
   const submit = (text: string) => {
     const msg = text.trim();
     if (!msg || streaming || voice.busy) return;
@@ -423,25 +447,52 @@ function ChatSession({
           <label htmlFor="chat-composer" className="sr-only">
             {t("composer.label")}
           </label>
-          <textarea
-            ref={composerRef}
-            id="chat-composer"
-            data-testid="chat-composer"
-            rows={2}
-            value={draft}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              if (voiceNote?.tone === "info") setVoiceNote(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                submit(draft);
-              }
-            }}
-            placeholder={t("composer.placeholder")}
-            className="max-h-40 min-h-[2.5rem] flex-1 resize-none bg-transparent px-2 py-1.5 text-sm leading-relaxed placeholder:text-muted-foreground focus:outline-none"
-          />
+          <div className="relative min-w-0 flex-1">
+            <textarea
+              ref={composerRef}
+              id="chat-composer"
+              data-testid="chat-composer"
+              rows={2}
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                if (voiceNote?.tone === "info") setVoiceNote(null);
+              }}
+              onScroll={syncGhostScroll}
+              onKeyDown={(e) => {
+                if (e.key === "Escape" && voice.recording) {
+                  e.preventDefault();
+                  voice.cancel();
+                  return;
+                }
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  submit(draft);
+                }
+              }}
+              placeholder={ghost ? "" : t("composer.placeholder")}
+              className={cn(
+                COMPOSER_TEXT,
+                "block w-full resize-none bg-transparent placeholder:text-muted-foreground focus:outline-none",
+              )}
+            />
+            {ghost && (
+              <div
+                ref={ghostRef}
+                aria-hidden
+                data-testid="chat-composer-ghost"
+                className={cn(
+                  COMPOSER_TEXT,
+                  "pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words",
+                )}
+              >
+                <span className="invisible">{ghostLead}</span>
+                <span data-testid="chat-voice-interim" className="text-muted-foreground/70">
+                  {voice.interim}
+                </span>
+              </div>
+            )}
+          </div>
           {voice.supported && (
             <Button
               type="button"
@@ -483,17 +534,9 @@ function ChatSession({
             </Button>
           )}
         </div>
-        {/* Live interim transcript (docs/15 §2a): muted preview, never written into the draft;
-            the stop-time final pass replaces it. */}
-        {voice.interim && (voice.recording || voice.status === "transcribing") && (
-          <p
-            data-testid="chat-voice-interim"
-            className="mt-1.5 line-clamp-2 px-3 text-sm italic text-muted-foreground"
-          >
-            <span className="sr-only">{tv("interim")}: </span>
-            {voice.interim}
-          </p>
-        )}
+        <p className="sr-only" aria-live="polite" data-testid="chat-voice-interim-live">
+          {ghost ? `${tv("interim")}: ${voice.interim}` : ""}
+        </p>
         {voice.supported && (
           <div className="mt-1.5 flex flex-wrap items-center gap-2 px-1 text-[11px] text-muted-foreground">
             <label htmlFor="chat-mic-select">{tv("mic.label")}</label>

@@ -109,13 +109,26 @@ test.describe("voice input", () => {
     await expect(page.getByTestId("chat-recording")).toBeVisible();
     await partialResponse;
 
+    const ghost = page.getByTestId("chat-composer-ghost");
     const interim = page.getByTestId("chat-voice-interim");
     await expect(interim).toContainText("where can", { timeout: 8_000 });
-    const interimText = (await interim.innerText()).replace(/^.*?:\s*/, "").trim();
+    const interimText = (await interim.innerText()).trim();
     expect(STUB_TRANSCRIPT.startsWith(interimText)).toBe(true);
     expect(interimText).not.toBe(STUB_TRANSCRIPT); // interim is a preview, not the final text
-    await expect(interim).toHaveClass(/italic/);
-    // Typed text is untouched while interim text is shown; nothing is inserted yet.
+    // Ghost text lives inside the composer box, after the (invisible) typed draft.
+    await expect(ghost).toHaveAttribute("aria-hidden", "true");
+    await expect(ghost).toHaveText(/^Hi where can/);
+    await expect(ghost.locator("span.invisible")).toHaveText("Hi");
+    await expect(interim).toHaveClass(/text-muted-foreground/);
+    const [composerBox, ghostBox] = await Promise.all([
+      composer.boundingBox(),
+      ghost.boundingBox(),
+    ]);
+    for (const k of ["x", "y", "width", "height"] as const) {
+      expect(Math.round(ghostBox![k])).toBe(Math.round(composerBox![k]));
+    }
+    await expect(page.getByTestId("chat-voice-interim-live")).toContainText("where can");
+    // The interim text is never written into the draft.
     await expect(composer).toHaveValue("Hi");
     await expect(page.getByTestId("chat-recording")).toBeVisible();
 
@@ -123,11 +136,12 @@ test.describe("voice input", () => {
     await mic.click();
     expect((await final).status()).toBe(200);
     await expect(composer).toHaveValue(`Hi ${STUB_TRANSCRIPT}`);
+    await expect(ghost).toHaveCount(0);
     await expect(interim).toHaveCount(0);
     await expect(page.getByTestId("chat-turn-item")).toHaveCount(0);
   });
 
-  test("cancelling with Escape discards the interim text and uploads nothing final", async ({
+  test("cancelling with Escape in the composer discards the interim text and uploads nothing final", async ({
     page,
   }) => {
     await gotoReady(page, "/chat");
@@ -140,9 +154,12 @@ test.describe("voice input", () => {
     await expect(page.getByTestId("chat-voice-interim")).toContainText("where can", {
       timeout: 8_000,
     });
-    await mic.press("Escape");
+    await expect(page.getByTestId("chat-composer-ghost")).toBeVisible();
+    await page.getByTestId("chat-composer").press("Escape");
     await expect(mic).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByTestId("chat-composer-ghost")).toHaveCount(0);
     await expect(page.getByTestId("chat-voice-interim")).toHaveCount(0);
+    await expect(page.getByTestId("chat-voice-interim-live")).toHaveText("");
     await expect(page.getByTestId("chat-composer")).toHaveValue("");
     expect(finalPosted).toBe(false);
   });
