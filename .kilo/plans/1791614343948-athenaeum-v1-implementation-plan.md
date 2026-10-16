@@ -112,7 +112,7 @@ Docs re-scoped in docs/11 + docs/03 §5.4/§6.4 (v1 item 16). One dialog, two au
 6. `test`: Go resolver + return state-machine + waitlist-turnover tests; Playwright patron ISBN lookup + self-service return via the manual code path (camera path unit-only).
 Gate: the docs/11 §11 deferral (RFID encode / thermal label print / Edit-MARC) stays unbuilt.
 
-### M14 — Auto-index worker + detail rating (decisions 2026-10-16; docs/06 §2, docs/08 §7)
+### M14 — Auto-index worker + detail rating (+ index-status visibility: `GET /api/admin/index-status`, `meta.index_pending`, admin badges, catalog note) (decisions 2026-10-16; docs/06 §2, docs/08 §7)
 1. `feat(db)`: migration 0006 — `books.embedding_dirty BOOL NOT NULL DEFAULT false` + partial index `WHERE embedding_dirty`; canonical DDL already in docs/02 §4.
 2. `feat(api)`: admin repo — `CreateBook` sets dirty=true; `PatchBook` sets dirty=true only when title/authors/description change; worker clears on success.
 3. `feat(api)`: `service/index` worker — dirty set is the union of `embedding_dirty` **and** books with **zero embedding rows** (gap 1a: fresh-start backfill, so a freshly seeded catalog self-heals without `make reindex`); wake-up via notify (non-blocking send from admin service) + 5s poll fallback; per-book `Indexer.Run(bookID)`; **waits for Ollama** — down or model-not-pulled keeps the book queued and retries with backoff instead of failing (startup backfill and later edits both wait); slog lines (start/success/failure + pending count). Wired in `cmd/api/main.go` like `RunSweeper`.
