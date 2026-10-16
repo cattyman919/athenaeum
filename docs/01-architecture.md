@@ -35,7 +35,7 @@ flowchart TB
         REP["repository/<br/>interfaces + pgx impl"]
     end
 
-    PG[("PostgreSQL 16 + pgvector<br/>14 tables + 1 view")]
+    PG[("PostgreSQL 16 + pgvector<br/>16 tables + 2 views")]
     RD[("Redis 7<br/>rate limits + ISBN cache")]
     OL["Ollama 11434<br/>nomic-embed-text, 768-dim"]
     OR["OpenRouter<br/>anthropic/claude-3.5-sonnet"]
@@ -217,6 +217,6 @@ Loaded by `internal/config` via `caarlos0/env` into a typed `Config` struct (no 
 - **Emails:** lowercase-normalized (`lower(email)`, unique index — [02](02-data-model.md#users)).
 - **Time zone:** datetimes stored as `TIMESTAMPTZ`; `web` renders in the library building's `America/New_York`.
 - **Graceful shutdown:** `SIGTERM` → 10s drain, `slog` per-route summary.
-- **No loan/fining logic** anywhere (out of scope — [10-roadmap.md](./10-roadmap.md)); `checked_out` copies carry no due dates and **no borrower link** in v1. Self-service **return** (`POST /api/copies/{id}/return`, [11](11-barcode-scanning.md)) only flips a scanned copy's status — it records the acting user in `copy_events`, not a loan.
+- **Loans, no fines:** scanning a copy tag borrows (`checked_out`) or returns it — self-service checkout **and** return are in v1 ([10 §1](10-roadmap.md#1-in-scope-v1--checklist) items 16-17). A loan row ([02 §loans](02-data-model.md#loans)) records borrower + `due_at` (14 d, one renewal); the acting user is also written to `copy_events`. Fines, notices and multi-building hold requests stay out of scope ([10 §2](10-roadmap.md#2-out-of-scope--deferred)).
 - **Health:** `GET /api/health` returns `{"status":"ok"}` (public) — defined in [03-api-spec.md](./03-api-spec.md#41-get-apihealth).
 - **Auto-index worker:** an in-process goroutine (started in `cmd/api/main.go` like the waitlist sweeper) keeps `book_embeddings` fresh — it backfills books with no embeddings (fresh seed) and re-embeds admin create/RAG-field edits within ~5 s, **waiting for Ollama with backoff** when it is down or the model is not pulled rather than failing ([06 §2](06-ai-rag.md#2-rag-pipeline), [08 §7](08-seed-data.md#7-reindex)). Its backlog is visible via `GET /api/admin/index-status` and `meta.index_pending` on search ([03 §8.1](03-api-spec.md#81-admin-kpis--audit), [§5.1](03-api-spec.md#51-get-apibookssearch)).

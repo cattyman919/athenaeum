@@ -235,7 +235,7 @@ embeds resolve and the TODO on rows 2–7 closes.
 | Sign In `b6e0…` | [07 §/login](./07-frontend.md#7-page-breakdowns) | [04 §1](04-auth.md#1-login-screen-stitch), [03 §4](03-api-spec.md#4-auth-endpoints) |
 | Catalog Browser `e9f2…` | [07 §/catalog](./07-frontend.md#7-page-breakdowns) | [03 §5.1](03-api-spec.md#51-get-apibookssearch) |
 | Book Detail: Dune `7239…` | [07 §/books/{id}](07-frontend.md#7-page-breakdowns) | [05 §5](05-building-layout.md#5-book-detail-screen-stitch), [02 §6](02-data-model.md#6-book_locations-view) |
-| My Library `9cee…` | [07 §/library](./07-frontend.md#7-page-breakdowns) | [03 §6](03-api-spec.md#6-personal-library--waitlist) |
+| My Library `9cee…` | [07 §/library](./07-frontend.md#7-page-breakdowns) | [03 §6](03-api-spec.md#6-personal-library-waitlist--loans) |
 | AI Librarian `7053…` | [07 §/chat](./07-frontend.md#7-page-breakdowns) | [06 §9](06-ai-rag.md#9-chat-screen-stitch), [03 §7](03-api-spec.md#7-chat-sse) |
 | Admin Portal `3177…` | [07 §/admin,/admin/layout](07-frontend.md#7-page-breakdowns) | [03 §8](03-api-spec.md#8-admin), [05 §6](05-building-layout.md#6-mock-data--seeding) |
 | Draft variant `77cc…` | provenance only | [12 §13](#13-deferred-ui-items) |
@@ -259,11 +259,15 @@ render it ([04 §3](04-auth.md#3-google-sso)); open-collection spotlight preview
 card. Flows: [04 §2-3](04-auth.md#2-emailpassword-flow).
 
 ### Screen 2 — `/catalog` Catalog Browser & Hybrid Search
-Stitch: **Catalog Browser** (`e9f2…`, HTML exported). Tri-modal search switcher
-(Keyword/Semantic/Hybrid — export-verified; params [03 §5.1](03-api-spec.md#51-get-apibookssearch));
+Stitch: **Catalog Browser** (`e9f2…`, HTML exported). **Search defaults to hybrid**
+(decided 2026-10-16): one search box, no visible mode tabs — Keyword/Semantic sit behind
+an "Advanced" disclosure ([07](07-frontend.md#catalog--screen-2-stitch-e9f24637)); an empty
+box browses, and an embedding outage silently degrades to keyword
+(`meta.mode_used`/`meta.degraded`, [03 §5.1](03-api-spec.md#51-get-apibookssearch));
 faceted wayfinding sidebar (section checkboxes w/ color dots, availability facet
 worded "In Building" per export, era sliders); 2:3 book-card grid with top-right
-availability beacons; call-number mono badges; ⌘K palette (export-verified).
+availability beacons and a **rating average + count** (`★ 4.6 (12)`); call-number mono
+badges; ⌘K palette (export-verified).
 Empty/edge states: [07 §9](07-frontend.md#9-loading-empty--error-states).
 
 ### Screen 3 — `/books/[id]` Book Detail & Spatial Wayfinding
@@ -277,8 +281,9 @@ manifest table of `book_copies` rows; archival affinity carousel (`neighbors` �
 Stitch: **My Library** (`9cee…`). KPI bar (In Collection 24 / Currently Reading 2 /
 Completed 15 / Bookmarks & AI 7 — seeded to match, [13 §demo users](13-mock-data-reference.md#6-demo-users--personal-library));
 reading-stage tabs; `LibraryRowItem` rows with shelf coordinates + progress +
-inline ratings; holds & waitlists tab ([03 §6.3](03-api-spec.md#63-waitlist)); AI
-cross-reference banner deep-linking `/chat`.
+inline ratings; **Loans** tab (`GET /api/loans`, [03 §6.7](03-api-spec.md#67-get-apiloans)) with
+due dates, one renewal and a return action; holds & waitlists tab ([03 §6.3](03-api-spec.md#63-waitlist));
+AI cross-reference banner deep-linking `/chat`.
 
 ### Screen 5 — `/chat` AI Librarian Research Assistant
 Stitch: **AI Librarian** (`7053…`). Two-pane (session drawer + stream), message
@@ -327,9 +332,10 @@ DB statuses: [02 §book_copies](02-data-model.md#book_copies).
 stateDiagram-v2
     [*] --> InCatalog: registered (seed or staff intake)
     InCatalog --> Available: assigned to shelf coordinate
-    Available --> CheckedOut: scanned at desk/turnstile
+    Available --> CheckedOut: staff desk scan or patron self-service scan (loan created, 14d)
     CheckedOut --> Available: Returned & Re-shelved (staff desk or patron self-service scan)
     CheckedOut --> ReservedWaitlist: return with a waiting hold, or queued patron hold (48h)
+    ReservedWaitlist --> CheckedOut: hold owner picks up (self-service borrow)
     ReservedWaitlist --> Available: expired or not picked up
     Available --> MissingLost: stack audit flags
     MissingLost --> Available: RestoredToAvailable via audit
@@ -338,8 +344,9 @@ stateDiagram-v2
 | Transition | Trigger | Source field |
 | --- | --- | --- |
 | `InCatalog → Available` | admin assigns shelf | `POST /api/admin/copies`, [03 §8.3](03-api-spec.md#83-admin-copies) |
-| `Available → CheckedOut` | staff scan at desk | `PATCH /api/admin/copies/{id}` |
-| `CheckedOut → Available` ("Returned & Re-shelved") | staff desk return **or patron self-service return** | staff: `PATCH /api/admin/copies/{id}`; patron: `POST /api/copies/{id}/return` (`copy_events.source='self_return'` — [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn)) |
+| `Available → CheckedOut` | staff desk scan **or patron self-service borrow** | staff: `PATCH /api/admin/copies/{id}`; patron: `POST /api/copies/{id}/borrow` (`copy_events.source='self_checkout'`, inserts a `loans` row with `due_at = now + 14d` — [03 §6.5](03-api-spec.md#65-post-apicopiesidborrow)) |
+| `ReservedWaitlist → CheckedOut` | hold owner picks up a ready copy | `POST /api/copies/{id}/borrow` (hold → `picked_up`) |
+| `CheckedOut → Available` ("Returned & Re-shelved") | staff desk return **or patron self-service return** | staff: `PATCH /api/admin/copies/{id}`; patron: `POST /api/copies/{id}/return` (`copy_events.source='self_return'`, closes the open `loans` row — [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn)) |
 | `CheckedOut → ReservedWaitlist` | waitlist turnover (48 h) on return | `PATCH` **or** `POST /api/copies/{id}/return` + `waitlist.ready_at` set — [03 §6.3](03-api-spec.md#63-waitlist) |
 | `MissingLost → Available` ("RestoredToAvailable") | audit restores | PATCH |
 

@@ -120,6 +120,31 @@ Gate: the docs/11 §11 deferral (RFID encode / thermal label print / Edit-MARC) 
 5. `test`: migration up/down; dirty-flag unit tests (RAG-field vs non-RAG patch); worker test with fake embedder (dirty cleared, failure keeps dirty, zero-embedding books picked up, Ollama-down retries); rating detail test.
 Gate: `make lint` + `make test` + `make e2e` green; `cmd/seed` still leaves dirty=false but the worker backfills zero-embedding books on boot (docs 06/08/09/README quickstart no longer require `make reindex` for a fresh start).
 
+### M15 — Hybrid search by default + rating averages (decisions 2026-10-16; docs/03 §5.1/§5.2, docs/02 §6.2, docs/07, docs/12, docs/14)
+1. `feat(db)`: migration `book_ratings` view (avg + count from `user_library.rating`, `WHERE rating IS NOT NULL`).
+2. `feat(api)`: `GET /api/books/search` — default `mode=hybrid`; empty `q` browses (keyword, no embed); on embedding failure return 200 keyword results with `meta.mode_used="keyword"`, `meta.degraded=true` instead of 503; add `rating_avg`/`rating_count` to each item from the view.
+3. `feat(api)`: `GET /api/books/{id}` adds `rating_avg`/`rating_count`.
+4. `feat(web)`: `/catalog` — one search box, default hybrid, Keyword/Semantic behind an **Advanced** disclosure; remove the always-visible mode tabs; show `★ x.y (n)` on `BookCard`/detail; keep the empty-query prompt for explicit semantic/hybrid.
+5. `test`: search fallback/degraded + rating fields (Go); Playwright: default search works without choosing a mode, Advanced still exposes modes, rating shown.
+Gate: docs examples and e2e updated; `mode=semantic` still supported for API consumers/e2e.
+
+### M16 — Startup reviewer accounts + ratings (decisions 2026-10-16; docs/08 §4, docs/13 §1/§6)
+1. `feat(api)`: `cmd/seed` creates 20 reviewer accounts `user1@gmail.com`..`user20@gmail.com` (password = local part, role user, argon2id) idempotently.
+2. `feat(api)`: seed deterministic reviewer ratings (~8-15 books each, hash of user+book, values 3-5) as `user_library` rows with `rating`; demo patron's 5 existing ratings keep counting.
+3. `feat(api)`: seed one open `loans` row per seeded `checked_out` copy, owned by a reviewer, `due_at = borrowed_at + 14d` (future); status stays `checked_out`.
+4. `feat(api)`: seed parity print → `22/40/60/40` + `loans=<n>` + `ratings=<n>`; `--reset` truncates `loans` too.
+5. `test`: seed idempotency (re-run stable), ratings determinism, `book_ratings` values, loan rows for every `checked_out` copy.
+Gate: `make seed` twice keeps counts identical; docs/13 parity holds.
+
+### M17 — Scan-based borrowing + loans (decisions 2026-10-16; docs/03 §6.5-6.7, §5.4, docs/11, docs/12 §10, docs/01 §8, docs/07)
+1. `feat(db)`: migration `loans` table (partial unique open loan per copy; user/copy indexes); drop `book_copies.due_at` (moved to `loans`).
+2. `feat(api)`: `POST /api/copies/{id}/borrow` — available (or caller's `reserved_waitlist` → hold `picked_up`) → `checked_out`, insert loan (`due_at=now+14d`), `copy_events.source='self_checkout'`; 409 `CONFLICT`/`BORROW_LIMIT`; one transaction + row lock.
+3. `feat(api)`: `POST /api/copies/{id}/return` — also close the open loan (`returned_at=now()`), keep waitlist turnover; `POST /api/copies/{id}/renew` — +14d, `renewals` ≤ 1, borrower-only; `GET /api/loans` — active + past, `overdue`/`renewable`.
+4. `feat(api)`: `POST /api/books/scan` copy result gains `borrowable` + `loan` (`{id,user_id,due_at,renewals,mine}`); rate limits borrow 10/min, renew 5/min.
+5. `feat(web)`: scanner Patron Lookup shows **Borrow this copy** / **Return this copy** by state (with due date); `/library` **Loans** tab (due dates, overdue flag, renew once, return); `scanner.*`/`library.loans.*` en+zh-CN keys.
+6. `test`: Go borrow/renew/return/limit/state-machine + loans endpoint; Playwright manual-code borrow→due date→renew→return and the Loans tab.
+Gate: docs/10 §1 items 16-17 done, §2 deferrals updated (fines/notices only); RFID/label/MARC stay unbuilt.
+
 ## Milestone gate (every milestone)
 
 1. `make lint` and `make test` green; `make e2e` green from M4 onward.

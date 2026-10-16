@@ -26,7 +26,9 @@ One **Universal Barcode & ISBN Scanner** dialog serves both audiences (Stitch ar
     other copies are left**; CTA "View Full Record & Map", or the waitlist CTA when zero copies
     are available.
   - scan an **Athenaeum copy tag** (`ATH-XXXXXX-CYY`) → that specific copy, with a
-    **Return this copy** action when it is `checked_out` (self-service return — [12 §10](12-ui-design.md#10-copy-state-machine)).
+    **Borrow this copy** action when it is `available` (self-service checkout → a 14-day loan)
+    or a **Return this copy** action when it is `checked_out` (self-service return) —
+    [12 §10](12-ui-design.md#10-copy-state-machine).
 - **Staff Intake** (👑 admin only): scan an ISBN → prefill the Add-Book form (existing
   behaviour), with the local copy-tag that intake will assign.
 
@@ -38,8 +40,9 @@ Accepted codes and their symbols:
 | Athenaeum copy tag `ATH-002941-C01` | Code 128 | `book_copies` row (+ its `book_locations` path) |
 
 - **Frontend-first, but no longer frontend-only**: the camera, decode loop and dialog are
-  browser-only; ISBN lookup and self-service return are new patron endpoints
-  ([03 §5.4](03-api-spec.md#54-post-apibooksscan) / [§6.4](03-api-spec.md#64-post-apicopiesidreturn)).
+  browser-only; ISBN lookup, self-service **borrow** and self-service **return** are patron
+  endpoints ([03 §5.4](03-api-spec.md#54-post-apibooksscan) / [§6.5](03-api-spec.md#65-post-apicopiesidborrow) /
+  [§6.4](03-api-spec.md#64-post-apicopiesidreturn)).
 - **ISBN-10 is not supported** (out of v1): a scanned ISBN-10 fails the EAN-13 pre-check and
   surfaces as an unusable-barcode hint. Everything canonical is ISBN-13 ([02](02-data-model.md#books)).
 - Demo note: a modern smartphone with PDAF autofocus (e.g. Redmi Note 15) is recommended over
@@ -92,6 +95,29 @@ sequenceDiagram
     R-->>S: 200 copy.status + availability (+ promoted hold)
     S-->>Dialog: success toast; "Scan Next"
 ```
+
+### 2b-ii. Patron self-service borrow (copy tag → checkout)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Scanner client comp
+    participant A as api POST /api/books/scan
+    participant B as api POST /api/copies/{id}/borrow
+    participant PG as Postgres (copies + loans + copy_events)
+
+    S->>A: POST code "ATH-002941-C02"
+    A-->>S: 200 match=copy, copy.status=available, borrowable=true
+    S-->>Dialog: show copy + "Borrow this copy"
+    S->>B: POST borrow (10 per min per user)
+    B->>PG: status available -> checked_out; INSERT loans (due_at = now + 14d)
+    B->>PG: append copy_events (source=self_checkout, actor=patron)
+    B-->>S: 201 loan (due_at) + availability
+    S-->>Dialog: success toast with due date; "Scan Next"
+```
+
+`reserved_waitlist` owned by the caller behaves like `available` (a ready hold being picked
+up → the hold becomes `picked_up`). Rate 10/1min; max 5 open loans per user.
 
 ### 2c. Staff intake (ISBN → add book)
 
@@ -224,8 +250,8 @@ behaviour.
 | Cooldown | 1.5 s lockout after a detection to prevent duplicate lookups |
 | Manual fallback | text input accepting an ISBN-13 or `ATH-…` tag, with a client check-digit hint ([§8](#8-error-handling)) |
 | Result — book | cover (2:3), title/author, ISBN, call numbers; availability chip (`N Copies on Shelf`); shelf coordinates block |
-| Result — copy | copy `barcode`, status, condition, shelf coordinates; **Return this copy** button only when `returnable` |
-| Patron actions | `View Full Record & Map` → `/books/{id}`; `Scan Next` (clears result, keeps camera) |
+| Result — copy | copy `barcode`, status, condition, shelf coordinates, and the open loan's due date when borrowed by the caller; **Borrow this copy** when `borrowable`, **Return this copy** when `returnable` |
+| Patron actions | `View Full Record & Map` → `/books/{id}`; `Borrow this copy` → loan with due date; `Return this copy` → [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn); `Scan Next` (clears result, keeps camera) |
 | Staff module | next inventory copy tag (`ATH-…-CY`), commit intake → Add-Book form |
 
 ## 8. Error Handling
@@ -251,7 +277,9 @@ behaviour.
 | Endpoint | Auth | Purpose |
 | --- | --- | --- |
 | `POST /api/books/scan` | 🔒 user | resolve a scanned ISBN / copy tag locally (no upstream) — [03 §5.4](03-api-spec.md#54-post-apibooksscan) |
+| `POST /api/copies/{id}/borrow` | 🔒 user | self-service checkout (available/reserved→own → checked_out + loan) — [03 §6.5](03-api-spec.md#65-post-apicopiesidborrow) |
 | `POST /api/copies/{id}/return` | 🔒 user | self-service return (checked_out → available / reserved_waitlist) — [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn) |
+| `POST /api/copies/{id}/renew` | 🔒 user | renew an open loan once (+14d) — [03 §6.6](03-api-spec.md#66-post-apicopiesidrenew) |
 | `POST /api/books/fetch-isbn` | 👑 admin | metadata intake for a **new** book — [03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn) |
 | `POST /api/admin/books` · `/api/admin/copies` | 👑 admin | staff create book / copy (auto copy tag) — [03 §8](03-api-spec.md#8-admin) |
 
@@ -285,14 +313,19 @@ if ok, _ := v.Verify([]byte(strings.TrimSpace(code))); !ok {
 
 ## 11. Scope Impact
 
-- **New backend surface (v1 scope expansion):** `POST /api/books/scan` and
-  `POST /api/copies/{id}/return` ([10 §1](10-roadmap.md#1-in-scope-v1--checklist) item 16),
-  plus a patron-facing read of `book_locations`. `fetch-isbn` stays the admin intake path.
-- **Self-service return is return-only:** no borrower link and no due dates ([01 §8](01-architecture.md#8-cross-cutting-rules));
-  any patron may return a `checked_out` copy (trust-based desk return). Self-service **checkout**,
-  loans, and fines remain deferred ([10 §2](10-roadmap.md#2-out-of-scope--deferred)).
+- **New backend surface (v1 scope expansion):** `POST /api/books/scan`,
+  `POST /api/copies/{id}/borrow`, `POST /api/copies/{id}/return` and
+  `POST /api/copies/{id}/renew`, plus `GET /api/loans` and a patron-facing read of
+  `book_locations` ([10 §1](10-roadmap.md#1-in-scope-v1--checklist) items 16-17).
+  `fetch-isbn` stays the admin intake path.
+- **Self-service borrow and return are trust-based circulation:** scanning a copy tag borrows
+  an `available` copy (14-day loan, max 5, one renewal) or returns any `checked_out` copy —
+  no borrower card scan ([01 §8](01-architecture.md#8-cross-cutting-rules)). The borrower and
+  `due_at` live in [`loans`](02-data-model.md#loans). Overdue **fines**, reminders and
+  multi-copy hold requests remain deferred ([10 §2](10-roadmap.md#2-out-of-scope--deferred)).
 - Frontend: one dialog folder (`web/components/barcode-scanner/`), one hook
-  (`use-barcode-scanner.ts`), one nav entry — reused by `/catalog`, `/library`, and `/admin`.
+  (`use-barcode-scanner.ts`), one nav entry — reused by `/catalog`, `/library`, and `/admin`;
+  the `/library` **Loans** tab lists active loans with due dates.
 - Pattern parity: the dialog works on tablet and 375 px mobile layouts unchanged.
 
 > ⚠️ TODO: RFID encoding, thermal label printing and Edit-MARC (sketched in the scanner artifact)

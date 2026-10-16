@@ -87,6 +87,12 @@ Implementation notes (chunker `v1`): each indexed passage is embedded as
 embeddings are computed before a single write transaction, so an Ollama outage never
 leaves a partial index (exit code 3).
 
+> Decided 2026-10-16: `/catalog` **defaults to hybrid** search ([07](07-frontend.md#catalog--screen-2-stitch-e9f24637));
+> when an embedding call fails, `semantic`/`hybrid` degrade to keyword results
+> (`meta.mode_used:"keyword"`, `meta.degraded:true`, [03 §5.1](03-api-spec.md#51-get-apibookssearch))
+> instead of returning 503, so the default search never errors on an Ollama outage. An empty
+> `q` always browses (keyword, no embedding call).
+
 RAG context joins the system prompt as numbered findings; the agent must cite
 `[doc#N]` markers, converted to citations by the API layer.
 

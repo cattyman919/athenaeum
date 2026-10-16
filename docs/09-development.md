@@ -195,7 +195,7 @@ slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelIn
 | handler | `httptest` + service mocks | HTTP error envelope coverage per code ([03 §9](03-api-spec.md#9-error-catalog)) |
 | AI chat service | fake Eino streams (scripted tokens + tool events) | SSE ordering is contractual — [06 §6](06-ai-rag.md#6-sse-event-contract) |
 | web unit | `pnpm test` (Vitest) | locale resolution, catalog key parity, enum label maps ([14 §12](14-localization.md#12-testing)) |
-| web e2e | Playwright (Chromium) | route smoke + key journeys against the compose stack with **stub providers** ([§8.1](#81-e2e-harness)) |
+| web e2e | Playwright (Chromium) | route smoke + key journeys against the compose stack with **stub providers** ([§8.1](#81-e2e-harness)); covers the manual-code scanner path incl. **borrow** (loan created, due date) and **return**, the `/library` Loans tab (renew), and rating averages via the seeded reviewers |
 
 ### 8.1 E2E harness
 

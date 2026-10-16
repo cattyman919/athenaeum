@@ -178,10 +178,16 @@ email input with inline validation beacon, password field, Google SSO anchor
 
 ### /catalog — screen 2 (Stitch `e9f24637…`)
 
-Tri-modal search switcher (Keyword/Semantic/Hybrid — `mode` param), faceted
-sidebar (sections [02 §5](02-data-model.md#5-indexes), availability toggle, era
-buckets), `BookCard` 2:3 grid with availability beacons, `⌘K`
-`command-palette.tsx` calling the same search endpoint. URL params drive state.
+Search **defaults to hybrid** (decided 2026-10-16): one search box, no visible mode tabs —
+Keyword/Semantic live behind an **Advanced** disclosure so patrons are not asked to choose a
+search type (`mode` param still supported; [03 §5.1](03-api-spec.md#51-get-apibookssearch)).
+An empty box browses; an embedding outage degrades silently to keyword (`meta.mode_used` /
+`meta.degraded`), and the semantic-unavailable error card is now only reachable if the user
+explicitly forces `mode=semantic` in Advanced. Faceted sidebar (sections
+[02 §5](02-data-model.md#5-indexes), availability toggle, era buckets), `BookCard` 2:3 grid with
+availability beacons and a **rating average** (`★ 4.6 (12)`, from `rating_avg`/`rating_count`;
+hidden when `rating_count` is null/0), `⌘K` `command-palette.tsx` calling the same search
+endpoint. URL params drive state.
 The shell **Scan** button opens ISBN lookup from here (and everywhere else — see
 [Scanner dialog](#scanner-dialog--patron-lookup--staff-intake)).
 In `semantic`/`hybrid` mode, when `meta.index_pending > 0`
@@ -190,11 +196,11 @@ In `semantic`/`hybrid` mode, when `meta.index_pending > 0`
 “N new books are still being indexed — semantic results may be incomplete”. It re-checks
 with a cheap `mode=keyword&per_page=1` search every 4 s (no embedding call), hides at 0
 and `router.refresh()`es the results.
-Since `q` is required for `semantic`/`hybrid` ([03 §5.1](03-api-spec.md#51-get-apibookssearch)),
-selecting those modes with an empty box shows an idle prompt (`catalog.queryRequired.*`,
-`data-testid="catalog-query-required"`, `requiresQuery()` in `lib/catalog-query.ts`) instead
-of calling the API and rendering an error; a stray server `VALIDATION_FAILED` maps to the
-same prompt. Keyword mode with an empty query still browses the catalog.
+With hybrid as the default and no visible tabs, this note is reached on ordinary searches.
+Explicitly forcing `mode=semantic`/`hybrid` in **Advanced** with an empty box still shows the
+idle prompt (`catalog.queryRequired.*`, `data-testid="catalog-query-required"`,
+`requiresQuery()` in `lib/catalog-query.ts`) rather than an error; a stray server
+`VALIDATION_FAILED` maps to the same prompt. An empty box browses (keyword listing).
 
 ### /books/[id] — screen 3 (Stitch `723960ca…`)
 
@@ -207,9 +213,11 @@ metadata; tri-state availability banner; `BookLocationCard` ladder (localized fr
 ### /library — screen 4 (Stitch `9cee3484…`)
 
 4 KPI cards (In Collection / Currently Reading / Completed / Bookmarks & AI),
-reading-stage tabs (All/Reading/Read/Want to Read/Favorites/Holds & Waitlists —
+reading-stage tabs (All/Reading/Read/Want to Read/Favorites/Holds & Waitlists/**Loans** —
 `GET /api/library?status=…`), `LibraryRowItem` rows (shelf coordinates, progress,
-rating), hold rows from `GET /api/waitlist`, AI cross-reference banner →
+rating), hold rows from `GET /api/waitlist`, **loan rows** from `GET /api/loans`
+([03 §6.7](03-api-spec.md#67-get-apiloans)) showing book, copy barcode, due date, an overdue
+flag and a **Renew (once)** / **Return** action (`POST /api/copies/{id}/renew|return`), AI cross-reference banner →
 `/chat?prefill=my-library`. A **Scan to return** action opens the shared
 [Barcode Scanner dialog](#scanner-dialog--patron-lookup--staff-intake) in Patron Lookup mode.
 
@@ -259,16 +267,18 @@ floor mini-map (simple SVG grid highlighting the selected aisle).
 
 One `BarcodeScannerDialog` (`components/barcode-scanner/`, Client Component `ssr:false` — Stitch
 artifact `.artifacts/stitch/barscanner_ISBN/`) mounted in the app shell. Opened from the top-nav
-**Scan** button (all users, default **Patron Lookup**), from `/library` as "Scan to return", and
+**Scan** button (all users, default **Patron Lookup**), from `/library` as "Scan a copy" (borrow or return), and
 from `/admin` on the **Staff Intake** tab (admin only). Behaviour + error states:
 [11 §7/§8](./11-barcode-scanning.md#7-uiux-specification).
 
 - **Patron Lookup** — each decode calls `POST /api/books/scan`
   ([03 §5.4](03-api-spec.md#54-post-apibooksscan)). An ISBN result shows the record, shelf ladder
   and other-copy availability with **View Full Record & Map** (→ `/books/{id}`) and the waitlist CTA
-  when `available_copies == 0`; a copy-tag result shows the copy and, when `returnable`, a
-  **Return this copy** action calling `POST /api/copies/{id}/return`
-  ([03 §6.4](03-api-spec.md#64-post-apicopiesidreturn)). Camera + manual code input.
+  when `available_copies == 0`; a copy-tag result shows the copy and, when `borrowable`, a
+  **Borrow this copy** action (`POST /api/copies/{id}/borrow`, [03 §6.5](03-api-spec.md#65-post-apicopiesidborrow),
+  confirming the 14-day due date) or, when `returnable`, a **Return this copy** action
+  (`POST /api/copies/{id}/return`, [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn)).
+  Camera + manual code input.
 - **Staff Intake** — the Add-Book flow (Manual / ISBN / Scan tabs) driving
   `POST /api/books/fetch-isbn` → Add-Book form → `POST /api/admin/books` (+ `/api/admin/copies`).
   RFID encode / label print / Edit-MARC are **not** implemented

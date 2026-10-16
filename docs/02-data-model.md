@@ -9,7 +9,7 @@
 3. [ER Diagram](#3-er-diagram)
 4. [Table DDL (canonical SQL)](#4-table-ddl-canonical-sql)
 5. [Indexes](#5-indexes)
-6. [`book_locations` View](#6-book_locations-view)
+6. [Views](#6-views)
 7. [Query Examples](#7-query-examples)
 8. [pgvector Notes](#8-pgvector-notes)
 9. [Migration Conventions](#9-migration-conventions)
@@ -28,7 +28,9 @@
 | `book_embeddings` | 768-dim description chunks | `cmd/reindex` | semantic + hybrid search, chat RAG |
 | `conversations` `messages` | AI chat sessions | chat service | `/chat` page ([06](./06-ai-rag.md#7-conversation-persistence)) |
 | `copy_events` | Admin audit-stream rows | copy + return mutations | admin audit stream |
+| `loans` | Active + past borrowings (borrower, due date) | self-service checkout/return, admin | `/library` loans, detail |
 | `book_locations` | **VIEW** — denormalized copy→building path | — | detail, wayfinding, export |
+| `book_ratings` | **VIEW** — per-book average + count of `user_library.rating` | — | search, detail, `/catalog` |
 
 Entities erased by codegen (IDs, FKs) are per-table below. Nested Hierarchy:
 `Building → Floor → Section → Aisle → Shelf → book_copies` — semantics in
@@ -66,6 +68,8 @@ erDiagram
     books ||--o{ waitlist : "wanted as"
     conversations ||--o{ messages : "contains"
     book_copies ||--o{ copy_events : "transitioned by"
+    book_copies ||--o{ loans : "lent as"
+    users ||--o{ loans : "borrows"
 
     users {
         uuid id PK
@@ -172,6 +176,15 @@ erDiagram
         jsonb tool_meta
         int tokens
     }
+    loans {
+        uuid id PK
+        uuid copy_id FK
+        uuid user_id FK
+        timestamptz borrowed_at
+        timestamptz due_at
+        timestamptz returned_at
+        int renewals
+    }
     copy_events {
         bigserial id PK
         uuid copy_id FK
@@ -258,7 +271,6 @@ CREATE TABLE book_copies (
                    CHECK (status IN ('available','checked_out','reserved_waitlist','missing_lost')),
   condition        TEXT NOT NULL DEFAULT 'good',
   shelf_id         UUID REFERENCES shelves(id),       -- NULL = in-catalog only
-  due_at           TIMESTAMPTZ,                       -- set when checked_out (display only, docs/10)
   last_state_change TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -414,6 +426,38 @@ CREATE TABLE copy_events (
 CREATE INDEX copy_events_recent_idx ON copy_events (created_at DESC);
 ```
 
+### loans
+
+A borrowing: an open loan has `returned_at IS NULL` (at most one open loan per copy —
+enforced by the partial unique index). **No fines** and no borrower-facing notices in
+v1 ([10 §2](10-roadmap.md#2-out-of-scope--deferred)); the loan is the borrower link the
+[01 §8](01-architecture.md#8-cross-cutting-rules) rule previously omitted.
+
+```sql
+CREATE TABLE loans (
+  id          UUID PRIMARY KEY,
+  copy_id     UUID NOT NULL REFERENCES book_copies(id) ON DELETE CASCADE,
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  borrowed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  due_at      TIMESTAMPTZ NOT NULL,                   -- borrowed_at + LOAN_PERIOD (14d)
+  returned_at TIMESTAMPTZ,                            -- NULL while the loan is open
+  renewals    SMALLINT NOT NULL DEFAULT 0 CHECK (renewals >= 0),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX loans_open_copy_key ON loans (copy_id) WHERE returned_at IS NULL;
+CREATE INDEX loans_user_open_idx ON loans (user_id, due_at) WHERE returned_at IS NULL;
+CREATE INDEX loans_copy_idx ON loans (copy_id, borrowed_at DESC);
+```
+
+- Created by `POST /api/copies/{id}/borrow` (self-service checkout) with
+  `due_at = now() + 14d`; closed by `POST /api/copies/{id}/return` (`returned_at = now()`).
+  `POST /api/copies/{id}/renew` adds 14d and increments `renewals` (max 1 renewal).
+  Full contract: [03 §6.5-6.7](03-api-spec.md#65-post-apicopiesidborrow).
+- `book_copies.status` remains the fast availability flag; `loans` is the
+  who/when/until record. Both change in one transaction, and every transition appends a
+  `copy_events` row (`source` = `self_checkout` / `self_return`).
+
 ## 5. Indexes
 
 Beyond all inline indexes above, the full-text + vector layer:
@@ -433,9 +477,13 @@ CREATE INDEX users_role_idx ON users (role);
 | `books_isbn13_key` | Partial unique | dedupe + `fetch-isbn` conflict check |
 | `book_embeddings_hnsw` | HNSW cosine | semantic + hybrid + RAG top-K (below) |
 | `book_copies_book_idx` | BTree | detail copy manifest |
+| `loans_open_copy_key` | Partial unique | one open loan per copy |
+| `loans_user_open_idx` | Partial BTree | my loans + borrow-limit check |
 | `waitlist_book_active_idx` | Partial BTree | queue position calc |
 
-## 6. `book_locations` View
+## 6. Views
+
+### 6.1 `book_locations`
 
 Denormalized physical path powering copy manifest + turn-by-turn wayfinding
 ([05-building-layout.md](./05-building-layout.md#4-wayfinding-resolution)):
@@ -478,6 +526,26 @@ LEFT JOIN buildings bd ON bd.id = fl.building_id;
   fetched for queryable copies; detail UI decides display).
 - Copies without `shelf_id` (`NULL`) result in `NULL` path/ladder columns — the
   ladder is omitted downstream (in-catalog only).
+
+### 6.2 `book_ratings`
+
+Average + count of patron ratings, derived from `user_library.rating` (computed on read,
+never denormalized — decided 2026-10-16). Books with no ratings are absent from the view;
+callers render "no ratings yet".
+
+```sql
+CREATE OR REPLACE VIEW book_ratings AS
+SELECT
+  book_id,
+  round(avg(rating)::numeric, 1) AS rating_avg,   -- 1 decimal
+  count(*)                       AS rating_count
+FROM user_library
+WHERE rating IS NOT NULL
+GROUP BY book_id;
+```
+
+Read by `GET /api/books/search`, `GET /api/books/{id}` and the catalog cards
+([03 §5.1](03-api-spec.md#51-get-apibookssearch)).
 
 ## 7. Query Examples
 

@@ -19,7 +19,8 @@
 | File | Contents | Consumer |
 | --- | --- | --- |
 | `api/mocks/building.json` | 1 building, 3 floors, 5 sections, 15 aisles, 40 shelves | `cmd/seed` |
-| `api/mocks/books.json` | 40 books, ~60 copies (12 `checked_out`), 5 zero-copy books, 2 demo users implied | `cmd/seed` |
+| `api/mocks/books.json` | 40 books, ~60 copies (12 `checked_out`), 5 zero-copy books | `cmd/seed` |
+| `api/mocks/library.json` | demo patron library + reviewer ratings + seeded loans (schemas below) | `cmd/seed` |
 
 Target distribution mirrors [13-mock-data-reference.md](./13-mock-data-reference.md):
 60 copies → 20% `checked_out` = 12 exactly, zero `missing_lost`, zero
@@ -122,7 +123,10 @@ when that account is part of the run. Re-running changes nothing.
 
 ```bash
 1. load config; connect Postgres (DATABASE_URL)
-2. seed users first (SEED_ADMIN_EMAIL + SEED_USER_EMAIL; argon2id passwords — docs/04 §6)
+2. seed users (argon2id passwords — docs/04 §6):
+     a. admin (SEED_ADMIN_EMAIL) + demo patron (SEED_USER_EMAIL)
+     b. 20 reviewer accounts user1@gmail.com..user20@gmail.com, role 'user',
+        password = local part (user1..user20) — login-able demo raters (decided 2026-10-16)
 3. upsert building tree in one transaction:
      for floor → section (color validated) → aisle → shelf  (natural-key upsert:
      conflict on (parent_id, code)); collect map[f-code]path → shelf_id
@@ -132,8 +136,18 @@ when that account is part of the run. Re-running changes nothing.
      c. for each copy: resolve shelf_path → shelf_id (unknown path = hard failure,
         see §8); allocate barcode if omitted (§5); INSERT/ON CONFLICT (barcode) DO UPDATE
      d. append a copy_events row for each newly inserted copy (from_status NULL → status, source 'seed')
-5. print counts: users, books, copies, shelves — expect 2/40/60/40 (docs/13 §1)
-6. remind: 'cd .. && go run ./cmd/reindex' (embeddings, docs/06 §2)
+5. seed patron data (idempotent upserts):
+     a. demo patron user_library from mocks/library.json (24 entries, docs/13 §6)
+     b. reviewer ratings: each reviewer rates ~8-15 books chosen deterministically
+        (hash of user+book id), values skewed 3-5, so averages vary and some books
+        stay unrated; demo patron's own 5 seeded ratings also count (docs/13 §6)
+     c. loans: for each seeded `checked_out` copy, insert an open `loans` row owned by a
+        reviewer (deterministic pick), borrowed_at in the past, due_at = borrowed_at + 14d
+        (all future — no overdue in the demo); status stays `checked_out`
+6. print counts: users, books, copies, shelves — expect 22/40/60/40, plus
+   loans=<#checked_out>, ratings=<#user_library rows with rating> (docs/13 §1)
+7. note: embeddings are backfilled by the auto-index worker on API start (docs/06 §2);
+   `make reindex` is only needed for model/chunker changes
 ```
 
 - **Deterministic**: file order is insertion order; no randomness, no timestamps
@@ -214,6 +228,6 @@ model/chunker upgrades and a deterministic offline rebuild.
 
 - Re-running is safe: every upsert is keyed by natural keys, so counts stay
   identical; only `updated_at` changes. `copy_events` seed rows are written once, when a copy is first inserted.
-- `--reset` truncates `book_copies, copy_events, book_embeddings, user_library,
+- `--reset` truncates `loans, book_copies, copy_events, book_embeddings, user_library,
   waitlist, books, conversations, messages, shelves, aisles, sections, floors,
   buildings` (children first, `users`/`refresh_tokens` untouched) then reseeds.

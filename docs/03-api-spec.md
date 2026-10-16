@@ -9,7 +9,7 @@
 3. [Endpoint Index](#3-endpoint-index)
 4. [Auth Endpoints](#4-auth-endpoints)
 5. [Books & Search](#5-books--search)
-6. [Personal Library & Waitlist](#6-personal-library--waitlist)
+6. [Personal Library, Waitlist & Loans](#6-personal-library-waitlist--loans)
 7. [Chat (SSE)](#7-chat-sse)
 8. [Admin](#8-admin)
 9. [Error Catalog](#9-error-catalog)
@@ -65,6 +65,8 @@ else IP (hashed). Middleware: [01-architecture.md](01-architecture.md#3-request-
 | `POST /api/books/fetch-isbn` | 10 | 1 min | user_id | 429 (admin intake) |
 | `POST /api/books/scan` | 30 | 1 min | user_id | 429 (`RATE_LIMITED`; patron ISBN / copy-tag lookup — [11 §9](./11-barcode-scanning.md#9-endpoints--validation)) |
 | `POST /api/copies/{id}/return` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; patron self-service return — [11 §9](./11-barcode-scanning.md#9-endpoints--validation)) |
+| `POST /api/copies/{id}/borrow` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; patron self-service checkout — [11 §9](./11-barcode-scanning.md#9-endpoints--validation)) |
+| `POST /api/copies/{id}/renew` | 5 | 1 min | user_id | 429 (`RATE_LIMITED`; one renewal per loan) |
 
 Specific limits shadow the general one (most restrictive wins per endpoint).
 
@@ -114,6 +116,9 @@ Auth column: 🔓 public · 🔒 `user` · 👑 `admin`.
 | 38 | POST | `/api/books/scan` | 🔒 | resolve scanned ISBN / copy tag | [§5.4](#54-post-apibooksscan) |
 | 39 | POST | `/api/copies/{id}/return` | 🔒 | self-service return | [§6.4](#64-post-apicopiesidreturn) |
 | 40 | GET | `/api/admin/index-status` | 👑 | auto-index backlog | [§8.1](#81-admin-kpis--audit) |
+| 41 | POST | `/api/copies/{id}/borrow` | 🔒 | self-service checkout (loan) | [§6.5](#65-post-apicopiesidborrow) |
+| 42 | POST | `/api/copies/{id}/renew` | 🔒 | renew an open loan | [§6.6](#66-post-apicopiesidrenew) |
+| 43 | GET | `/api/loans` | 🔒 | my loans (active + history) | [§6.7](#67-get-apiloans) |
 
 404 for unknown `id` values on every `/api/.../{id}` route.
 
@@ -181,8 +186,8 @@ Query params:
 
 | Param | Values (default) | Notes |
 | --- | --- | --- |
-| `q` | free text (required unless `mode=keyword` + empty) | supports `""` phrase syntax |
-| `mode` | `keyword` \| `semantic` \| `hybrid` (default `keyword`) | hybrid = RRF k=60 |
+| `q` | free text | `""`/absent = **browse** (keyword listing); required for explicit `semantic`/`hybrid` |
+| `mode` | `keyword` \| `semantic` \| `hybrid` (default `hybrid`) | hybrid = RRF k=60 (default since 2026-10-16, [07](07-frontend.md#catalog--screen-2-stitch-e9f24637)) |
 | `section` | section code, repeatable (`SF`, `SCI`, `HVA`, `REF`, `PER` — [05](./05-building-layout.md#2-section-categories)) | facet |
 | `availability` | `any` \| `available` (default `any`) | "Only Available in Building" sidebar flag |
 | `era` | `pre1800`, `1800_1970`, `1970_2000`, `2000_n` (repeatable) | publication buckets |
@@ -209,12 +214,26 @@ Response 200 (`items`), each item:
         "soon": null
       },
       "published_year": 1965,
+      "rating_avg": 4.6,
+      "rating_count": 12,
       "score": 0.874
     }
   ],
-  "meta": { "page": 1, "per_page": 20, "total": 40, "total_pages": 2, "index_pending": 0 }
+  "meta": { "page": 1, "per_page": 20, "total": 40, "total_pages": 2,
+            "index_pending": 0, "mode_used": "hybrid", "degraded": false }
 }
 ```
+
+`meta.mode_used` (`keyword`\|`semantic`\|`hybrid`) reports the mode that **actually** ran,
+and `meta.degraded` (bool) is `true` when a requested `semantic`/`hybrid` fell back to
+`keyword` because embeddings were unavailable (docs/06 §2; the fallback returns 200 with
+keyword results rather than 503 — decided 2026-10-16, so a default-hybrid UI never errors on
+an Ollama outage). An **empty `q`** always browses (keyword listing, no embedding call),
+whatever `mode` is requested.
+
+`rating_avg` (1 decimal) + `rating_count` come from the [`book_ratings` view](02-data-model.md#62-book_ratings);
+both are `null` when the book has no ratings. Same fields on the detail schema ([§5.2](#52-get-apibooksid))
+and the catalog cards ([07](07-frontend.md#catalog--screen-2-stitch-e9f24637)).
 
 `meta.index_pending` (int, every `mode`, additive to the standard [§1](#1-conventions)
 meta) is the auto-index backlog size — the same count as `pending_count` of
@@ -248,6 +267,8 @@ Response 200:
   "dewey_num": "813.54",
   "loc_num": "PS3553.I57 D8 1965",
   "cover_url": "…",
+  "rating_avg": 4.6,
+  "rating_count": 12,
   "section": { "code": "SF", "name": "Science Fiction & Speculative", "color": "#3B82F6" },
   "availability": { "total_copies": 3, "available_copies": 2, "state": "available" },
   "copies": [
@@ -277,6 +298,7 @@ Response 200:
 - `wayfinding` is `null` when no copy has a shelf; otherwise it describes the **home shelf**: the
   first available shelved copy (by barcode), else the first shelved copy. `copies[].location.ladder`
   uses the [05 §3](05-building-layout.md#3-location-path-tokens) template, built in the service layer.
+- `rating_avg` / `rating_count` come from the [`book_ratings` view](02-data-model.md#62-book_ratings) (null when no ratings).
 - `neighbors` = other available books sharing `shelf_id` or the section
   ("archival affinity carousel" — [12](./12-ui-design.md#screen-3--booksid-book-detail--spatial-wayfinding)).
 - When zero available copies this endpoint returns **200** still (details remain
@@ -346,13 +368,19 @@ upstream call: an ISBN-13 looks up `books` (by `isbn13`), a copy tag looks up `b
   "copy": null,                      // populated only for a copy-tag match
   "availability": { "total_copies": 3, "available_copies": 2, "state": "available" },
   "wayfinding": { "path": "MAIN/3F/SF/A-1/S-2", "parts": { … }, "ladder_steps": [ … ] },
-  "returnable": false                // true only for a copy-tag match whose status is "checked_out"
+  "returnable": false,               // copy-tag match, status "checked_out"
+  "borrowable": false,               // copy-tag match, status "available", caller under limit
+  "loan": null                       // the copy's open loan, when any
 }
 ```
 
 - `match:"copy"` (copy tag): `copy` = `{id,barcode,status,condition,location:{path,parts,ladder_steps}}`;
-  `book` is the copy's book; `wayfinding` is that copy's location; `returnable` =
-  `copy.status == "checked_out"` → the client may call [§6.4](#64-post-apicopiesidreturn).
+  `book` is the copy's book; `wayfinding` is that copy's location. The client offers:
+  - `returnable` = `copy.status == "checked_out"` → [§6.4 return](#64-post-apicopiesidreturn);
+  - `borrowable` = `copy.status == "available"` **and** the caller has fewer than the
+    [borrow limit](#65-post-apicopiesidborrow) → [§6.5 borrow](#65-post-apicopiesidborrow);
+  - `loan` = `{id,user_id,due_at,renewals,mine}` for the copy's open loan, else `null`
+    (`mine` = the caller is the borrower; `due_at` drives the "due in N days" copy).
 - `match:"book"` (ISBN): `copy:null`, `returnable:false`; `wayfinding`/`availability` follow the
   home-shelf + availability rules of [§5.2](#52-get-apibooksid), so the client reads *other copies
   left* and offers the waitlist CTA when `available_copies == 0`.
@@ -363,7 +391,7 @@ upstream call: an ISBN-13 looks up `books` (by `isbn13`), a copy tag looks up `b
   `INVALID_ISBN` on failure. The full `copies[]`/`neighbors` are **not** returned — the client
   deep-links to [§5.2](#52-get-apibooksid) for detail.
 
-## 6. Personal Library & Waitlist
+## 6. Personal Library, Waitlist & Loans
 
 ### 6.1 GET /api/library
 
@@ -422,9 +450,9 @@ for the KPI cards regardless of the active filter.
 ### 6.4 POST /api/copies/{id}/return
 
 Patron **self-service return** (🔒 any signed-in user — [11](./11-barcode-scanning.md#2-scan-flows));
-rate limit 10/1min per user. This is return-only: no borrower link and no due dates exist
-([01 §8](./01-architecture.md#8-cross-cutting-rules)), so any patron scanning a `checked_out`
-copy's tag may return it (trust-based desk return). Body is empty.
+rate limit 10/1min per user. Trust-based desk return: any patron scanning a `checked_out`
+copy's tag may return it. Body is empty. The open loan (if any) is closed
+(`returned_at = now()` — [02 §loans](02-data-model.md#loans)).
 
 ```json
 // response 200
@@ -433,12 +461,14 @@ copy's tag may return it (trust-based desk return). Body is empty.
             "last_state_change": "2026-10-15T09:12:00Z",
             "location": { "path": "MAIN/3F/SF/A-1/S-2", "parts": { … }, "ladder_steps": [ … ] } },
   "availability": { "total_copies": 3, "available_copies": 3, "state": "available" },
-  "hold": null
+  "hold": null,
+  "closed_loan": { "id": "…", "returned_at": "2026-10-15T09:12:00Z" }   // null when the copy had no open loan
 }
 ```
 
 - Effect: `book_copies.status` `checked_out → available` (re-shelved at its existing `shelf_id`),
-  `last_state_change = now()`, and a `copy_events` row is appended
+  the copy's open loan (if any) gets `returned_at = now()`, `last_state_change = now()`,
+  and a `copy_events` row is appended
   (`from_status:"checked_out"`, `to_status:"available"`, `source:"self_return"`,
   `actor_id` = caller — [02 §copy_events](02-data-model.md#copy_events)).
 - **Waitlist turnover:** when the book has `waiting` holds, the returned copy becomes
@@ -447,6 +477,74 @@ copy's tag may return it (trust-based desk return). Body is empty.
   field then names the promoted hold (`{"id","status":"ready","expires_at"}`), else `null`.
 - Errors: unknown copy → 404 `NOT_FOUND`; `status != "checked_out"` → 409 `CONFLICT`
   (`{"error":"CONFLICT","message":"Copy is not checked out","current_status":"available"}`).
+
+### 6.5 POST /api/copies/{id}/borrow
+
+Patron **self-service checkout** (🔒 any signed-in user — [11](./11-barcode-scanning.md#2-scan-flows));
+rate limit 10/1min per user. Scanning a copy tag starts a loan. Body is empty. This is the
+counterpart to [§6.4](#64-post-apicopiesidreturn) and supersedes the earlier "return-only"
+scope ([10 §1](10-roadmap.md#1-in-scope-v1--checklist) item 17).
+
+```json
+// response 201
+{
+  "loan": { "id": "…", "copy_id": "b1e3…", "user_id": "…", "borrowed_at": "2026-10-16T09:00:00Z",
+            "due_at": "2026-10-30T09:00:00Z", "returned_at": null, "renewals": 0, "renewable": true },
+  "copy": { "id": "b1e3…", "barcode": "ATH-002941-C01", "status": "checked_out", "condition": "good",
+            "last_state_change": "2026-10-16T09:00:00Z",
+            "location": { "path": "MAIN/3F/SF/A-1/S-2", "parts": { … }, "ladder_steps": [ … ] } },
+  "availability": { "total_copies": 3, "available_copies": 1, "state": "available" }
+}
+```
+
+- Effect (one transaction): `book_copies.status` → `checked_out`, `last_state_change = now()`,
+  a `loans` row inserted (`borrowed_at = now()`, `due_at = now() + LOAN_PERIOD`, `renewals = 0`),
+  and a `copy_events` row appended (`source:"self_checkout"`, `actor_id` = caller).
+- Rules: `status` must be `available` for any patron, **or** `reserved_waitlist` **owned by the
+  caller** (a ready hold being picked up — the hold goes `picked_up`). `LOAN_PERIOD = 14 days`,
+  max **5** open loans per user.
+- Errors: unknown copy → 404 `NOT_FOUND`; `status` is `checked_out`/`missing_lost`, or
+  `reserved_waitlist` held by someone else → 409 `CONFLICT`
+  (`{"error":"CONFLICT","message":"Copy is not available to borrow","current_status":"checked_out"}`);
+  borrower at the 5-loan limit → 409 `BORROW_LIMIT`
+  (`{"error":"BORROW_LIMIT","message":"You already have 5 loans","limit":5}`).
+
+### 6.6 POST /api/copies/{id}/renew
+
+Extend an open loan by `LOAN_PERIOD` on the borrower's own loan (🔒); rate limit 5/1min per
+user. Body is empty.
+
+```json
+// response 200
+{ "loan": { "id": "…", "due_at": "2026-11-13T09:00:00Z", "renewals": 1, "renewable": false } }
+```
+
+- Rules: only the borrower may renew their own loan; `renewals` may go to at most **1**
+  (`due_at += 14d`, `renewals = 1`). `renewable` is `false` once renewed (or when the loan
+  is returned).
+- Errors: unknown copy → 404 `NOT_FOUND`; no open loan → 409 `CONFLICT`
+  (`{"error":"CONFLICT","message":"No open loan on this copy"}`); not the borrower → 403
+  `FORBIDDEN`; already renewed → 409 `CONFLICT`
+  (`{"error":"CONFLICT","message":"Loan already renewed","renewals":1}`).
+
+### 6.7 GET /api/loans
+
+The caller's loans (🔒). Active loans first (soonest `due_at`), then history (newest
+`returned_at`). Drives the `/library` **Loans** tab ([07](07-frontend.md#library--screen-4-stitch-9cee3484)).
+
+```json
+{ "items": [
+  { "kind": "active", "id": "…", "book": { "id": "…", "title": "Dune", "cover_url": "…", "authors": ["Frank Herbert"] },
+    "copy": { "id": "b1e3…", "barcode": "ATH-002941-C01" },
+    "borrowed_at": "2026-10-16T09:00:00Z", "due_at": "2026-10-30T09:00:00Z",
+    "renewals": 0, "renewable": true, "overdue": false },
+  { "kind": "past", "id": "…", "book": { … }, "copy": { … },
+    "borrowed_at": "…", "due_at": "…", "returned_at": "…", "renewals": 1, "renewable": false, "overdue": false }
+], "meta": { "active": 2, "overdue": 0 } }
+```
+
+- `overdue` = `now() > due_at` on an open loan; `renewable` mirrors [§6.6](#66-post-apicopiesidrenew).
+  No fines and no email reminders (deferred — [10 §2](10-roadmap.md#2-out-of-scope--deferred)).
 
 ## 7. Chat (SSE)
 

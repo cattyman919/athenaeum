@@ -23,8 +23,11 @@
 16. [Phase 13 — Git Workflow and CI](#16-phase-13--git-workflow-and-ci)
 17. [Phase 14 — Patron Barcode Scanner](#17-phase-14--patron-barcode-scanner)
 18. [Phase 15 — Auto-Index Worker & Detail Rating](#18-phase-15--auto-index-worker--detail-rating)
-19. [Open TODO Registry (from docs)](#19-open-todo-registry-from-docs)
-20. [Session Log](#20-session-log)
+19. [Phase 16 — Hybrid Default Search & Rating Averages](#19-phase-16--hybrid-default-search--rating-averages)
+20. [Phase 17 — Startup Reviewer Accounts & Loan Seed](#20-phase-17--startup-reviewer-accounts--loan-seed)
+21. [Phase 18 — Scan-Based Borrowing & Loans](#21-phase-18--scan-based-borrowing--loans)
+22. [Open TODO Registry (from docs)](#22-open-todo-registry-from-docs)
+23. [Session Log](#23-session-log)
 
 ## 1. How to Use This File
 
@@ -34,7 +37,7 @@ Rules for any AI session (or human) continuing this project:
 2. Work top-down within the current phase; do not skip ahead across phase boundaries without logging why.
 3. While implementing: update the checkboxes in **this** file as tasks complete; add new discovered tasks here instead of inventing scope in code.
 4. "Complete" means: code compiles, relevant `make lint` / `make test` pass, and behavior matches the owning doc. Do not tick otherwise.
-5. Never mark deferred features ([§19](#19-open-todo-registry-from-docs)) as done — they stay ⚠️ TODO until [10-roadmap.md](docs/10-roadmap.md) changes.
+5. Never mark deferred features ([§22](#22-open-todo-registry-from-docs)) as done — they stay ⚠️ TODO until [10-roadmap.md](docs/10-roadmap.md) changes.
 6. End the session with a Session Log row: date, engine/session id, tasks completed, current cursor ("resume from: …"), blockers.
 7. Mock/book/shelf values are a contract: change data only by editing `api/mocks/` + [docs/13-mock-data-reference.md](docs/13-mock-data-reference.md) together.
 
@@ -45,7 +48,7 @@ Rules for any AI session (or human) continuing this project:
 | Goal / phase | M0–M14 code complete (Phase 15 auto-index worker + detail rating built 2026-10-16). Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M14; checkboxes below are still ticked per item |
 | Git | `main` with commits; remote `origin = git@github.com:cattyman919/athenaeum.git`; one branch per task, squash to `main`, push `main` per milestone ([docs/09 §9](docs/09-development.md#9-git-workflow)) |
 | Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist); **11 re-scoped** to the universal patron+staff scanner) |
-| Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); + scanner dialog `barscanner_ISBN/code.html`; re-exports pending + chat-screen regen for the mic ([§19](#19-open-todo-registry-from-docs)) |
+| Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); + scanner dialog `barscanner_ISBN/code.html`; re-exports pending + chat-screen regen for the mic ([§22](#22-open-todo-registry-from-docs)) |
 | Stack pins | Go 1.27 · Next.js 15 · Postgres 16 + pgvector · Redis 7 · Ollama `nomic-embed-text` (768) · OpenRouter Claude 3.5 Sonnet · faster-whisper `small` · next-intl · Playwright |
 | Demo accounts | `admin@` / `demo@athenaeum.dev` · password `athenaeum-demo` ([docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library)) |
 
@@ -61,13 +64,21 @@ cover thumbnails, live voice partials, mic picker, markdown replies, confirm dia
 Local `make e2e` = 75 passing (2026-10-16). Check `gh run list` for CI on the latest push.
 
 **Next actions, in order**
-1. **Done 2026-10-16:** Phase 14 patron + staff barcode scanner (§17, implementation-plan M13) and ghost-text interim
-   voice in the composer (Phase 12, [docs/15 §2a](docs/15-voice-input.md#2a-live-interim-transcript)).
+1. **Next build — Phases 16-18 / plan M15-M17 (decided 2026-10-16; docs 01/02/03/06/07/08/09/10/11/12/13/14 + README):**
+   (a) **hybrid by default** — `/catalog` drops the visible mode tabs (an **Advanced** disclosure
+   reveals Keyword/Semantic), an empty box browses, and an embedding failure degrades to keyword
+   (`meta.mode_used`/`meta.degraded`, no 503); (b) **rating average + count** per book from the new
+   `book_ratings` view, shown on cards/detail; (c) **20 reviewer accounts** `user1@gmail.com`..
+   `user20@gmail.com` (password = local part) each rating ~8-15 books deterministically, plus one
+   open loan per seeded `checked_out` copy (14-day, future due); (d) **scan-based borrowing + loans** —
+   `POST /api/copies/{id}/borrow|renew|return` + `GET /api/loans`, scanner **Borrow/Return**, a
+   `/library` **Loans** tab. Scope moved from deferred to v1 items 17-18 ([docs/10](docs/10-roadmap.md#1-in-scope-v1--checklist)).
 2. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
-3. **Done 2026-10-16 — Phase 15 / plan M14 (docs 03 §5.2/§8.3, 06 §2, 08 §7, 09 §6, README §7):** auto-index worker (in-process goroutine, `books.embedding_dirty` + zero-embedding backfill so a fresh seed self-heals on boot; notify + 5s poll; per-book; waits for Ollama with backoff instead of failing) and book-detail `my_library_entry.rating` (`internal/service/index/worker.go`, wired in `cmd/api/main.go`; admin service notifies via `WithIndexNotifier`). Copy delete **cascades** `copy_events` history (docs-only fix, done). Fresh start no longer needs `make reindex`.
+3. **Done 2026-10-16 — Phase 15 / plan M14:** auto-index worker (in-process goroutine, `books.embedding_dirty` + zero-embedding backfill so a fresh seed self-heals on boot; notify + 5s poll; per-book; waits for Ollama with backoff instead of failing) and book-detail `my_library_entry.rating` (`internal/service/index/worker.go`, wired in `cmd/api/main.go`; admin service notifies via `WithIndexNotifier`). Copy delete **cascades** `copy_events` history (docs-only fix, done). Index visibility: `GET /api/admin/index-status`, `meta.index_pending`, admin badges, patron catalog note. Fresh start no longer needs `make reindex`.
+4. **Done 2026-10-16:** Phase 14 patron + staff barcode scanner (§17, plan M13) and ghost-text interim voice in the composer (Phase 12, [docs/15 §2a](docs/15-voice-input.md#2a-live-interim-transcript)).
    **Resolved 2026-10-15:** `fetch-isbn` is now documented 👑 admin-only (the patron path is `POST /api/books/scan`).
-4. zh RAG note (docs/06 §2 English-only embeddings) remains a documented deferral.
-5. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.
+5. zh RAG note (docs/06 §2 English-only embeddings) remains a documented deferral.
+6. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.
 
 **Implemented surface (for orientation)**
 - API (`api/`): auto-index worker (`service/index.Worker`), config, slog, middleware (request-id, recover, CORS, Redis rate limiter with all docs/03 buckets),
@@ -301,7 +312,45 @@ Implementation plan M14. Decisions locked 2026-10-16.
 - [x] Index visibility: `GET /api/admin/index-status` + search `meta.index_pending`; admin "Indexing…" badges/chip (`/admin`, `/admin/layout`), patron `/catalog` indexing note (en/zh-CN `catalog.indexingNote`); e2e `index-status.spec.ts` ([docs/03 §8.1](docs/03-api-spec.md#81-admin-kpis--audit), [docs/07](docs/07-frontend.md))
 - [ ] > ⚠️ TODO: model/chunker upgrades still need a manual `make reindex` (worker handles dirty/empty only) ([docs/08 §7](docs/08-seed-data.md#7-reindex))
 
-## 19. Open TODO Registry (from docs)
+## 19. Phase 16 — Hybrid Default Search & Rating Averages
+
+Refs: [docs/03 §5.1/§5.2](docs/03-api-spec.md#51-get-apibookssearch), [docs/02 §6.2](docs/02-data-model.md#62-book_ratings),
+[docs/07](docs/07-frontend.md#catalog--screen-2-stitch-e9f24637), [docs/12](docs/12-ui-design.md#screen-2--catalog-catalog-browser--hybrid-search).
+Implementation plan M15. Decisions locked 2026-10-16.
+
+- [ ] `book_ratings` view (avg 1-dp + count from `user_library.rating`; books with no ratings absent)
+- [ ] `GET /api/books/search` default `mode=hybrid`; empty `q` browses (keyword, no embed); embedding failure → 200 keyword results with `meta.mode_used:"keyword"` + `meta.degraded:true` (no 503); `rating_avg`/`rating_count` per item
+- [ ] `GET /api/books/{id}` gains `rating_avg`/`rating_count`
+- [ ] `/catalog` UI: single search box, default hybrid, Keyword/Semantic behind an **Advanced** disclosure (no always-visible tabs); `★ x.y (n)` on `BookCard`/detail (hidden when no ratings)
+- [ ] en/zh-CN keys (`catalog.card.rating`, `book.rating.none`, Advanced label); Playwright default-search + rating coverage
+- [ ] > ⚠️ TODO: per-user rating histogram / review text stays out of v1
+
+## 20. Phase 17 — Startup Reviewer Accounts & Loan Seed
+
+Refs: [docs/08 §4](docs/08-seed-data.md#4-seed-algorithm), [docs/13 §1/§6](docs/13-mock-data-reference.md#6-demo-users--personal-library).
+Implementation plan M16. Decisions locked 2026-10-16.
+
+- [ ] `cmd/seed`: 20 reviewer accounts `user1@gmail.com`..`user20@gmail.com` (password = local part, role `user`, argon2id), idempotent
+- [ ] `cmd/seed`: deterministic reviewer ratings (~8-15 books each, hash of user+book, values 3-5) as `user_library` rating rows; demo patron's 5 seeded ratings keep counting
+- [ ] `cmd/seed`: one open `loans` row per seeded `checked_out` copy (reviewer owner, `due_at = borrowed_at + 14d`, future)
+- [ ] Seed parity print `22/40/60/40` + `loans=<n>` + `ratings=<n>`; `--reset` truncates `loans`
+- [ ] Tests: seed idempotency, ratings determinism, `book_ratings` values, loans for every `checked_out` copy
+
+## 21. Phase 18 — Scan-Based Borrowing & Loans
+
+Refs: [docs/03 §6.5-6.7](docs/03-api-spec.md#65-post-apicopiesidborrow), [docs/11](docs/11-barcode-scanning.md#2-scan-flows),
+[docs/12 §10](docs/12-ui-design.md#10-copy-state-machine), [docs/01 §8](docs/01-architecture.md#8-cross-cutting-rules).
+Implementation plan M17. Decisions locked 2026-10-16. Supersedes the prior "return-only / no borrower link" rule.
+
+- [ ] Migration: `loans` table (partial unique open loan per copy) + drop `book_copies.due_at`
+- [ ] `POST /api/copies/{id}/borrow` — available (or caller's `reserved_waitlist` → hold `picked_up`) → `checked_out` + loan (`due_at=now+14d`), `copy_events.source='self_checkout'`, 409 `CONFLICT`/`BORROW_LIMIT`, 10/min
+- [ ] `POST /api/copies/{id}/return` closes the open loan; `POST /api/copies/{id}/renew` (+14d, ≤1 renewal, borrower-only, 5/min); `GET /api/loans` (active + past, `overdue`/`renewable`)
+- [ ] `POST /api/books/scan` copy result gains `borrowable` + `loan` (`{id,user_id,due_at,renewals,mine}`)
+- [ ] Web: scanner **Borrow this copy** / **Return this copy** by state (with due date); `/library` **Loans** tab (due dates, overdue flag, renew once, return); `scanner.*` + `library.loans.*` en/zh-CN keys
+- [ ] Tests: Go borrow/renew/return/limits/state machine + loans endpoint; Playwright manual-code borrow→renew→return + Loans tab
+- [ ] > ⚠️ TODO: overdue fines, reminders, and multi-copy hold requests stay out of v1 ([docs/10 §2](docs/10-roadmap.md#2-out-of-scope--deferred))
+
+## 22. Open TODO Registry (from docs)
 
 Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after changes: `grep -n "> ⚠️ TODO" docs/*.md`):
 
@@ -321,13 +370,14 @@ Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after chang
 | [docs/12 §12](docs/12-ui-design.md#12-accessibility-requirements) | axe-core audit; verify contrast ratios | polish |
 | [docs/11 §11](docs/11-barcode-scanning.md#11-scope-impact) | scanner Staff-Intake extras: RFID encode, thermal label print, Edit-MARC | deferred feature |
 
-## 20. Session Log
+## 23. Session Log
 
 Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
 | 2026-10-16 | Kilo (kilo-auto/efficient) | **Bug fix:** semantic/hybrid search with an empty query showed the generic catalog error (API 400 `VALIDATION_FAILED`, docs/03 §5.1 requires `q`); `/catalog` now renders an idle `catalog-query-required` prompt (`requiresQuery()`, en/zh-CN `catalog.queryRequired.*`) and maps stray `VALIDATION_FAILED` to it; e2e 81 green; docs/07 updated | Manual checks (§2a item 2) | — |
+| 2026-10-16 | Kilo (kilo-auto/efficient) | **Docs + plan only:** hybrid search by default (mode tabs behind Advanced, empty-browse, keyword degradation via `meta.mode_used`/`degraded`), per-book rating average (`book_ratings` view) with 20 seeded reviewer accounts `user1..user20@gmail.com` rating books, and scan-based borrowing/return with a real `loans` table (14-day, one renewal) + `/library` Loans tab; scope moved from deferred to v1 items 17-18 (docs 10); new plan M15-M17; TODO phases 16-18 | Implement M15-M17 | none (docs-only) |
 | 2026-10-16 | Kilo (kilo-auto/frontier), subagents | **Phase 15 follow-up:** indexing visibility — `GET /api/admin/index-status`, `meta.index_pending` on search, admin Indexing badges + header chip, patron catalog indexing note (en/zh-CN); docs 01/03/06/07/14/TODO updated; e2e 80 green | Manual checks (§2a item 2) | Not tried against a real slow Ollama backfill |
 | 2026-10-16 | Kilo (kilo-auto/frontier) | **Phase 15 / M14:** migration 0006 `books.embedding_dirty` + partial index; admin `CreateBook` and title/authors/description patches set the flag and notify; `index.Worker` (pending = dirty ∪ non-blank books with no embedding rows; notify + 5 s poll; per-book `Indexer.Run`; clears the flag only if `updated_at` unchanged; Ollama down/model missing → exponential backoff ≤30 s, never fails requests; blank-description books cleared after one empty run) wired in `cmd/api/main.go`; detail `my_library_entry.rating`; README quickstart drops `make reindex`; tests: migration up/down, dirty-flag RAG vs non-RAG, worker fakes (success/failure/backfill/empty/concurrent edit/notify), worker+admin integration, rating detail | Remaining M12 manual checks (§2a item 2) | Not run: clean-volume demo, real OpenRouter/Whisper/Google SSO |
 | 2026-10-16 | Kilo (kilo-auto/frontier), subagents | **Phase 14 / M13 scanner:** `POST /api/books/scan` + `POST /api/copies/{id}/return` (waitlist turnover, `copy_events.source='self_return'`, rate buckets, tests); `BarcodeScannerDialog` (Patron Lookup / Staff Intake), `use-barcode-scanner`, nav Scan + `/library` "Scan to return" + `/admin` Staff Intake; e2e scanner spec. **Ghost-text voice:** live partial transcript now renders as muted ghost text inside the composer textarea (aria-hidden mirror layer, auto-grow + scroll sync, sr-only live region, Esc in composer cancels), replacing the italic line; docs/15 §2a + docs/07 /chat + voice e2e updated; e2e 75 green | Remaining M12 manual checks (§2a item 2), open decisions (§2a item 3) | Not run: clean-volume demo, real OpenRouter/Whisper/Google SSO |

@@ -19,7 +19,7 @@
 | 3 | Book detail with physical location + availability | [05](05-building-layout.md), [03 §5.2](03-api-spec.md#52-get-apibooksid) | ✅ |
 | 4 | Camera barcode (EAN-13/ISBN) scanning for adding books | [11](./11-barcode-scanning.md) | ✅ |
 | 5 | "Not available" 409 + waitlist | [03 §6.3](03-api-spec.md#63-waitlist), [12](12-ui-design.md#screen-3--booksid-book-detail--spatial-wayfinding) | ✅ |
-| 6 | Personal library (favorite, read/unread/reading) | [03 §6](03-api-spec.md#6-personal-library--waitlist) | ✅ |
+| 6 | Personal library (favorite, read/unread/reading) | [03 §6](03-api-spec.md#6-personal-library-waitlist--loans) | ✅ |
 | 7 | AI chat: RAG, streaming, tool use, rate limits | [06](06-ai-rag.md) | ✅ |
 | 8 | AI chat sessions (persisted conversations) | [02](02-data-model.md#conversations--messages), [06 §7](06-ai-rag.md#7-conversation-persistence) | ✅ |
 | 9 | Admin UI (books, copies, layout, users) | [07 §admin](07-frontend.md#admin--screen-6a-stitch-3177da52) | ✅ |
@@ -30,6 +30,8 @@
 | 14 | Conventional-commit workflow + hooks | [09 §9](09-development.md#9-git-workflow) | ✅ |
 | 15 | Playwright E2E + GitHub Actions CI | [09 §8](09-development.md#8-testing-strategy) | ✅ |
 | 16 | Barcode scanner for patrons + staff: ISBN lookup ("other copies left"), self-service return, staff intake | [11](./11-barcode-scanning.md), [03 §5.4/§6.4](03-api-spec.md#54-post-apibooksscan) | ✅ |
+| 17 | Self-service **borrowing** (checkout) + loans (due dates, one renewal) via scanning a copy tag | [11](./11-barcode-scanning.md), [03 §6.5-6.7](03-api-spec.md#65-post-apicopiesidborrow) | ✅ planned |
+| 18 | Hybrid search by default (mode switcher behind "Advanced"); per-book **rating average** + count | [03 §5.1](03-api-spec.md#51-get-apibookssearch), [02 §6.2](02-data-model.md#62-book_ratings) | ✅ planned |
 
 ## 2. Out of Scope — Deferred
 
@@ -40,8 +42,8 @@ state — unresolved questions surface as `> ⚠️ TODO:` in their owning doc.
 | --- | --- | --- |
 | Observability stack (Prometheus, tracing, Grafana) | only `slog` + `tint` v1 | [09 §7](09-development.md#7-logging) |
 | Production deployment topology (TLS, reverse proxy, backups) | demo runs on one machine | [01 §6](01-architecture.md#6-docker-compose-topology) |
-| Self-service **checkout** (borrowing) + RFID integration | return-only ships in v1 (item 16); checkout is a hardware/policy dependency | [11 §11](11-barcode-scanning.md#11-scope-impact) |
-| Loan/checkout borrower tracking, due dates and fines | circulation policies out of demo scope; v1 self-service return flips copy status with no borrower ([01 §8](01-architecture.md#8-cross-cutting-rules)) | — |
+| RFID integration (gates, encode/read) | hardware dependency; borrow/return are scan-based in v1 (items 16-17) | [11 §11](11-barcode-scanning.md#11-scope-impact) |
+| Overdue **fines**, loan reminders/notices, and multi-copy hold requests | loans + due dates ship (item 17); monetary/policy layers stay out of demo scope ([01 §8](01-architecture.md#8-cross-cutting-rules)) | — |
 | Multi-building support | single `MAIN` building ([05 §1](05-building-layout.md#1-hierarchy)) | — |
 | Email delivery for waitlist notifications | in-app only ([03 §6.3](03-api-spec.md#63-waitlist)) | — |
 | Password reset flow | accounts recoverable by admin | [04 §8](04-auth.md#8-identity-edge-cases) |
@@ -80,9 +82,8 @@ or the seeded fixture counts — those are demo load-bearing.
 
 ## 5. Future Enhancements
 
-- Self-service **checkout** and loan circulation at the copy status level (real
-  `checked_out → due dates` + borrower model built on top of the existing state machine and the v1
-  self-service return — [12](12-ui-design.md#10-copy-state-machine)).
+- Circulation policy layer on top of the v1 loans table: overdue fines, loan
+  reminders, multiple renewals, and hold/queue pickup rules ([12](12-ui-design.md#10-copy-state-machine)).
 - Auto-request lending from availability + waitlist notifications (still via UI events).
 - Institutional SSO aggregator beyond Google (WeChat, Shibboleth Waved onto SP setup).
 - Full-text relevance weights per-field and reranking (BM25 vs vector weights).

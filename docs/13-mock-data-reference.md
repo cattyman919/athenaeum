@@ -20,8 +20,9 @@
 | Books | 40 |
 | Copies | 60 (12 `checked_out` = 20%, 48 `available`, 0 `missing_lost`, 0 `reserved_waitlist`) |
 | Zero-copy books | 5 |
-| Demo users | 2 (`admin`, demo) |
-| `user_library` rows | 24 (2 reading · 15 read · 7 want_to_read; 7 favorites) |
+| Users | 22 (`admin`, demo, and 20 reviewers `user1@gmail.com`..`user20@gmail.com`) |
+| `user_library` rows | 24 for demo (2 reading · 15 read · 7 want_to_read; 7 favorites) + ~200 reviewer rating rows |
+| `loans` rows | 12 (one open loan per seeded `checked_out` copy, owned by reviewers; all due dates in the future) |
 | `waitlist` rows | 2 (demo patron) |
 
 ## 2. Book Catalog (all 40)
@@ -84,6 +85,10 @@ Notes:
 - Dewey/LOC fields are plausible demo strings (e.g. Dune `813.54` / `PS3553.I57 D8 1965`).
 
 ## 3. Copy Status Ledger
+
+Each `checked_out` copy also carries one open `loans` row (borrower = a reviewer account,
+`due_at = borrowed_at + 14d`, future) so the `/library` Loans tab and due dates have data
+([08 §4](08-seed-data.md#4-seed-algorithm) step 5c).
 
 - Metadata order: copies are listed C1, C2, C3 within each book.
 - **12 `checked_out` copies** — always the first copy (C1) of a multi-copy book, so
@@ -201,6 +206,13 @@ Copy audit math: 3×7 = 21, 2×11 = 22, 1×17 = 17 → **60 copies** across 35 b
 | --- | --- | --- |
 | `admin@athenaeum.dev` | admin | `athenaeum-demo` |
 | `demo@athenaeum.dev` | user | `athenaeum-demo` |
+| `user1@gmail.com` … `user20@gmail.com` | user | `user1` … `user20` (local part) |
+
+The 20 reviewer accounts (decided 2026-10-16) exist to give every book a **rating average**
+([02 §6.2](02-data-model.md#62-book_ratings)) and to own the seeded loans. They are ordinary
+login-able users (you can sign in as `user1@gmail.com` / `user1`); their ratings are
+deterministic (hash of user+book, values 3-5) so the catalog shows varied `★ x.y (n)` and some
+books stay unrated. Never used by the e2e suite.
 
 `demo`'s seeded `user_library` (24 entries — matches the `/library` KPI cards):
 
