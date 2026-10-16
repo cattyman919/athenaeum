@@ -158,6 +158,12 @@ type BookPatch struct {
 	SectionID      Optional[uuid.UUID]
 }
 
+// TouchesRAG reports whether the patch sets a field the embeddings are built from
+// (title/authors/description, docs/06 §2); other edits skip re-embedding.
+func (p BookPatch) TouchesRAG() bool {
+	return p.Title != nil || p.Authors != nil || p.Description.Set
+}
+
 // NewCopy is a copy to insert; an empty Barcode is allocated server-side (docs/08 §5).
 type NewCopy struct {
 	Barcode   string

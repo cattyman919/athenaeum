@@ -42,7 +42,7 @@ Rules for any AI session (or human) continuing this project:
 
 | Field | Value |
 | --- | --- |
-| Goal / phase | M0–M13 code complete (Phase 14 patron + staff barcode scanner built 2026-10-16). Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M13; checkboxes below are still ticked per item |
+| Goal / phase | M0–M14 code complete (Phase 15 auto-index worker + detail rating built 2026-10-16). Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M14; checkboxes below are still ticked per item |
 | Git | `main` with commits; remote `origin = git@github.com:cattyman919/athenaeum.git`; one branch per task, squash to `main`, push `main` per milestone ([docs/09 §9](docs/09-development.md#9-git-workflow)) |
 | Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist); **11 re-scoped** to the universal patron+staff scanner) |
 | Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); + scanner dialog `barscanner_ISBN/code.html`; re-exports pending + chat-screen regen for the mic ([§19](#19-open-todo-registry-from-docs)) |
@@ -51,11 +51,12 @@ Rules for any AI session (or human) continuing this project:
 
 ## 2a. Handoff Brief (read first when resuming)
 
-**Source of truth for order of work:** `.kilo/plans/1791614343948-athenaeum-v1-implementation-plan.md` (milestones M0–M12).
+**Source of truth for order of work:** `.kilo/plans/1791614343948-athenaeum-v1-implementation-plan.md` (milestones M0–M14).
 Docs in `docs/` are the contract; deviations were edited into the owning doc in the same commit.
 
-**State at last session (2026-10-16):** M0–M13 code complete — Phase 14 barcode scanner built and the voice interim
-transcript now shows as ghost text inside the composer — plus the 2026-10-11 post-review additions (persisted citations +
+**State at last session (2026-10-16):** M0–M14 code complete — Phase 15 auto-index worker (`books.embedding_dirty`,
+migration 0006, zero-embedding backfill, waits for Ollama) and detail `my_library_entry.rating` built; Phase 14 barcode
+scanner and ghost-text voice interim earlier the same day — plus the 2026-10-11 post-review additions (persisted citations +
 cover thumbnails, live voice partials, mic picker, markdown replies, confirm dialogs). Only manual/credentialed verification remains.
 Local `make e2e` = 75 passing (2026-10-16). Check `gh run list` for CI on the latest push.
 
@@ -63,16 +64,16 @@ Local `make e2e` = 75 passing (2026-10-16). Check `gh run list` for CI on the la
 1. **Done 2026-10-16:** Phase 14 patron + staff barcode scanner (§17, implementation-plan M13) and ghost-text interim
    voice in the composer (Phase 12, [docs/15 §2a](docs/15-voice-input.md#2a-live-interim-transcript)).
 2. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
-3. **Next build — Phase 15 / plan M14 (decided 2026-10-16, docs 03 §5.2/§8.3, 06 §2, 08 §7, 09 §6, README §7):** auto-index worker (in-process goroutine, `books.embedding_dirty` + zero-embedding backfill so a fresh seed self-heals on boot; notify + 5s poll; per-book; waits for Ollama with backoff instead of failing) and book-detail `my_library_entry.rating`. Copy delete **cascades** `copy_events` history (docs-only fix, done). Fresh start no longer needs `make reindex`.
+3. **Done 2026-10-16 — Phase 15 / plan M14 (docs 03 §5.2/§8.3, 06 §2, 08 §7, 09 §6, README §7):** auto-index worker (in-process goroutine, `books.embedding_dirty` + zero-embedding backfill so a fresh seed self-heals on boot; notify + 5s poll; per-book; waits for Ollama with backoff instead of failing) and book-detail `my_library_entry.rating` (`internal/service/index/worker.go`, wired in `cmd/api/main.go`; admin service notifies via `WithIndexNotifier`). Copy delete **cascades** `copy_events` history (docs-only fix, done). Fresh start no longer needs `make reindex`.
    **Resolved 2026-10-15:** `fetch-isbn` is now documented 👑 admin-only (the patron path is `POST /api/books/scan`).
 4. zh RAG note (docs/06 §2 English-only embeddings) remains a documented deferral.
 5. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.
 
 **Implemented surface (for orientation)**
-- API (`api/`): config, slog, middleware (request-id, recover, CORS, Redis rate limiter with all docs/03 buckets),
+- API (`api/`): auto-index worker (`service/index.Worker`), config, slog, middleware (request-id, recover, CORS, Redis rate limiter with all docs/03 buckets),
   auth (argon2id, HS256 JWT cookies `athenaeum_at`/`athenaeum_rt`, refresh rotation + replay detection, Google OIDC),
   catalog (`/api/books/search` keyword/semantic/hybrid, `/api/books/{id}`), library + waitlist (+5-min sweeper),
-  seed (`cmd/seed`), reindex (`cmd/reindex`), migrations 0001–0005. Layering: handler → service (defines repo
+  seed (`cmd/seed`), reindex (`cmd/reindex`), migrations 0001–0006. Layering: handler → service (defines repo
   interfaces) → repository; manual DI in `cmd/api/main.go`. Test helpers: `internal/testutil/{pgtest,memauth}`.
 - API adds: chat (`internal/service/ai`: OpenRouter adapter, 4 tools, Eino agent, SSE, persisted citations with `cover_url`),
   voice (`WhisperAdapter`, `/api/chat/transcribe`, `?partial=true` + `whisper-fast`), `fetch-isbn`, 13 `/api/admin/*` endpoints,
@@ -292,11 +293,11 @@ Refs: [docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline), [docs/08 §7](docs/08-see
 [docs/02 §4 `books`](docs/02-data-model.md#books), [docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid).
 Implementation plan M14. Decisions locked 2026-10-16.
 
-- [ ] Migration 0006: `books.embedding_dirty BOOL NOT NULL DEFAULT false` + partial index `WHERE embedding_dirty` ([docs/02 §4](docs/02-data-model.md#books))
-- [ ] Admin repo: `CreateBook` sets dirty; `PatchBook` sets dirty only for `title`/`authors`/`description` changes
-- [ ] `service/index` worker: dirty set = `embedding_dirty` ∪ books with zero embedding rows (fresh-start backfill); notify + 5s poll; per-book `Indexer.Run(bookID)`; **waits for Ollama** (retry with backoff, never fails the request); slog start/success/failure + pending count; wired in `cmd/api/main.go` like `RunSweeper`
-- [ ] Detail `my_library_entry` gains nullable `rating` (model + repo SELECT; [docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid))
-- [ ] Tests: migration up/down; dirty-flag RAG-field vs non-RAG patch; worker (dirty cleared on success, kept on failure, zero-embedding picked up, Ollama-down retries); rating detail
+- [x] Migration 0006: `books.embedding_dirty BOOL NOT NULL DEFAULT false` + partial index `WHERE embedding_dirty` ([docs/02 §4](docs/02-data-model.md#books))
+- [x] Admin repo: `CreateBook` sets dirty; `PatchBook` sets dirty only for `title`/`authors`/`description` changes
+- [x] `service/index` worker: dirty set = `embedding_dirty` ∪ books with zero embedding rows (fresh-start backfill); notify + 5s poll; per-book `Indexer.Run(bookID)`; **waits for Ollama** (retry with backoff, never fails the request); slog start/success/failure + pending count; wired in `cmd/api/main.go` like `RunSweeper`
+- [x] Detail `my_library_entry` gains nullable `rating` (model + repo SELECT; [docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid))
+- [x] Tests: migration up/down; dirty-flag RAG-field vs non-RAG patch; worker (dirty cleared on success, kept on failure, zero-embedding picked up, Ollama-down retries); rating detail
 - [ ] > ⚠️ TODO: model/chunker upgrades still need a manual `make reindex` (worker handles dirty/empty only) ([docs/08 §7](docs/08-seed-data.md#7-reindex))
 
 ## 19. Open TODO Registry (from docs)
@@ -325,6 +326,7 @@ Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
+| 2026-10-16 | Kilo (kilo-auto/frontier) | **Phase 15 / M14:** migration 0006 `books.embedding_dirty` + partial index; admin `CreateBook` and title/authors/description patches set the flag and notify; `index.Worker` (pending = dirty ∪ non-blank books with no embedding rows; notify + 5 s poll; per-book `Indexer.Run`; clears the flag only if `updated_at` unchanged; Ollama down/model missing → exponential backoff ≤30 s, never fails requests; blank-description books cleared after one empty run) wired in `cmd/api/main.go`; detail `my_library_entry.rating`; README quickstart drops `make reindex`; tests: migration up/down, dirty-flag RAG vs non-RAG, worker fakes (success/failure/backfill/empty/concurrent edit/notify), worker+admin integration, rating detail | Remaining M12 manual checks (§2a item 2) | Not run: clean-volume demo, real OpenRouter/Whisper/Google SSO |
 | 2026-10-16 | Kilo (kilo-auto/frontier), subagents | **Phase 14 / M13 scanner:** `POST /api/books/scan` + `POST /api/copies/{id}/return` (waitlist turnover, `copy_events.source='self_return'`, rate buckets, tests); `BarcodeScannerDialog` (Patron Lookup / Staff Intake), `use-barcode-scanner`, nav Scan + `/library` "Scan to return" + `/admin` Staff Intake; e2e scanner spec. **Ghost-text voice:** live partial transcript now renders as muted ghost text inside the composer textarea (aria-hidden mirror layer, auto-grow + scroll sync, sr-only live region, Esc in composer cancels), replacing the italic line; docs/15 §2a + docs/07 /chat + voice e2e updated; e2e 75 green | Remaining M12 manual checks (§2a item 2), open decisions (§2a item 3) | Not run: clean-volume demo, real OpenRouter/Whisper/Google SSO |
 | 2026-10-15 | Kilo (kilo-auto/efficient) | **Docs-only planning** — re-scoped the scanner to a universal **patron + staff** feature (docs/10 §1 item 16). Added `POST /api/books/scan` (§5.4, local ISBN/copy-tag resolve, 30/1min) and `POST /api/copies/{id}/return` (§6.4, self-service return `checked_out → available`/`reserved_waitlist` + hold turnover, `copy_events.source='self_return'`, 10/1min); documented `fetch-isbn` as 👑 admin-only (resolves a prior open decision); new `BarcodeScannerDialog` (Patron Lookup / Staff Intake) + nav Scan button. Updated docs 01/02/03/07/10/11/12/14/README, TODO (Phase 14), `.kilo` plan (M13). No code; no deferrals removed (RFID/label/MARC stay out of v1). | Phase 14 / M13 (patron scanner), else ghost-text voice (§2a item 0) | None (docs-only) |
 | 2026-10-11 | Kilo (kilo-auto/frontier), parallel subagents | Post-review work: chat citations persisted + `cover_url` thumbnails (also in ⌘K palette); live voice partials (`?partial=true`, `whisper-fast`, 60/min bucket, one in flight); microphone picker + level meter (user's built-in mic is broken; external mic works); markdown AI replies + copy button; `suppressHydrationWarning` on `<html>` (browser extensions); `ConfirmDialog` for chat delete / library remove / waitlist leave; language toggle now cookie + hard reload (server-action refresh raced prefetches); M12 states, self-hosted barcode WASM; README quickstart; e2e 69 green, CI green | Manual checks (below), then any new scope from docs/10 | Not run: clean-volume demo (wipes models), real Whisper accuracy/speed of `whisper-fast`, Google SSO, Stitch admin export |

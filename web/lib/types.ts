@@ -86,11 +86,10 @@ export interface BookDetail {
   copies: CopyDetail[];
   wayfinding: { path: string; parts: LocationParts; ladder_steps: string[] } | null;
   neighbors: Neighbor[];
-  // `rating` is read when present (forward-compatible); docs/03 §5.2 lists status + is_favorite.
   my_library_entry: {
     status: "want_to_read" | "reading" | "read";
     is_favorite: boolean;
-    rating?: number | null;
+    rating: number | null;
   } | null;
 }
 

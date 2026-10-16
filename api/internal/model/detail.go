@@ -57,6 +57,7 @@ type Neighbor struct {
 type LibraryEntryRef struct {
 	Status     string `json:"status"`
 	IsFavorite bool   `json:"is_favorite"`
+	Rating     *int   `json:"rating"`
 }
 
 // DetailAvailability is Availability without the search-only "soon" field.

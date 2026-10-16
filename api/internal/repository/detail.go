@@ -89,8 +89,8 @@ func (r *CatalogRepository) Detail(ctx context.Context, id uuid.UUID, userID uui
 	}
 	if userID != uuid.Nil {
 		var e model.LibraryEntryRef
-		err := r.pool.QueryRow(ctx, `SELECT status, is_favorite FROM user_library WHERE user_id = $1 AND book_id = $2`,
-			userID, id).Scan(&e.Status, &e.IsFavorite)
+		err := r.pool.QueryRow(ctx, `SELECT status, is_favorite, rating FROM user_library WHERE user_id = $1 AND book_id = $2`,
+			userID, id).Scan(&e.Status, &e.IsFavorite, &e.Rating)
 		switch {
 		case err == nil:
 			d.MyLibraryEntry = &e

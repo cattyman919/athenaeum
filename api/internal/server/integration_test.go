@@ -149,6 +149,18 @@ func TestLibraryHTTPJourney(t *testing.T) {
 	if me, _ := d["my_library_entry"].(map[string]any); me["status"] != "reading" || me["is_favorite"] != true {
 		t.Fatalf("detail entry %v", d["my_library_entry"])
 	}
+	if me, _ := d["my_library_entry"].(map[string]any); me == nil || me["rating"] != nil {
+		t.Fatalf("detail rating should be null: %v", d["my_library_entry"])
+	} else if _, ok := me["rating"]; !ok {
+		t.Fatalf("detail rating key missing: %v", me)
+	}
+	if rec, _ := a.do("PATCH", "/api/library/"+dune, `{"rating":3}`); rec.Code != 200 {
+		t.Fatalf("rate: %d", rec.Code)
+	}
+	_, d = a.do("GET", "/api/books/"+dune, "")
+	if me, _ := d["my_library_entry"].(map[string]any); me["rating"] != float64(3) {
+		t.Fatalf("detail rating %v", d["my_library_entry"])
+	}
 
 	if rec, _ := a.do("DELETE", "/api/library/"+dune, ""); rec.Code != 204 {
 		t.Fatalf("delete: %d", rec.Code)

@@ -313,8 +313,15 @@ func TestBookDetail(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, _ = svc.Detail(ctx, duneID, uid)
-	if d.MyLibraryEntry == nil || d.MyLibraryEntry.Status != "reading" || !d.MyLibraryEntry.IsFavorite {
+	if d.MyLibraryEntry == nil || d.MyLibraryEntry.Status != "reading" || !d.MyLibraryEntry.IsFavorite || d.MyLibraryEntry.Rating != nil {
 		t.Fatalf("library entry %+v", d.MyLibraryEntry)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE user_library SET rating = 4 WHERE user_id = $1`, uid); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = svc.Detail(ctx, duneID, uid)
+	if d.MyLibraryEntry == nil || d.MyLibraryEntry.Rating == nil || *d.MyLibraryEntry.Rating != 4 {
+		t.Fatalf("library entry rating %+v", d.MyLibraryEntry)
 	}
 
 	// Zero-copy book: 200 payload, not_in_building, empty manifest, no wayfinding.

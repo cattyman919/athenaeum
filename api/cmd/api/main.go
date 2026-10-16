@@ -28,6 +28,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 	"github.com/cattyman919/athenaeum/api/internal/service/circulation"
+	"github.com/cattyman919/athenaeum/api/internal/service/index"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
 	"github.com/cattyman919/athenaeum/api/internal/service/olbooks"
 	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
@@ -118,8 +119,15 @@ func run() error {
 	log.Info("voice input", "whisper_url", cfg.WhisperBaseURL, "whisper_model", cfg.WhisperModel,
 		"whisper_partial_url", cfg.WhisperPartialURL(), "whisper_fast_model", cfg.WhisperFastModel)
 
+	// Auto-index worker (docs/06 §2, docs/08 §7): embeds dirty books and backfills
+	// books without embeddings; waits for Ollama with backoff instead of failing.
+	indexStore := repository.NewIndexStore(pool)
+	indexWorker := index.NewWorker(indexStore, index.New(indexStore, embedder, cfg.OllamaEmbedModel, log), log)
+	go indexWorker.Run(ctx)
+
 	// Admin (docs/03 §8): book/copy CRUD, audit stream, building tree, users.
-	adminSvc := admin.New(repository.NewAdminRepository(pool), catalogSvc, repository.NewBuildingRepository(pool))
+	adminSvc := admin.New(repository.NewAdminRepository(pool), catalogSvc, repository.NewBuildingRepository(pool)).
+		WithIndexNotifier(indexWorker)
 
 	srv := server.New(server.Deps{
 		Config:      cfg,

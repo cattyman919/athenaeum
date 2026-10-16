@@ -230,8 +230,8 @@ func (r *AdminRepository) CreateBook(ctx context.Context, actor uuid.UUID, b mod
 	id := uuid.New()
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO books (id, title, subtitle, authors, isbn13, isbn10, publisher, published_year, description,
-		                   cover_url, open_library_key, dewey_num, loc_num, section_id)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		                   cover_url, open_library_key, dewey_num, loc_num, section_id, embedding_dirty)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true)`,
 		id, b.Title, b.Subtitle, authors, b.ISBN13, b.ISBN10, b.Publisher, b.PublishedYear, b.Description,
 		b.CoverURL, b.OpenLibraryKey, b.DeweyNum, b.LOCNum, b.SectionID); err != nil {
 		return uuid.Nil, mapWriteErr(err, "insert book")
@@ -249,7 +249,8 @@ func (r *AdminRepository) CreateBook(ctx context.Context, actor uuid.UUID, b mod
 	return id, tx.Commit(ctx)
 }
 
-// PatchBook applies a partial update; NOT_FOUND for unknown ids.
+// PatchBook applies a partial update; NOT_FOUND for unknown ids. A patch touching a
+// RAG field (title/authors/description) marks the book for re-embedding (docs/06 §2).
 func (r *AdminRepository) PatchBook(ctx context.Context, id uuid.UUID, p model.BookPatch) error {
 	var sets []string
 	args := []any{id}
@@ -301,6 +302,9 @@ func (r *AdminRepository) PatchBook(ctx context.Context, id uuid.UUID, p model.B
 	}
 	if len(sets) == 0 {
 		sets = append(sets, "updated_at = now()")
+	}
+	if p.TouchesRAG() {
+		sets = append(sets, "embedding_dirty = true")
 	}
 	tag, err := r.pool.Exec(ctx, `UPDATE books SET `+strings.Join(sets, ", ")+` WHERE id = $1`, args...)
 	if err != nil {

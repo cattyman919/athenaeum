@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -62,13 +63,41 @@ func (s *IndexStore) Books(ctx context.Context, bookID string) ([]model.IndexBoo
 	return out, rows.Err()
 }
 
-// Replace rewrites embeddings for the given books in one transaction.
+// Replace rewrites embeddings for the given books in one transaction. Books deleted
+// since they were read are skipped (the delete cascades their rows anyway).
 func (s *IndexStore) Replace(ctx context.Context, bookIDs []string, rows []model.ChunkRow) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+
+	live := map[string]bool{}
+	if len(bookIDs) > 0 {
+		idRows, err := tx.Query(ctx, `SELECT id::text FROM books WHERE id::text = ANY($1) FOR KEY SHARE`, bookIDs)
+		if err != nil {
+			return fmt.Errorf("lock books: %w", err)
+		}
+		for idRows.Next() {
+			var id string
+			if err := idRows.Scan(&id); err != nil {
+				idRows.Close()
+				return err
+			}
+			live[id] = true
+		}
+		idRows.Close()
+		if err := idRows.Err(); err != nil {
+			return err
+		}
+	}
+	kept := rows[:0:0]
+	for _, r := range rows {
+		if live[r.BookID] {
+			kept = append(kept, r)
+		}
+	}
+	rows = kept
 
 	batch := &pgx.Batch{}
 	for _, r := range rows {
@@ -94,7 +123,9 @@ func (s *IndexStore) Replace(ctx context.Context, bookIDs []string, rows []model
 	// Drop leftover chunk indexes (e.g. description got shorter).
 	maxIdx := map[string]int{}
 	for _, id := range bookIDs {
-		maxIdx[id] = -1
+		if live[id] {
+			maxIdx[id] = -1
+		}
 	}
 	for _, r := range rows {
 		if r.ChunkIndex > maxIdx[r.BookID] {
@@ -141,4 +172,42 @@ func (s *IndexStore) StaleChunkCount(ctx context.Context, modelName, chunkerVers
 		return 0, fmt.Errorf("stale count: %w", err)
 	}
 	return n, nil
+}
+
+// PendingBooks lists the auto-index backlog (docs/06 §2): books flagged
+// embedding_dirty plus books with a non-blank description and no embedding rows
+// (fresh-seed backfill). Blank-description books never embed, so they only appear
+// while flagged. Flagged books come first, then oldest edits.
+func (s *IndexStore) PendingBooks(ctx context.Context) ([]model.PendingBook, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT b.id::text, b.embedding_dirty, b.updated_at FROM books b
+		WHERE b.embedding_dirty
+		   OR (coalesce(b.description, '') ~ '\S'
+		       AND NOT EXISTS (SELECT 1 FROM book_embeddings e WHERE e.book_id = b.id))
+		ORDER BY b.embedding_dirty DESC, b.updated_at, b.id`)
+	if err != nil {
+		return nil, fmt.Errorf("pending books: %w", err)
+	}
+	defer rows.Close()
+	var out []model.PendingBook
+	for rows.Next() {
+		var p model.PendingBook
+		if err := rows.Scan(&p.ID, &p.Dirty, &p.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// ClearDirty resets embedding_dirty only when the book is still flagged and
+// unchanged since the snapshot, so an edit racing the embed keeps it queued.
+func (s *IndexStore) ClearDirty(ctx context.Context, bookID string, snapshot time.Time) (bool, error) {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE books SET embedding_dirty = false
+		 WHERE id = $1::uuid AND embedding_dirty AND updated_at = $2`, bookID, snapshot)
+	if err != nil {
+		return false, fmt.Errorf("clear dirty: %w", err)
+	}
+	return tag.RowsAffected() == 1, nil
 }

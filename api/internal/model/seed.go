@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 // Fixture types for api/mocks/*.json (docs/08 §2–3).
 
 // BuildingFixture is mocks/building.json.
@@ -118,4 +120,13 @@ type StaleBook struct {
 	ID     string
 	Title  string
 	Chunks int
+}
+
+// PendingBook is a book queued for the auto-index worker (docs/06 §2): flagged
+// embedding_dirty, or with a non-empty description and no embedding rows yet.
+// UpdatedAt is the snapshot used to clear the flag only when unchanged since.
+type PendingBook struct {
+	ID        string
+	Dirty     bool
+	UpdatedAt time.Time
 }

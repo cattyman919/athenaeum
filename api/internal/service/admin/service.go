@@ -44,17 +44,32 @@ type Details interface {
 	Detail(ctx context.Context, id string, userID uuid.UUID) (model.BookDetail, error)
 }
 
+// IndexNotifier wakes the auto-index worker after a RAG-relevant write (index.Worker).
+type IndexNotifier interface {
+	Notify()
+}
+
 // Service is the admin use-case layer.
 type Service struct {
 	repo    Repository
 	details Details
 	paths   building.Lookup
+	indexer IndexNotifier
 	now     func() time.Time
 }
 
 // New builds the service.
 func New(repo Repository, details Details, paths building.Lookup) *Service {
 	return &Service{repo: repo, details: details, paths: paths, now: time.Now}
+}
+
+// WithIndexNotifier wakes n after book writes that mark embeddings dirty (docs/06 §2).
+func (s *Service) WithIndexNotifier(n IndexNotifier) *Service { s.indexer = n; return s }
+
+func (s *Service) notifyIndex() {
+	if s.indexer != nil {
+		s.indexer.Notify()
+	}
 }
 
 // WithClock overrides the clock (tests).
@@ -349,6 +364,7 @@ func (s *Service) CreateBook(ctx context.Context, actor uuid.UUID, req CreateBoo
 	if err != nil {
 		return model.AdminBook{}, err
 	}
+	s.notifyIndex()
 	return s.Book(ctx, id)
 }
 
@@ -417,6 +433,9 @@ func (s *Service) PatchBook(ctx context.Context, id string, req BookPatchRequest
 	}
 	if err := s.repo.PatchBook(ctx, bid, p); err != nil {
 		return model.AdminBook{}, err
+	}
+	if p.TouchesRAG() {
+		s.notifyIndex()
 	}
 	return s.Book(ctx, bid)
 }
