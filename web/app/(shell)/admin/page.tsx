@@ -5,6 +5,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { RealTimeAuditStream } from "@/components/admin/audit-stream";
 import { KpiGrid } from "@/components/admin/kpi-grid";
 import { UsersTable } from "@/components/admin/users-table";
+import { StaffIntakeButton } from "@/components/barcode-scanner";
 import { AddBookDialog } from "@/components/isbn-scanner";
 import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,7 +18,8 @@ import { getCurrentUser } from "@/lib/api-server";
 // Screen 6a — Stitch 3177da52… Admin (docs/07 §7, docs/12 screen 6). Admin copy stays English
 // (docs/14 §1); only the non-admin FORBIDDEN state is localized. KPI grid (GET /api/admin/data),
 // RealTimeAuditStream (GET /api/admin/copy-events, 3 s poll), accounts table
-// (GET/PATCH /api/admin/users) and the Add Book dialog with the ISBN scanner tab (docs/11 §5).
+// (GET/PATCH /api/admin/users), the Add Book dialog with the ISBN scanner tab (docs/11 §5) and
+// the shared scanner dialog opened on Staff Intake (docs/07 §Scanner dialog).
 export default async function AdminPage() {
   const user = await getCurrentUser();
   if (user?.role !== "admin") return <AdminForbidden />;
@@ -40,7 +42,10 @@ export default async function AdminPage() {
           </div>
           <AdminNav />
         </div>
-        <AddBookDialog />
+        <div className="flex flex-wrap gap-2">
+          <StaffIntakeButton />
+          <AddBookDialog />
+        </div>
       </header>
 
       {kpis ? (

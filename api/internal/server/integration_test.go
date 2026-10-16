@@ -16,6 +16,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/server"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
+	"github.com/cattyman919/athenaeum/api/internal/service/circulation"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
 	"github.com/cattyman919/athenaeum/api/internal/service/seed"
 	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
@@ -57,9 +58,11 @@ func newAPI(t *testing.T) *api {
 	libRepo, waitRepo := repository.NewLibraryRepository(pool), repository.NewWaitlistRepository(pool)
 	h := server.NewRouter(server.Deps{
 		Config: config.Config{}, Log: logging.Discard(), JWT: jm, Auth: authSvc,
-		Catalog:  catalog.New(repository.NewCatalogRepository(pool), nil),
-		Library:  library.New(libRepo, waitRepo),
-		Waitlist: waitlist.New(waitRepo, libRepo),
+		Catalog:     catalog.New(repository.NewCatalogRepository(pool), nil),
+		Library:     library.New(libRepo, waitRepo),
+		Waitlist:    waitlist.New(waitRepo, libRepo),
+		Scan:        catalog.NewScanService(repository.NewCatalogRepository(pool)),
+		Circulation: circulation.New(repository.NewCirculationRepository(pool)),
 	})
 	return &api{t: t, h: h}
 }
@@ -216,5 +219,54 @@ func TestZeroCopyBookConflictThenWaitlist(t *testing.T) {
 	}
 	if _, list := a.do("GET", "/api/waitlist", ""); len(list["items"].([]any)) != 0 {
 		t.Fatal("waitlist should be empty after leaving")
+	}
+}
+
+// TestPatronScanAndSelfReturnJourney covers docs/11 §2a/§2b over the seeded catalog.
+func TestPatronScanAndSelfReturnJourney(t *testing.T) {
+	a := newAPI(t)
+	if rec, _ := a.do("POST", "/api/books/scan", `{"code":"9780441013593"}`); rec.Code != 401 {
+		t.Fatalf("anon: %d", rec.Code)
+	}
+	a.register("scanner@athenaeum.dev")
+
+	// ISBN → record, home shelf and copies left.
+	rec, out := a.do("POST", "/api/books/scan", `{"code":"9780441013593"}`)
+	if rec.Code != 200 || out["match"] != "book" || out["book"].(map[string]any)["title"] != "Dune" {
+		t.Fatalf("isbn scan: %d %s", rec.Code, rec.Body)
+	}
+	av := out["availability"].(map[string]any)
+	if av["total_copies"] != float64(3) || av["available_copies"] != float64(2) || out["returnable"] != false ||
+		out["wayfinding"].(map[string]any)["path"] != "MAIN/3F/SF/A-1/S-2" {
+		t.Fatalf("isbn scan body %v", out)
+	}
+	if rec, out := a.do("POST", "/api/books/scan", `{"code":"9780441013590"}`); rec.Code != 400 || out["error"] != "INVALID_ISBN" {
+		t.Fatalf("bad checksum: %d %s", rec.Code, rec.Body)
+	}
+	if rec, out := a.do("POST", "/api/books/scan", `{"code":"9780306406157"}`); rec.Code != 200 || out["in_catalog"] != false || out["match"] != "none" {
+		t.Fatalf("not in catalog: %d %s", rec.Code, rec.Body)
+	}
+
+	// Copy tag → returnable copy → return.
+	rec, out = a.do("POST", "/api/books/scan", `{"code":"ath-002941-c01"}`)
+	cp, _ := out["copy"].(map[string]any)
+	if rec.Code != 200 || out["match"] != "copy" || out["returnable"] != true || cp["status"] != "checked_out" {
+		t.Fatalf("copy scan: %d %s", rec.Code, rec.Body)
+	}
+	copyID := cp["id"].(string)
+	rec, out = a.do("POST", "/api/copies/"+copyID+"/return", "")
+	if rec.Code != 200 || out["copy"].(map[string]any)["status"] != "available" || out["hold"] != nil ||
+		out["availability"].(map[string]any)["available_copies"] != float64(3) {
+		t.Fatalf("return: %d %s", rec.Code, rec.Body)
+	}
+	rec, out = a.do("POST", "/api/copies/"+copyID+"/return", "")
+	if rec.Code != 409 || out["error"] != "CONFLICT" || out["current_status"] != "available" {
+		t.Fatalf("second return: %d %s", rec.Code, rec.Body)
+	}
+	if rec, out := a.do("POST", "/api/copies/00000000-0000-0000-0000-000000000000/return", ""); rec.Code != 404 || out["error"] != "NOT_FOUND" {
+		t.Fatalf("unknown copy: %d %s", rec.Code, rec.Body)
+	}
+	if _, out := a.do("POST", "/api/books/scan", `{"code":"ATH-002941-C01"}`); out["returnable"] != false {
+		t.Fatalf("rescan after return: %v", out)
 	}
 }

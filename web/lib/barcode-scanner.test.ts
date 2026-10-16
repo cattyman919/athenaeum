@@ -8,6 +8,7 @@ import {
   type StreamLike,
   type VideoLike,
 } from "./barcode-scanner";
+import { classifyScanCode, type ScanVerdict } from "./barcode";
 
 /** Manual frame pump + fake clock + fake camera/detector (no DOM needed). */
 function harness(
@@ -17,6 +18,8 @@ function harness(
     noGum?: boolean;
     detectorFails?: boolean;
     torch?: boolean;
+    classify?: (raw: string) => ScanVerdict;
+    format?: string;
   } = {},
 ) {
   let clock = 0;
@@ -36,7 +39,7 @@ function harness(
     detect: vi.fn(async () => {
       const r = reads.shift() ?? [];
       if (r instanceof Error) throw r;
-      return r.map((rawValue) => ({ rawValue, format: "ean_13" }));
+      return r.map((rawValue) => ({ rawValue, format: opts.format ?? "ean_13" }));
     }),
   };
   const createDetector = vi.fn(async () => {
@@ -60,6 +63,7 @@ function harness(
       },
       cancelFrame: (id) => frames.delete(id),
       now: () => clock,
+      classify: opts.classify,
     },
     cb,
   );
@@ -99,10 +103,31 @@ describe("createScanner — camera path (docs/11 §5/§7/§8)", () => {
     await h.frame(); // detect #2 → within cooldown, ignored
     await h.frame(); // no hit
     expect(h.cb.onDetected).toHaveBeenCalledTimes(1);
-    expect(h.cb.onDetected).toHaveBeenCalledWith("9780553293357");
+    expect(h.cb.onDetected).toHaveBeenCalledWith("9780553293357", "ean_13");
     await h.frame(SCAN_COOLDOWN_MS); // cooldown elapsed → next code emits
-    expect(h.cb.onDetected).toHaveBeenLastCalledWith("9780441013593");
+    expect(h.cb.onDetected).toHaveBeenLastCalledWith("9780441013593", "ean_13");
     expect(h.cb.onDetected).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores copy tags with the default ISBN-only classifier (admin intake)", async () => {
+    const h = harness({ reads: [["ATH-002941-C01"]], format: "code_128" });
+    await h.scanner.start(h.video);
+    await h.frame();
+    expect(h.cb.onDetected).not.toHaveBeenCalled();
+    expect(h.cb.onRejected.mock.calls[0][0].kind).toBe("invalid");
+  });
+
+  it("emits Code 128 copy tags with the universal classifier (docs/11 §3)", async () => {
+    const h = harness({
+      reads: [["ath-002941-c01"], ["0441013597"]],
+      format: "code_128",
+      classify: classifyScanCode,
+    });
+    await h.scanner.start(h.video);
+    await h.frame();
+    expect(h.cb.onDetected).toHaveBeenCalledWith("ATH-002941-C01", "code_128");
+    await h.frame(SCAN_COOLDOWN_MS);
+    expect(h.cb.onRejected.mock.calls.map((c) => c[0].kind)).toEqual(["isbn10"]);
   });
 
   it("skips detect() when the video frame has not advanced", async () => {

@@ -39,6 +39,35 @@ export function classifyBarcode(raw: string): BarcodeVerdict {
   return { kind: "isbn", isbn: code };
 }
 
+/** Athenaeum copy tag printed as Code 128 (docs/11 §3, §9). */
+export const COPY_TAG_RE = /^ATH-\d{6}-C\d{2}$/;
+
+/** Every verdict the universal scanner can reach (ISBN-13 or copy tag accepted). */
+export type ScanVerdict = BarcodeVerdict | { kind: "copy_tag"; tag: string } | { kind: "isbn10" }; // ISBN-10 is unsupported in v1 (docs/11 §1, §8)
+
+export type RejectedScan = Exclude<ScanVerdict, { kind: "isbn" } | { kind: "copy_tag" }>;
+
+/**
+ * Classifies a scanned or typed code before calling POST /api/books/scan (docs/03 §5.4):
+ * copy tags are uppercased and shape-checked, everything else goes through the EAN-13 check.
+ */
+export function classifyScanCode(raw: string): ScanVerdict {
+  const compact = raw.replace(/\s/g, "").toUpperCase();
+  if (compact.startsWith("ATH")) {
+    return COPY_TAG_RE.test(compact) ? { kind: "copy_tag", tag: compact } : { kind: "invalid" };
+  }
+  const code = normalizeIsbn(compact);
+  if (/^\d{9}[\dX]$/.test(code)) return { kind: "isbn10" };
+  return classifyBarcode(code);
+}
+
+/** The code to send for an accepted verdict, else null. */
+export function acceptedCode(v: ScanVerdict): string | null {
+  if (v.kind === "isbn") return v.isbn;
+  if (v.kind === "copy_tag") return v.tag;
+  return null;
+}
+
 export type CameraErrorKind = "permission" | "no_device" | "insecure" | "wasm" | "unknown";
 
 /** Maps getUserMedia / detector failures onto the docs/11 §8 scenarios. */

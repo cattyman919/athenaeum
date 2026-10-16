@@ -27,6 +27,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/service/ai"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
+	"github.com/cattyman919/athenaeum/api/internal/service/circulation"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
 	"github.com/cattyman919/athenaeum/api/internal/service/olbooks"
 	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
@@ -121,18 +122,20 @@ func run() error {
 	adminSvc := admin.New(repository.NewAdminRepository(pool), catalogSvc, repository.NewBuildingRepository(pool))
 
 	srv := server.New(server.Deps{
-		Config:     cfg,
-		Log:        log,
-		JWT:        jm,
-		Auth:       authSvc,
-		Catalog:    catalogSvc,
-		Library:    librarySvc,
-		Waitlist:   waitSvc,
-		Chat:       chatSvc,
-		Transcribe: transcribeSvc,
-		Admin:      adminSvc,
-		ISBN:       isbnSvc,
-		Limiter:    middleware.NewRateLimiter(rdb, log),
+		Config:      cfg,
+		Log:         log,
+		JWT:         jm,
+		Auth:        authSvc,
+		Catalog:     catalogSvc,
+		Library:     librarySvc,
+		Waitlist:    waitSvc,
+		Chat:        chatSvc,
+		Transcribe:  transcribeSvc,
+		Admin:       adminSvc,
+		ISBN:        isbnSvc,
+		Scan:        catalog.NewScanService(catalogRepo),
+		Circulation: circulation.New(repository.NewCirculationRepository(pool)),
+		Limiter:     middleware.NewRateLimiter(rdb, log),
 	}, fmt.Sprintf(":%d", cfg.APIPort))
 
 	errCh := make(chan error, 1)

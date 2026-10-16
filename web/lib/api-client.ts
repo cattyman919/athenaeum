@@ -18,6 +18,8 @@ import type {
   ConversationDetail,
   ConversationPage,
   ConversationSummary,
+  ReturnResponse,
+  ScanResponse,
   TranscribeResponse,
 } from "./types";
 
@@ -140,6 +142,15 @@ export function createApiClient(opts: ClientOptions = {}) {
       json<WaitlistJoin>(`/api/books/${encodeURIComponent(bookId)}/waitlist`, { method: "POST" }),
     leaveWaitlist: (bookId: string) =>
       json<void>(`/api/books/${encodeURIComponent(bookId)}/waitlist`, { method: "DELETE" }),
+
+    // Patron scanner (docs/03 §5.4, §6.4; docs/11): local ISBN / copy-tag resolve and
+    // self-service return of a checked_out copy.
+    scanCode: (code: string) =>
+      json<ScanResponse>("/api/books/scan", { method: "POST", body: JSON.stringify({ code }) }),
+    returnCopy: (copyId: string) =>
+      json<ReturnResponse>(`/api/copies/${encodeURIComponent(copyId)}/return`, {
+        method: "POST",
+      }),
 
     // Book intake (docs/03 §5.3, §8.2, §8.4; docs/11). Admin only.
     fetchIsbn: (isbn: string) =>

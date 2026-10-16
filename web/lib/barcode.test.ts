@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   DetectorLoadError,
   InsecureContextError,
+  acceptedCode,
   cameraErrorKind,
   classifyBarcode,
+  classifyScanCode,
   ean13CheckDigit,
   isValidEan13,
   isValidIsbn13,
@@ -57,5 +59,29 @@ describe("cameraErrorKind (docs/11 §8)", () => {
     expect(cameraErrorKind(new InsecureContextError("x"))).toBe("insecure");
     expect(cameraErrorKind(new DetectorLoadError("x"))).toBe("wasm");
     expect(cameraErrorKind("weird")).toBe("unknown");
+  });
+});
+
+describe("classifyScanCode — universal scanner (docs/11 §8, §9)", () => {
+  it.each([
+    ["978-0-441-01359-3", { kind: "isbn", isbn: "9780441013593" }],
+    ["ATH-002941-C01", { kind: "copy_tag", tag: "ATH-002941-C01" }],
+    [" ath-002960-c01 ", { kind: "copy_tag", tag: "ATH-002960-C01" }],
+    ["ATH-2941-C1", { kind: "invalid" }],
+    ["0441013597", { kind: "isbn10" }],
+    ["044101359X", { kind: "isbn10" }],
+    ["036000291452", { kind: "upc" }],
+    ["9780441013594", { kind: "invalid" }],
+    ["4006381333931", { kind: "not_isbn" }],
+    ["", { kind: "invalid" }],
+  ] as const)("%s → %o", (raw, verdict) => {
+    expect(classifyScanCode(raw)).toEqual(verdict);
+  });
+
+  it("acceptedCode returns the payload to send only for ISBNs and copy tags", () => {
+    expect(acceptedCode({ kind: "isbn", isbn: "9780441013593" })).toBe("9780441013593");
+    expect(acceptedCode({ kind: "copy_tag", tag: "ATH-002941-C01" })).toBe("ATH-002941-C01");
+    expect(acceptedCode({ kind: "isbn10" })).toBeNull();
+    expect(acceptedCode({ kind: "upc" })).toBeNull();
   });
 });

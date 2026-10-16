@@ -286,14 +286,14 @@ Refs: [docs/11](docs/11-barcode-scanning.md) (re-scoped 2026-10-15 to the univer
 [docs/03 §5.4/§6.4](docs/03-api-spec.md#54-post-apibooksscan), [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist) item 16.
 One dialog, two audiences; scanner artifact `.artifacts/stitch/barscanner_ISBN/code.html`.
 
-- [ ] `POST /api/books/scan` — local resolver (ISBN-13 → `books`, copy tag → `book_copies`) reusing `pkg/checkdigit`; `200 in_catalog:false` when no local match; service + handler tests ([docs/03 §5.4](docs/03-api-spec.md#54-post-apibooksscan))
-- [ ] `POST /api/copies/{id}/return` — self-service return (`checked_out → available`, or `reserved_waitlist` + oldest-hold turnover); appends `copy_events` (`source='self_return'`); 409 `CONFLICT` when not `checked_out` ([docs/03 §6.4](docs/03-api-spec.md#64-post-apicopiesidreturn))
-- [ ] Rate-limit buckets: `books/scan` 30/1min, `copies/{id}/return` 10/1min ([docs/03 §2](docs/03-api-spec.md#2-rate-limiting))
-- [ ] `BarcodeScannerDialog` (Patron Lookup / Staff Intake tabs, viewfinder, manual code input, torch/flip, haptics/beep, 1.5 s cooldown) + `hooks/use-barcode-scanner.ts` ([docs/11 §5–7](docs/11-barcode-scanning.md#5-nextjs-integration))
-- [ ] Nav **Scan** button (all users, Patron Lookup default) + `/library` "Scan to return" + `/admin` opens Staff Intake ([docs/07 §Scanner dialog](docs/07-frontend.md#scanner-dialog--patron-lookup--staff-intake))
-- [ ] Patron result card (record + shelf ladder + other-copy availability + waitlist CTA on zero) and copy result (**Return this copy**) ([docs/11 §7](docs/11-barcode-scanning.md#7-uiux-specification))
-- [ ] Localize Patron Lookup strings (`scanner.*` keys, en/zh-CN parity); Staff Intake stays English ([docs/14 §1](docs/14-localization.md#1-scope), [§5](docs/14-localization.md#5-message-catalog))
-- [ ] Playwright: patron ISBN lookup + self-service return via the manual code path; camera path stays unit-only ([docs/09 §8](docs/09-development.md#8-testing-strategy))
+- [x] `POST /api/books/scan` — local resolver (ISBN-13 → `books`, copy tag → `book_copies`) reusing `pkg/checkdigit`; `200 in_catalog:false` when no local match; service + handler tests ([docs/03 §5.4](docs/03-api-spec.md#54-post-apibooksscan))
+- [x] `POST /api/copies/{id}/return` — self-service return (`checked_out → available`, or `reserved_waitlist` + oldest-hold turnover); appends `copy_events` (`source='self_return'`); 409 `CONFLICT` when not `checked_out` ([docs/03 §6.4](docs/03-api-spec.md#64-post-apicopiesidreturn))
+- [x] Rate-limit buckets: `books/scan` 30/1min, `copies/{id}/return` 10/1min ([docs/03 §2](docs/03-api-spec.md#2-rate-limiting))
+- [x] `BarcodeScannerDialog` (Patron Lookup / Staff Intake tabs, viewfinder, manual code input, torch/flip, haptics/beep, 1.5 s cooldown) + `hooks/use-barcode-scanner.ts` ([docs/11 §5–7](docs/11-barcode-scanning.md#5-nextjs-integration))
+- [x] Nav **Scan** button (all users, Patron Lookup default) + `/library` "Scan to return" + `/admin` opens Staff Intake ([docs/07 §Scanner dialog](docs/07-frontend.md#scanner-dialog--patron-lookup--staff-intake))
+- [x] Patron result card (record + shelf ladder + other-copy availability + waitlist CTA on zero) and copy result (**Return this copy**) ([docs/11 §7](docs/11-barcode-scanning.md#7-uiux-specification))
+- [x] Localize Patron Lookup strings (`scanner.*` keys, en/zh-CN parity); Staff Intake stays English ([docs/14 §1](docs/14-localization.md#1-scope), [§5](docs/14-localization.md#5-message-catalog))
+- [x] Playwright: patron ISBN lookup + self-service return via the manual code path; camera path stays unit-only ([docs/09 §8](docs/09-development.md#8-testing-strategy))
 - [ ] > ⚠️ TODO: RFID encode / thermal label print / Edit-MARC stay out of v1 ([docs/11 §11](docs/11-barcode-scanning.md#11-scope-impact))
 
 ## 18. Open TODO Registry (from docs)

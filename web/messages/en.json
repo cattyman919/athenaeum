@@ -528,5 +528,106 @@
       "retry": "Retry",
       "startNew": "Start a new conversation"
     }
+  },
+  "scanner": {
+    "open": "Scan",
+    "openLabel": "Open the barcode scanner",
+    "title": "Barcode & ISBN Scanner",
+    "subtitle": "Scan an ISBN-13 barcode or an Athenaeum copy tag.",
+    "close": "Close scanner",
+    "loading": "Loading scanner…",
+    "tabs": {
+      "label": "Scanner mode",
+      "patron": "Patron Lookup",
+      "staff": "Staff Intake",
+      "staffBadge": "STAFF"
+    },
+    "libraryReturn": "Scan to return",
+    "camera": {
+      "active": "Camera active",
+      "decoder": "Decoder ready",
+      "starting": "Starting camera…",
+      "align": "Align the barcode inside the frame",
+      "preview": "Camera preview",
+      "torchOn": "Turn torch on",
+      "torchOff": "Turn torch off",
+      "flip": "Switch camera",
+      "retry": "Retry",
+      "useManual": "Type the code instead",
+      "errors": {
+        "permission": {
+          "title": "Camera access was denied",
+          "body": "Allow camera access in your browser's site settings, or type the code below."
+        },
+        "no_device": {
+          "title": "Connect a camera",
+          "body": "No camera was found on this device. Type the ISBN or copy tag below."
+        },
+        "insecure": {
+          "title": "Camera requires HTTPS",
+          "body": "Browsers only expose the camera on secure origins. Type the code below."
+        },
+        "wasm": {
+          "title": "Barcode reader failed to load",
+          "body": "The scanner engine could not be loaded. Retry or type the code below."
+        },
+        "unknown": {
+          "title": "Camera unavailable",
+          "body": "The camera could not be started. Retry or type the code below."
+        }
+      }
+    },
+    "manual": {
+      "label": "Manual ISBN / barcode entry",
+      "hint": "ISBN-13 · EAN-13 · ATH copy tag",
+      "placeholder": "Enter a 13-digit ISBN or ATH copy tag…",
+      "submit": "Look up"
+    },
+    "reject": {
+      "invalid": "Barcode unusable — scan a different surface or check the digits.",
+      "isbn10": "ISBN-10 is not supported — scan the ISBN-13/EAN-13 barcode instead.",
+      "upc": "That is the store (UPC) barcode — scan the ISBN/EAN-13 barcode instead.",
+      "not_isbn": "That EAN-13 is not an ISBN (978/979) — scan the book's ISBN barcode."
+    },
+    "status": {
+      "idle": "Ready — point the camera at a barcode",
+      "pending": "Looking up {code}…",
+      "isbn": "EAN-13 decoded",
+      "copy": "Copy tag decoded"
+    },
+    "result": {
+      "bookMatched": "Catalog record matched",
+      "copyMatched": "Copy tag matched",
+      "isbn": "ISBN {isbn}",
+      "copiesOnShelf": "{count, plural, =0 {No copies on shelf} one {# copy on shelf} other {# copies on shelf}}",
+      "ofTotal": "{available} of {total} copies available",
+      "location": "Shelf location",
+      "noLocation": "No shelf assigned yet",
+      "viewRecord": "View Full Record & Map",
+      "scanNext": "Scan Next",
+      "waitlistTitle": "Every copy is out right now",
+      "barcode": "Copy tag",
+      "status": "Status",
+      "condition": "Condition",
+      "returnCopy": "Return this copy",
+      "returning": "Returning…",
+      "notReturnable": "This copy is not checked out — there is nothing to return."
+    },
+    "notInCatalog": {
+      "title": "Not in this building's catalog",
+      "body": "{code} is a valid code, but no matching book or copy is held here.",
+      "staffCta": "Add this book (Staff Intake)"
+    },
+    "return": {
+      "success": "Returned {barcode} — thank you!",
+      "held": "Returned {barcode}. It is now held for the next patron on the waitlist.",
+      "conflict": "This copy is {status}, not checked out.",
+      "notFound": "That copy no longer exists — scan the next one.",
+      "error": "We couldn't return this copy. Please try again."
+    },
+    "errors": {
+      "invalidIsbn": "The library could not validate that ISBN — check the digits and try again.",
+      "lookup": "The lookup failed. Please try again."
+    }
   }
 }

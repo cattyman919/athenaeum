@@ -100,6 +100,8 @@ func TestBucketTableMatchesDocs(t *testing.T) {
 		{middleware.BucketTranscribe, 10, time.Minute},
 		{middleware.BucketTranscribePartial, 60, time.Minute},
 		{middleware.BucketFetchISBN, 10, time.Minute},
+		{middleware.BucketScan, 30, time.Minute},
+		{middleware.BucketCopyReturn, 10, time.Minute},
 	}
 	for _, tt := range tests {
 		if tt.b.Limit != tt.limit || tt.b.Window != tt.window {

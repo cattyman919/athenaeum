@@ -7,6 +7,9 @@ import type { Detector } from "./barcode-scanner";
 
 export const SCAN_FORMATS = ["ean_13"] as const;
 
+/** Universal scanner profile: EAN-13 (ISBN) + Code 128 (ATH copy tag) — docs/11 §3. */
+export const UNIVERSAL_SCAN_FORMATS = ["ean_13", "code_128"] as const;
+
 interface DetectorCtor {
   new (opts: { formats: string[] }): Detector;
   getSupportedFormats?: () => Promise<string[]>;

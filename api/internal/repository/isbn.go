@@ -24,6 +24,18 @@ func (r *CatalogRepository) BookIDByISBN(ctx context.Context, isbn13 string) (uu
 	return id, true, nil
 }
 
+// CopyRefByBarcode resolves a copy tag to its copy and book (patron scan, docs/03 §5.4).
+func (r *CatalogRepository) CopyRefByBarcode(ctx context.Context, barcode string) (copyID, bookID uuid.UUID, found bool, err error) {
+	err = r.pool.QueryRow(ctx, `SELECT id, book_id FROM book_copies WHERE barcode = $1`, barcode).Scan(&copyID, &bookID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, uuid.Nil, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, uuid.Nil, false, err
+	}
+	return copyID, bookID, true, nil
+}
+
 // ISBNCache caches normalized Open Library lookups in Redis (docs/01 §2:
 // "Redis: ISBN lookups").
 type ISBNCache struct{ rdb redis.Cmdable }

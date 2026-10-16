@@ -17,6 +17,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/service/ai"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
+	"github.com/cattyman919/athenaeum/api/internal/service/circulation"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
 	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
 )
@@ -38,20 +39,26 @@ type Deps struct {
 	// Admin serves /api/admin/* (docs/03 §8); nil skips the routes.
 	Admin *admin.Service
 	// ISBN serves barcode intake (docs/11); nil skips the route.
-	ISBN    *catalog.ISBNService
-	Limiter *middleware.RateLimiter
+	ISBN *catalog.ISBNService
+	// Scan resolves patron barcode scans (docs/03 §5.4); nil skips the route.
+	Scan *catalog.ScanService
+	// Circulation serves patron self-service return (docs/03 §6.4); nil skips the route.
+	Circulation *circulation.Service
+	Limiter     *middleware.RateLimiter
 	// ChatHeartbeat overrides the SSE heartbeat interval (tests); 0 = 15 s.
 	ChatHeartbeat time.Duration
 }
 
 // specificBucketRoutes shadow the general 120/min bucket (docs/03 §2).
 var specificBucketRoutes = map[string]bool{
-	"POST /api/auth/login":       true,
-	"POST /api/auth/register":    true,
-	"GET /api/books/search":      true,
-	"POST /api/chat":             true,
-	"POST /api/chat/transcribe":  true,
-	"POST /api/books/fetch-isbn": true,
+	"POST /api/auth/login":        true,
+	"POST /api/auth/register":     true,
+	"GET /api/books/search":       true,
+	"POST /api/chat":              true,
+	"POST /api/chat/transcribe":   true,
+	"POST /api/books/fetch-isbn":  true,
+	"POST /api/books/scan":        true,
+	"POST /api/copies/:id/return": true,
 }
 
 func isSpecific(c *gin.Context) bool {
@@ -115,6 +122,17 @@ func NewRouter(d Deps) *gin.Engine {
 		// Admin "Add Book" intake (docs/11 §1); dedicated 10/min bucket (docs/03 §2).
 		api.POST("/books/fetch-isbn", requireAuth, middleware.RequireAdmin(handler.RespondError),
 			limit(middleware.BucketFetchISBN), ih.FetchISBN)
+	}
+
+	if d.Scan != nil || d.Circulation != nil {
+		sh := handler.NewScanHandler(d.Scan, d.Circulation)
+		// Patron scanner (docs/11 §9); dedicated buckets shadow the general one (docs/03 §2).
+		if d.Scan != nil {
+			api.POST("/books/scan", requireAuth, limit(middleware.BucketScan), sh.Scan)
+		}
+		if d.Circulation != nil {
+			api.POST("/copies/:id/return", requireAuth, limit(middleware.BucketCopyReturn), sh.Return)
+		}
 	}
 
 	if d.Library != nil && d.Waitlist != nil {

@@ -204,3 +204,44 @@ export interface ChatErrorEvent {
   code: string;
   message: string;
 }
+
+// Patron barcode scanner (docs/03 §5.4, §6.4; docs/11).
+export interface ScanLocation {
+  path: string;
+  parts: LocationParts | null;
+  ladder_steps: string[];
+}
+
+export interface ScanCopy {
+  id: string;
+  barcode: string;
+  status: string;
+  condition: string;
+  last_state_change?: string;
+  location: ScanLocation | null;
+}
+
+export interface ScanResponse {
+  code: string;
+  code_type: "isbn13" | "copy_barcode";
+  in_catalog: boolean;
+  match: "book" | "copy" | "none";
+  book: {
+    id: string;
+    title: string;
+    authors: string[];
+    isbn13: string | null;
+    cover_url: string | null;
+    section: SectionRef | null;
+  } | null;
+  copy: ScanCopy | null;
+  availability: Pick<Availability, "total_copies" | "available_copies" | "state"> | null;
+  wayfinding: ScanLocation | null;
+  returnable: boolean;
+}
+
+export interface ReturnResponse {
+  copy: ScanCopy;
+  availability: Pick<Availability, "total_copies" | "available_copies" | "state">;
+  hold: { id: string; status: "ready"; expires_at: string } | null;
+}

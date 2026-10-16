@@ -39,6 +39,8 @@ const config: Config = {
           lowest: "#ffffff",
         },
         outline: { DEFAULT: "#737686", variant: "#c3c6d7" },
+        // Scanner viewfinder backdrop (Stitch barscanner_ISBN).
+        "inverse-surface": "#2f3038",
         "on-surface": { DEFAULT: "#1a1b22", variant: "#434655" },
         status: {
           "available-bg": "#DCFCE7",
@@ -53,6 +55,15 @@ const config: Config = {
         },
       },
       borderRadius: { lg: "0.5rem", md: "0.375rem", sm: "0.25rem" },
+      // Scanner "red shake" on an unusable barcode (docs/11 §8).
+      keyframes: {
+        shake: {
+          "0%, 100%": { transform: "translateX(0)" },
+          "20%, 60%": { transform: "translateX(-6px)" },
+          "40%, 80%": { transform: "translateX(6px)" },
+        },
+      },
+      animation: { shake: "shake 0.4s ease-in-out" },
       fontFamily: {
         sans: [
           "var(--font-inter)",

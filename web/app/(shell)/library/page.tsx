@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { BookOpen, Sparkles } from "lucide-react";
+import { ScanToReturnButton } from "@/components/barcode-scanner";
 import { BookCover } from "@/components/book-cover";
 import { LeaveWaitlistButton } from "@/components/leave-waitlist-button";
 import { LibraryRowActions } from "@/components/library-row-actions";
@@ -41,9 +42,12 @@ export default async function LibraryPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+        </div>
+        <ScanToReturnButton />
       </header>
 
       {/* In-page Suspense (not route-level loading.tsx — docs/07 §9, Next 15.5 note). */}

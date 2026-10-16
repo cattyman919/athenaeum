@@ -6,10 +6,12 @@
 import {
   DetectorLoadError,
   InsecureContextError,
+  acceptedCode,
   cameraErrorKind,
   classifyBarcode,
-  type BarcodeVerdict,
   type CameraErrorKind,
+  type RejectedScan,
+  type ScanVerdict,
 } from "./barcode";
 
 export type FacingMode = "environment" | "user";
@@ -43,12 +45,15 @@ export interface ScannerDeps {
   requestFrame: (cb: () => void) => number;
   cancelFrame: (id: number) => void;
   now: () => number;
+  /** Pre-check for raw reads; defaults to the ISBN-only intake classifier. */
+  classify?: (raw: string) => ScanVerdict;
 }
 
 export interface ScannerCallbacks {
-  onDetected: (isbn: string) => void;
+  /** Accepted ISBN-13 (or copy tag when the classifier allows it) plus the symbology. */
+  onDetected: (code: string, format?: string) => void;
   /** Non-ISBN or checksum-failing reads (red shake / UPC hint, docs/11 §8). */
-  onRejected?: (verdict: Exclude<BarcodeVerdict, { kind: "isbn" }>) => void;
+  onRejected?: (verdict: RejectedScan) => void;
   onError: (kind: CameraErrorKind, err: unknown) => void;
   onStarted?: (info: { torch: boolean }) => void;
 }
@@ -105,10 +110,13 @@ export function createScanner(deps: ScannerDeps, cb: ScannerCallbacks): ScannerC
         if (gen !== generation) return;
         const first = hits[0];
         if (first && deps.now() >= lockedUntil) {
-          const verdict = classifyBarcode(first.rawValue);
+          const verdict = (deps.classify ?? classifyBarcode)(first.rawValue);
           lockedUntil = deps.now() + SCAN_COOLDOWN_MS;
-          if (verdict.kind === "isbn") cb.onDetected(verdict.isbn);
-          else cb.onRejected?.(verdict);
+          const code = acceptedCode(verdict);
+          if (code !== null) {
+            if (first.format) cb.onDetected(code, first.format);
+            else cb.onDetected(code);
+          } else cb.onRejected?.(verdict as RejectedScan);
         }
       } catch (err) {
         // The WASM polyfill loads lazily on the first detect(): a failure here is the

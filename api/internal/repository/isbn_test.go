@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/cattyman919/athenaeum/api/internal/model"
 	"github.com/cattyman919/athenaeum/api/internal/repository"
+	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 )
 
 func TestBookIDByISBN(t *testing.T) {
@@ -26,6 +28,39 @@ func TestBookIDByISBN(t *testing.T) {
 	}
 	if _, ok, err := repo.BookIDByISBN(ctx, "9780553293357"); err != nil || ok {
 		t.Fatalf("unknown isbn: %v %v", ok, err)
+	}
+}
+
+func TestCopyRefByBarcodeAndScan(t *testing.T) {
+	pool, _ := seededCatalog(t)
+	ctx := context.Background()
+	repo := repository.NewCatalogRepository(pool)
+	dune := bookID(t, pool, "Dune")
+	var wantCopy uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM book_copies WHERE barcode = 'ATH-002941-C01'`).Scan(&wantCopy); err != nil {
+		t.Fatal(err)
+	}
+	copyID, book, ok, err := repo.CopyRefByBarcode(ctx, "ATH-002941-C01")
+	if err != nil || !ok || copyID != wantCopy || book != dune {
+		t.Fatalf("%v %v %v %v", copyID, book, ok, err)
+	}
+	if _, _, ok, err := repo.CopyRefByBarcode(ctx, "ATH-999999-C01"); err != nil || ok {
+		t.Fatalf("unknown tag: %v %v", ok, err)
+	}
+
+	svc := catalog.NewScanService(repo)
+	res, err := svc.Scan(ctx, "9780441013593")
+	if err != nil || res.Match != model.ScanMatchBook || res.Book.ID != dune ||
+		res.Availability.TotalCopies != 3 || res.Availability.AvailableCopies != 2 || res.Wayfinding.Path != "MAIN/3F/SF/A-1/S-2" {
+		t.Fatalf("isbn scan %+v %v", res, err)
+	}
+	res, err = svc.Scan(ctx, "ath-002941-c01")
+	if err != nil || res.Match != model.ScanMatchCopy || res.Copy.ID != wantCopy || !res.Returnable || res.Wayfinding == nil {
+		t.Fatalf("copy scan %+v %v", res, err)
+	}
+	res, err = svc.Scan(ctx, "9780306406157")
+	if err != nil || res.InCatalog || res.Match != model.ScanMatchNone {
+		t.Fatalf("unknown isbn scan %+v %v", res, err)
 	}
 }
 

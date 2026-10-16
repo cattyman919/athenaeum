@@ -47,6 +47,12 @@ func (s *Service) Detail(ctx context.Context, id string, userID uuid.UUID) (mode
 	if err != nil {
 		return model.BookDetail{}, err
 	}
+	return assembleDetail(data), nil
+}
+
+// assembleDetail derives availability state, copy ladders and the home-shelf wayfinding
+// (docs/03 §5.2) from the raw repository result; shared by Detail and Scan.
+func assembleDetail(data model.BookDetailData) model.BookDetail {
 	d := data.Detail
 	d.Availability.State = AvailabilityState(d.Availability.TotalCopies, d.Availability.AvailableCopies, data.Statuses)
 
@@ -63,9 +69,14 @@ func (s *Service) Detail(ctx context.Context, id string, userID uuid.UUID) (mode
 		}
 	}
 	if home != nil {
-		d.Wayfinding = &model.Wayfinding{Path: home.Path, Parts: Parts(*home), LadderSteps: LadderSteps(*home)}
+		d.Wayfinding = LocationWayfinding(*home)
 	}
-	return d, nil
+	return d
+}
+
+// LocationWayfinding renders a location as {path, parts, ladder_steps}.
+func LocationWayfinding(l model.LocationRow) *model.Wayfinding {
+	return &model.Wayfinding{Path: l.Path, Parts: Parts(l), LadderSteps: LadderSteps(l)}
 }
 
 func isAvailable(copies []model.CopyDetail, id uuid.UUID) bool {

@@ -7,6 +7,7 @@ import { Library, LogOut, Search } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { LanguageToggle } from "@/components/language-toggle";
 import { CommandPalette, OPEN_PALETTE_EVENT } from "@/components/command-palette";
+import { ScanNavButton, ScannerHost } from "@/components/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-3">
+            {user && <ScanNavButton />}
             <LanguageToggle />
             {user && (
               <div className="flex items-center gap-2">
@@ -94,6 +96,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <CommandPalette />
+      <ScannerHost />
       <footer className="border-t border-border py-4 text-xs text-muted-foreground">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6">
           <span>

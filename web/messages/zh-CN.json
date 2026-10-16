@@ -528,5 +528,106 @@
       "retry": "重试",
       "startNew": "新建对话"
     }
+  },
+  "scanner": {
+    "open": "扫码",
+    "openLabel": "打开条码扫描器",
+    "title": "条码与 ISBN 扫描器",
+    "subtitle": "扫描 ISBN-13 条码或雅典娜馆藏副本标签。",
+    "close": "关闭扫描器",
+    "loading": "正在加载扫描器…",
+    "tabs": {
+      "label": "扫描模式",
+      "patron": "读者查询",
+      "staff": "馆员入藏",
+      "staffBadge": "馆员"
+    },
+    "libraryReturn": "扫码还书",
+    "camera": {
+      "active": "摄像头已开启",
+      "decoder": "解码器就绪",
+      "starting": "正在启动摄像头…",
+      "align": "请将条码对准框内",
+      "preview": "摄像头预览",
+      "torchOn": "打开补光灯",
+      "torchOff": "关闭补光灯",
+      "flip": "切换摄像头",
+      "retry": "重试",
+      "useManual": "改为手动输入",
+      "errors": {
+        "permission": {
+          "title": "摄像头访问被拒绝",
+          "body": "请在浏览器的网站设置中允许访问摄像头，或在下方手动输入编码。"
+        },
+        "no_device": {
+          "title": "请连接摄像头",
+          "body": "此设备上未找到摄像头。请在下方输入 ISBN 或副本标签。"
+        },
+        "insecure": {
+          "title": "摄像头需要 HTTPS",
+          "body": "浏览器仅在安全来源下开放摄像头。请在下方手动输入编码。"
+        },
+        "wasm": {
+          "title": "条码识别引擎加载失败",
+          "body": "扫描引擎无法加载。请重试或在下方手动输入编码。"
+        },
+        "unknown": {
+          "title": "摄像头不可用",
+          "body": "无法启动摄像头。请重试或在下方手动输入编码。"
+        }
+      }
+    },
+    "manual": {
+      "label": "手动输入 ISBN / 条码",
+      "hint": "ISBN-13 · EAN-13 · ATH 副本标签",
+      "placeholder": "输入 13 位 ISBN 或 ATH 副本标签…",
+      "submit": "查询"
+    },
+    "reject": {
+      "invalid": "条码无法识别——请换一个角度扫描或检查数字。",
+      "isbn10": "不支持 ISBN-10——请扫描 ISBN-13/EAN-13 条码。",
+      "upc": "这是商品（UPC）条码——请扫描 ISBN/EAN-13 条码。",
+      "not_isbn": "该 EAN-13 不是 ISBN（978/979 开头）——请扫描图书的 ISBN 条码。"
+    },
+    "status": {
+      "idle": "就绪——请将摄像头对准条码",
+      "pending": "正在查询 {code}…",
+      "isbn": "已解码 EAN-13",
+      "copy": "已解码副本标签"
+    },
+    "result": {
+      "bookMatched": "已匹配馆藏记录",
+      "copyMatched": "已匹配副本标签",
+      "isbn": "ISBN {isbn}",
+      "copiesOnShelf": "{count, plural, =0 {架上暂无副本} other {架上有 # 本}}",
+      "ofTotal": "共 {total} 本，{available} 本可借",
+      "location": "书架位置",
+      "noLocation": "尚未分配书架",
+      "viewRecord": "查看完整记录与地图",
+      "scanNext": "扫描下一本",
+      "waitlistTitle": "所有副本目前均已借出",
+      "barcode": "副本标签",
+      "status": "状态",
+      "condition": "品相",
+      "returnCopy": "归还此副本",
+      "returning": "正在归还…",
+      "notReturnable": "此副本未被借出，无需归还。"
+    },
+    "notInCatalog": {
+      "title": "本馆目录中没有此书",
+      "body": "{code} 是有效编码，但本馆没有对应的图书或副本。",
+      "staffCta": "添加此书（馆员入藏）"
+    },
+    "return": {
+      "success": "已归还 {barcode}，谢谢！",
+      "held": "已归还 {barcode}，现已为候补名单中的下一位读者保留。",
+      "conflict": "此副本当前为“{status}”，并非借出状态。",
+      "notFound": "该副本已不存在——请扫描下一本。",
+      "error": "无法归还此副本，请重试。"
+    },
+    "errors": {
+      "invalidIsbn": "图书馆无法验证该 ISBN——请检查数字后重试。",
+      "lookup": "查询失败，请重试。"
+    }
   }
 }

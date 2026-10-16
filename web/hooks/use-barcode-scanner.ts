@@ -4,7 +4,12 @@
 // it while `active`, and stops tracks + the frame loop on pause/unmount/dialog close.
 
 import * as React from "react";
-import type { BarcodeVerdict, CameraErrorKind } from "@/lib/barcode";
+import {
+  classifyBarcode,
+  type CameraErrorKind,
+  type RejectedScan,
+  type ScanVerdict,
+} from "@/lib/barcode";
 import { createBarcodeDetector } from "@/lib/barcode-detector";
 import {
   createScanner,
@@ -17,9 +22,11 @@ export type ScannerStatus = "idle" | "starting" | "scanning" | "error";
 
 export interface UseBarcodeScannerOptions {
   active: boolean;
-  onDetected: (isbn: string) => void;
-  onRejected?: (verdict: Exclude<BarcodeVerdict, { kind: "isbn" }>) => void;
+  onDetected: (code: string, format?: string) => void;
+  onRejected?: (verdict: RejectedScan) => void;
   formats?: readonly string[];
+  /** Raw-read pre-check; ISBN-only by default, `classifyScanCode` adds copy tags. */
+  classify?: (raw: string) => ScanVerdict;
 }
 
 export function useBarcodeScanner({
@@ -27,6 +34,7 @@ export function useBarcodeScanner({
   onDetected,
   onRejected,
   formats,
+  classify,
 }: UseBarcodeScannerOptions) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const [status, setStatus] = React.useState<ScannerStatus>("idle");
@@ -37,8 +45,8 @@ export function useBarcodeScanner({
   const [attempt, setAttempt] = React.useState(0);
 
   // Latest callbacks without restarting the camera on every parent render.
-  const handlers = React.useRef({ onDetected, onRejected });
-  handlers.current = { onDetected, onRejected };
+  const handlers = React.useRef({ onDetected, onRejected, classify });
+  handlers.current = { onDetected, onRejected, classify };
   const formatsKey = (formats ?? []).join(",");
 
   const controllerRef = React.useRef<ScannerController | null>(null);
@@ -56,9 +64,11 @@ export function useBarcodeScanner({
         requestFrame: (cb) => requestAnimationFrame(cb),
         cancelFrame: (id) => cancelAnimationFrame(id),
         now: () => performance.now(),
+        classify: (raw) =>
+          handlers.current.classify ? handlers.current.classify(raw) : classifyBarcode(raw),
       },
       {
-        onDetected: (isbn) => handlers.current.onDetected(isbn),
+        onDetected: (code, format) => handlers.current.onDetected(code, format),
         onRejected: (v) => handlers.current.onRejected?.(v),
         onError: (kind) => {
           setError(kind);

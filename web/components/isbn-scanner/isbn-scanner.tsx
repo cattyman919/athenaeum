@@ -6,7 +6,7 @@
 import * as React from "react";
 import { Camera, Flashlight, FlashlightOff, RefreshCw, SwitchCamera } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { BarcodeVerdict, CameraErrorKind } from "@/lib/barcode";
+import type { CameraErrorKind, RejectedScan } from "@/lib/barcode";
 import { SCAN_FORMATS } from "@/lib/barcode-detector";
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
 import { cn } from "@/lib/utils";
@@ -50,8 +50,9 @@ const ERROR_COPY: Record<CameraErrorKind, { title: string; body: string }> = {
   },
 };
 
-const REJECT_COPY: Record<Exclude<BarcodeVerdict, { kind: "isbn" }>["kind"], string> = {
+const REJECT_COPY: Record<RejectedScan["kind"], string> = {
   invalid: "Barcode unusable — scan a different surface.",
+  isbn10: "ISBN-10 is not supported — scan the ISBN-13/EAN-13 barcode instead.",
   upc: "That is the store (UPC) barcode — scan the ISBN/EAN-13 barcode instead.",
   not_isbn: "That EAN-13 is not an ISBN (978/979) — scan the book's ISBN barcode.",
 };
