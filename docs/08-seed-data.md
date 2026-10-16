@@ -187,12 +187,15 @@ better-known works, neutral editorial blurb templates for archive items
 ```
 
 Trigger manually for full runs: after changing `OLLAMA_EMBED_DIM`/model or
-`chunker_version` (columns documented in [02 §book_embeddings](02-data-model.md#book_embeddings)),
-and after `cmd/seed` (seed leaves `embedding_dirty=false` by design — decided 2026-10-16).
-Admin book create and RAG-field patches (`title`/`authors`/`description`) set
-`embedding_dirty=true`; the auto-index worker ([06 §2](06-ai-rag.md#2-rag-pipeline))
-re-embeds them within ~5 s. Until the worker lands, `make reindex --book={id}` is
-the manual step for admin edits.
+`chunker_version` (columns documented in [02 §book_embeddings](02-data-model.md#book_embeddings)).
+`cmd/seed` leaves `embedding_dirty=false`, but a book with **no embedding rows** is
+treated as dirty, so the auto-index worker ([06 §2](06-ai-rag.md#2-rag-pipeline))
+backfills the freshly seeded catalog on startup — no manual `make reindex` needed for
+a fresh start. Admin book create and RAG-field patches (`title`/`authors`/`description`)
+also set `embedding_dirty=true` and are re-embedded within ~5 s. Both the startup
+backfill and later edits **wait for Ollama** (retry with backoff) when it is down or the
+model is not yet pulled, rather than failing. `make reindex` remains the tool for
+model/chunker upgrades and a deterministic offline rebuild.
 
 ## 8. Failure Modes
 

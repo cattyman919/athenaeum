@@ -186,16 +186,19 @@ docker compose up -d postgres redis ollama whisper
 docker compose exec ollama ollama pull nomic-embed-text
 # faster-whisper downloads WHISPER_MODEL (small) on first start; see 15-voice-input
 
-# 2. Migrate + seed + embed (from api/)
+# 2. Migrate + seed (from api/)
 cd api
 migrate -path ./migrations -database "$DATABASE_URL" up
 go run ./cmd/seed                 # loads mocks/ (docs/08, docs/13)
-go run ./cmd/reindex              # builds 768-dim embeddings (docs/06)
 
 # 3. Run API + web
-go run ./cmd/api                  # :8080
+go run ./cmd/api                  # :8080 — auto-index worker backfills embeddings (docs/06)
 cd ../web && pnpm install && pnpm dev   # :3000
 ```
+
+`go run ./cmd/reindex` is only needed after a model/chunker change or for an offline
+rebuild; a fresh seed is embedded automatically by the API's background worker, which
+waits for Ollama (docs/06 §2, docs/08 §7).
 
 ## 8. Stitch UI Source
 

@@ -22,8 +22,9 @@
 15. [Phase 12 — Voice Input](#15-phase-12--voice-input)
 16. [Phase 13 — Git Workflow and CI](#16-phase-13--git-workflow-and-ci)
 17. [Phase 14 — Patron Barcode Scanner](#17-phase-14--patron-barcode-scanner)
-18. [Open TODO Registry (from docs)](#18-open-todo-registry-from-docs)
-19. [Session Log](#19-session-log)
+18. [Phase 15 — Auto-Index Worker & Detail Rating](#18-phase-15--auto-index-worker--detail-rating)
+19. [Open TODO Registry (from docs)](#19-open-todo-registry-from-docs)
+20. [Session Log](#20-session-log)
 
 ## 1. How to Use This File
 
@@ -33,7 +34,7 @@ Rules for any AI session (or human) continuing this project:
 2. Work top-down within the current phase; do not skip ahead across phase boundaries without logging why.
 3. While implementing: update the checkboxes in **this** file as tasks complete; add new discovered tasks here instead of inventing scope in code.
 4. "Complete" means: code compiles, relevant `make lint` / `make test` pass, and behavior matches the owning doc. Do not tick otherwise.
-5. Never mark deferred features ([§18](#18-open-todo-registry-from-docs)) as done — they stay ⚠️ TODO until [10-roadmap.md](docs/10-roadmap.md) changes.
+5. Never mark deferred features ([§19](#19-open-todo-registry-from-docs)) as done — they stay ⚠️ TODO until [10-roadmap.md](docs/10-roadmap.md) changes.
 6. End the session with a Session Log row: date, engine/session id, tasks completed, current cursor ("resume from: …"), blockers.
 7. Mock/book/shelf values are a contract: change data only by editing `api/mocks/` + [docs/13-mock-data-reference.md](docs/13-mock-data-reference.md) together.
 
@@ -44,7 +45,7 @@ Rules for any AI session (or human) continuing this project:
 | Goal / phase | M0–M13 code complete (Phase 14 patron + staff barcode scanner built 2026-10-16). Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M13; checkboxes below are still ticked per item |
 | Git | `main` with commits; remote `origin = git@github.com:cattyman919/athenaeum.git`; one branch per task, squash to `main`, push `main` per milestone ([docs/09 §9](docs/09-development.md#9-git-workflow)) |
 | Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist); **11 re-scoped** to the universal patron+staff scanner) |
-| Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); + scanner dialog `barscanner_ISBN/code.html`; re-exports pending + chat-screen regen for the mic ([§18](#18-open-todo-registry-from-docs)) |
+| Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); + scanner dialog `barscanner_ISBN/code.html`; re-exports pending + chat-screen regen for the mic ([§19](#19-open-todo-registry-from-docs)) |
 | Stack pins | Go 1.27 · Next.js 15 · Postgres 16 + pgvector · Redis 7 · Ollama `nomic-embed-text` (768) · OpenRouter Claude 3.5 Sonnet · faster-whisper `small` · next-intl · Playwright |
 | Demo accounts | `admin@` / `demo@athenaeum.dev` · password `athenaeum-demo` ([docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library)) |
 
@@ -62,7 +63,7 @@ Local `make e2e` = 75 passing (2026-10-16). Check `gh run list` for CI on the la
 1. **Done 2026-10-16:** Phase 14 patron + staff barcode scanner (§17, implementation-plan M13) and ghost-text interim
    voice in the composer (Phase 12, [docs/15 §2a](docs/15-voice-input.md#2a-live-interim-transcript)).
 2. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
-3. Decided 2026-10-16 (docs 03 §5.2/§8.3, 06 §2, 08 §7): copy delete cascades `copy_events` history; book detail `my_library_entry` gains nullable `rating` (implement next); re-embed freshness is a dirty-flag + background worker (`make reindex --book={id}` until it lands).
+3. **Next build — Phase 15 / plan M14 (decided 2026-10-16, docs 03 §5.2/§8.3, 06 §2, 08 §7, 09 §6, README §7):** auto-index worker (in-process goroutine, `books.embedding_dirty` + zero-embedding backfill so a fresh seed self-heals on boot; notify + 5s poll; per-book; waits for Ollama with backoff instead of failing) and book-detail `my_library_entry.rating`. Copy delete **cascades** `copy_events` history (docs-only fix, done). Fresh start no longer needs `make reindex`.
    **Resolved 2026-10-15:** `fetch-isbn` is now documented 👑 admin-only (the patron path is `POST /api/books/scan`).
 4. zh RAG note (docs/06 §2 English-only embeddings) remains a documented deferral.
 5. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.
@@ -285,7 +286,20 @@ One dialog, two audiences; scanner artifact `.artifacts/stitch/barscanner_ISBN/c
 - [x] Playwright: patron ISBN lookup + self-service return via the manual code path; camera path stays unit-only ([docs/09 §8](docs/09-development.md#8-testing-strategy))
 - [ ] > ⚠️ TODO: RFID encode / thermal label print / Edit-MARC stay out of v1 ([docs/11 §11](docs/11-barcode-scanning.md#11-scope-impact))
 
-## 18. Open TODO Registry (from docs)
+## 18. Phase 15 — Auto-Index Worker & Detail Rating
+
+Refs: [docs/06 §2](docs/06-ai-rag.md#2-rag-pipeline), [docs/08 §7](docs/08-seed-data.md#7-reindex),
+[docs/02 §4 `books`](docs/02-data-model.md#books), [docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid).
+Implementation plan M14. Decisions locked 2026-10-16.
+
+- [ ] Migration 0006: `books.embedding_dirty BOOL NOT NULL DEFAULT false` + partial index `WHERE embedding_dirty` ([docs/02 §4](docs/02-data-model.md#books))
+- [ ] Admin repo: `CreateBook` sets dirty; `PatchBook` sets dirty only for `title`/`authors`/`description` changes
+- [ ] `service/index` worker: dirty set = `embedding_dirty` ∪ books with zero embedding rows (fresh-start backfill); notify + 5s poll; per-book `Indexer.Run(bookID)`; **waits for Ollama** (retry with backoff, never fails the request); slog start/success/failure + pending count; wired in `cmd/api/main.go` like `RunSweeper`
+- [ ] Detail `my_library_entry` gains nullable `rating` (model + repo SELECT; [docs/03 §5.2](docs/03-api-spec.md#52-get-apibooksid))
+- [ ] Tests: migration up/down; dirty-flag RAG-field vs non-RAG patch; worker (dirty cleared on success, kept on failure, zero-embedding picked up, Ollama-down retries); rating detail
+- [ ] > ⚠️ TODO: model/chunker upgrades still need a manual `make reindex` (worker handles dirty/empty only) ([docs/08 §7](docs/08-seed-data.md#7-reindex))
+
+## 19. Open TODO Registry (from docs)
 
 Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after changes: `grep -n "> ⚠️ TODO" docs/*.md`):
 
@@ -305,7 +319,7 @@ Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after chang
 | [docs/12 §12](docs/12-ui-design.md#12-accessibility-requirements) | axe-core audit; verify contrast ratios | polish |
 | [docs/11 §11](docs/11-barcode-scanning.md#11-scope-impact) | scanner Staff-Intake extras: RFID encode, thermal label print, Edit-MARC | deferred feature |
 
-## 19. Session Log
+## 20. Session Log
 
 Append one row per session that touches code or docs. Keep newest at the top.
 

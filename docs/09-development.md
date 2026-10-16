@@ -155,10 +155,14 @@ defaults: [01 §7](01-architecture.md#7-environment-variables). Never commit `.e
 ## 6. Local Dev Workflow
 
 1. `make up` then `make db-migrate` (first run only) → 2. `make seed` →
-3. `make reindex` → 4. `make api` **and** `make web` (two tabs).
-5. Log in at `http://localhost:3000` with admin or demo patron
+3. `make api` **and** `make web` (two tabs) — the auto-index worker backfills
+   embeddings on startup ([06 §2](06-ai-rag.md#2-rag-pipeline)); it waits for Ollama
+   if it is not ready yet.
+4. Log in at `http://localhost:3000` with admin or demo patron
    (seeds: [13 §demo users](13-mock-data-reference.md#6-demo-users--personal-library)).
-6. After model/chunker changes: `make reindex` — see [08 §reindex](08-seed-data.md#7-reindex).
+5. After model/chunker changes: `make reindex` — see [08 §reindex](08-seed-data.md#7-reindex).
+   (`make reindex` is also available for a deterministic offline rebuild; it is no
+   longer required just to make a fresh seed searchable.)
 
 **Go tooling**: `gofmt`, `go vet`, `golangci-lint` (`goimports`-based). **Web**: ESLint +
 Prettier via Next.js default settings.

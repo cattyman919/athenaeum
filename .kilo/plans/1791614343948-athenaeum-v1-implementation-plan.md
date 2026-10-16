@@ -115,10 +115,10 @@ Gate: the docs/11 §11 deferral (RFID encode / thermal label print / Edit-MARC) 
 ### M14 — Auto-index worker + detail rating (decisions 2026-10-16; docs/06 §2, docs/08 §7)
 1. `feat(db)`: migration 0006 — `books.embedding_dirty BOOL NOT NULL DEFAULT false` + partial index `WHERE embedding_dirty`; canonical DDL already in docs/02 §4.
 2. `feat(api)`: admin repo — `CreateBook` sets dirty=true; `PatchBook` sets dirty=true only when title/authors/description change; worker clears on success.
-3. `feat(api)`: `service/index` worker — notify channel (non-blocking send from admin service) + 5s poll fallback querying dirty ids (`SELECT id FROM books WHERE embedding_dirty ORDER BY updated_at LIMIT n`); per-book `Indexer.Run(bookID)`; Ollama-down keeps dirty + backoff retry; slog lines (start/success/failure + pending count). Wired in `cmd/api/main.go` like `RunSweeper` (new `index.NewWorker(...)`, `go worker.Run(ctx, ...)`).
+3. `feat(api)`: `service/index` worker — dirty set is the union of `embedding_dirty` **and** books with **zero embedding rows** (gap 1a: fresh-start backfill, so a freshly seeded catalog self-heals without `make reindex`); wake-up via notify (non-blocking send from admin service) + 5s poll fallback; per-book `Indexer.Run(bookID)`; **waits for Ollama** — down or model-not-pulled keeps the book queued and retries with backoff instead of failing (startup backfill and later edits both wait); slog lines (start/success/failure + pending count). Wired in `cmd/api/main.go` like `RunSweeper`.
 4. `feat(api)`: detail `my_library_entry` gains nullable `rating` (model + repo SELECT + docs/03 §5.2 example already updated); web reads it already.
-5. `test`: migration up/down; dirty-flag unit tests (RAG-field vs non-RAG patch); worker test with fake embedder (dirty cleared, failure keeps dirty); rating detail test.
-Gate: `make lint` + `make test` + `make e2e` green; seed still leaves dirty=false (full `make reindex` after seed required).
+5. `test`: migration up/down; dirty-flag unit tests (RAG-field vs non-RAG patch); worker test with fake embedder (dirty cleared, failure keeps dirty, zero-embedding books picked up, Ollama-down retries); rating detail test.
+Gate: `make lint` + `make test` + `make e2e` green; `cmd/seed` still leaves dirty=false but the worker backfills zero-embedding books on boot (docs 06/08/09/README quickstart no longer require `make reindex` for a fresh start).
 
 ## Milestone gate (every milestone)
 

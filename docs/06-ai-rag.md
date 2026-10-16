@@ -41,13 +41,17 @@ side runs inside the agent turn.
 > Decided 2026-10-16: freshness is a dirty-flag + background worker. Design:
 > in-process goroutine in `cmd/api` (like the waitlist sweeper); `books.embedding_dirty`
 > set by admin create and by patch touching `title`/`authors`/`description` only
-> (cover/section/year edits skip reindex); `cmd/seed` leaves dirty=false (full manual
-> reindex after seed stays required); worker handles dirty books only — model/chunker
-> upgrades still need a manual full reindex. Wake-up is notify (non-blocking channel
-> send from admin writes) + poll fallback every 5s (crash/restart self-heal); one
-> `Indexer.Run(bookID)` per dirty book per tick; Ollama down keeps dirty + retries
-> with backoff — the book stays keyword-searchable, admin request still succeeds;
-> observability is structured slog lines (start/success/failure + pending count).
+> (cover/section/year edits skip reindex); `cmd/seed` leaves dirty=false but a book
+> with **no embeddings at all** is treated as dirty, so a fresh start self-heals the
+> seeded catalog without a manual reindex; worker handles dirty books only —
+> model/chunker upgrades still need a manual full reindex. Wake-up is notify
+> (non-blocking channel send from admin writes) + poll fallback every 5s
+> (crash/restart self-heal); one `Indexer.Run(bookID)` per dirty book per tick.
+> **Ollama readiness:** the worker does not fail or exit when Ollama is down or the
+> model is not yet pulled — it waits and retries with backoff (startup backfill and
+> later edits both queue until Ollama is ready), so the book stays keyword-searchable
+> and the admin request still succeeds. Observability is structured slog lines
+> (start/success/failure + pending count).
 
 ```mermaid
 flowchart LR
