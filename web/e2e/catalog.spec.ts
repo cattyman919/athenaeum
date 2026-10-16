@@ -1,12 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 import { DEMO_STATE } from "./accounts";
 import { gotoReady, switchLang } from "./helpers";
+import { resetRateLimits } from "./rate-limit";
 
 test.use({ storageState: DEMO_STATE });
 
 const cards = (page: Page) => page.getByTestId("book-card");
 const titles = async (page: Page) =>
   cards(page).evaluateAll((els) => els.map((e) => e.getAttribute("data-title")));
+
+test.beforeAll(async () => {
+  await resetRateLimits();
+});
 
 test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
   test("browse shows 12 per page of 40 volumes with pagination", async ({ page }) => {
@@ -114,6 +119,19 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await page.getByTestId("palette-see-all").click();
     await expect(page).toHaveURL(/\/catalog\?q=hyperion/);
     await expect(page.getByTestId("command-palette")).toBeHidden();
+  });
+
+  test("semantic/hybrid with an empty query prompts instead of erroring", async ({ page }) => {
+    await gotoReady(page, "/catalog?mode=semantic");
+    await expect(page.getByTestId("catalog-query-required")).toBeVisible();
+    await expect(page.getByTestId("catalog-error")).toHaveCount(0);
+    // Switching mode with an empty box stays on the prompt (docs/03 §5.1).
+    await page.getByTestId("mode-hybrid").click();
+    await expect(page).toHaveURL(/mode=hybrid/);
+    await expect(page.getByTestId("catalog-query-required")).toContainText("keyword and meaning");
+    // Keyword browsing with an empty query still lists volumes.
+    await page.getByTestId("mode-keyword").click();
+    await expect(cards(page).first()).toBeVisible();
   });
 
   test("mode labels and section facets are localized in zh-CN", async ({ page }) => {

@@ -190,6 +190,11 @@ In `semantic`/`hybrid` mode, when `meta.index_pending > 0`
 “N new books are still being indexed — semantic results may be incomplete”. It re-checks
 with a cheap `mode=keyword&per_page=1` search every 4 s (no embedding call), hides at 0
 and `router.refresh()`es the results.
+Since `q` is required for `semantic`/`hybrid` ([03 §5.1](03-api-spec.md#51-get-apibookssearch)),
+selecting those modes with an empty box shows an idle prompt (`catalog.queryRequired.*`,
+`data-testid="catalog-query-required"`, `requiresQuery()` in `lib/catalog-query.ts`) instead
+of calling the API and rendering an error; a stray server `VALIDATION_FAILED` maps to the
+same prompt. Keyword mode with an empty query still browses the catalog.
 
 ### /books/[id] — screen 3 (Stitch `723960ca…`)
 

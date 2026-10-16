@@ -93,8 +93,12 @@ export function toApiParams(q: CatalogQuery, perPage = 20): URLSearchParams {
   return p;
 }
 
-/** Toggles a value inside a multi-value facet and resets paging. */
-export function toggleFacet(
+/** Semantic and hybrid search require a non-empty query (docs/03 §5.1); keyword browses. */
+export function requiresQuery(mode: Mode): boolean {
+  return mode !== "keyword";
+}
+
+/** Toggles a value inside a multi-value facet and resets paging. */ export function toggleFacet(
   q: CatalogQuery,
   key: "sections" | "eras",
   value: string,

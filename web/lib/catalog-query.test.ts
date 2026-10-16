@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_QUERY,
   parseCatalogQuery,
+  requiresQuery,
   toApiParams,
   toSearchParams,
   toggleFacet,
@@ -71,6 +72,12 @@ describe("catalog URL state (docs/07 §5)", () => {
     expect(p.get("mode")).toBe("keyword");
     expect(p.get("per_page")).toBe("12");
     expect(p.get("q")).toBe("x");
+  });
+
+  it("requiresQuery gates semantic/hybrid but not keyword (docs/03 §5.1)", () => {
+    expect(requiresQuery("keyword")).toBe(false);
+    expect(requiresQuery("semantic")).toBe(true);
+    expect(requiresQuery("hybrid")).toBe(true);
   });
 
   it("toggleFacet adds/removes and resets paging", () => {

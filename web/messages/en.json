@@ -194,6 +194,11 @@
       "hint": "Try different words, switch search mode, or browse a nearby section.",
       "nearby": "Browse a section"
     },
+    "queryRequired": {
+      "title": "Enter a search term",
+      "semantic": "Type a word or question to search the catalog by meaning.",
+      "hybrid": "Type a word or question to combine keyword and meaning search."
+    },
     "error": {
       "embedding": "Semantic search is unavailable right now.",
       "embeddingHint": "The embedding service is not responding. Keyword search still works.",

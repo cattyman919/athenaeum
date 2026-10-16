@@ -9,9 +9,11 @@ import { apiServer } from "@/lib/api-server";
 import {
   SECTIONS,
   parseCatalogQuery,
+  requiresQuery,
   toApiParams,
   toSearchParams,
   type CatalogQuery,
+  type Mode,
 } from "@/lib/catalog-query";
 import type { SearchResponse } from "@/lib/types";
 import { sectionLabel } from "@/lib/wayfinding";
@@ -36,12 +38,33 @@ function href(query: CatalogQuery, patch: Partial<CatalogQuery>) {
   return qs ? `/catalog?${qs}` : "/catalog";
 }
 
+/**
+ * Semantic/hybrid need a query (docs/03 §5.1): an empty one would 400, so show an
+ * idle prompt instead of the error card. Mirrors a stray server `VALIDATION_FAILED`.
+ */
+async function QueryRequiredPrompt({ mode }: { mode: Mode }) {
+  const t = await getTranslations("catalog");
+  return (
+    <div
+      role="status"
+      data-testid="catalog-query-required"
+      className="flex flex-col items-start gap-2 rounded-lg border border-dashed border-border bg-card p-6"
+    >
+      <h2 className="text-lg font-semibold">{t("queryRequired.title")}</h2>
+      <p className="text-sm text-muted-foreground">{t(`queryRequired.${mode}`)}</p>
+    </div>
+  );
+}
+
 async function Results({ query }: { query: CatalogQuery }) {
-  const [t, tWay, result] = await Promise.all([
-    getTranslations("catalog"),
-    getTranslations("wayfinding"),
-    search(query),
-  ]);
+  const [t, tWay] = await Promise.all([getTranslations("catalog"), getTranslations("wayfinding")]);
+  if (requiresQuery(query.mode) && query.q === "") {
+    return <QueryRequiredPrompt mode={query.mode} />;
+  }
+  const result = await search(query);
+  if (!result.ok && result.code === "VALIDATION_FAILED") {
+    return <QueryRequiredPrompt mode={query.mode} />;
+  }
   return (
     <>
       {result.ok && query.mode !== "keyword" && (
