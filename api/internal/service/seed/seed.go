@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/cattyman919/athenaeum/api/internal/model"
 	"github.com/cattyman919/athenaeum/api/internal/pkg/hash"
@@ -27,6 +28,9 @@ type Store interface {
 	// ApplyDemoLibrary upserts the demo patron's library entries and waitlist rows
 	// (rows are keyed by user + book title; re-running changes nothing).
 	ApplyDemoLibrary(ctx context.Context, l model.LibraryFixture) error
+	// ApplyLoans creates one open loan per checked_out copy, cycling through the
+	// reviewer users already in the database. Idempotent.
+	ApplyLoans(ctx context.Context, now time.Time) error
 	// Counts returns the database totals after seeding.
 	Counts(ctx context.Context) (model.SeedCounts, error)
 }
@@ -47,8 +51,24 @@ type Options struct {
 	Users []UserSpec
 }
 
-// Run applies the fixtures: users → tree → books/copies (docs/08 §4).
-// Fixtures must already be validated.
+// reviewerSpecs are the 20 reviewer accounts (docs/08 §4, docs/13).
+// Passwords equal the local part of the email address.
+var reviewerSpecs = func() []UserSpec {
+	specs := make([]UserSpec, 20)
+	for i := range specs {
+		local := fmt.Sprintf("user%d", i+1)
+		specs[i] = UserSpec{
+			Email:    local + "@gmail.com",
+			Name:     fmt.Sprintf("Reviewer %d", i+1),
+			Password: local,
+			Role:     model.RoleUser,
+		}
+	}
+	return specs
+}()
+
+// Run applies the fixtures: users → tree → books/copies → reviewer users → loans
+// (docs/08 §4). Fixtures must already be validated.
 func Run(ctx context.Context, st Store, enr Enricher, fx Fixtures, opts Options, log *slog.Logger) (model.SeedCounts, error) {
 	if opts.Reset {
 		if err := st.Reset(ctx); err != nil {
@@ -82,6 +102,24 @@ func Run(ctx context.Context, st Store, enr Enricher, fx Fixtures, opts Options,
 			break
 		}
 	}
+
+	// Reviewer users (user1@gmail.com…user20@gmail.com) own the seeded loans.
+	// Created idempotently here so they are always present even on a bare seed run.
+	for _, u := range reviewerSpecs {
+		ph, err := hash.Hash(u.Password)
+		if err != nil {
+			return model.SeedCounts{}, err
+		}
+		if err := st.UpsertUser(ctx, model.User{Email: u.Email, Name: u.Name, Role: u.Role, PasswordHash: &ph}); err != nil {
+			return model.SeedCounts{}, fmt.Errorf("reviewer %s: %w", u.Email, err)
+		}
+	}
+
+	// Seed one open loan per checked_out copy using a fixed "now" so re-runs are stable.
+	if err := st.ApplyLoans(ctx, time.Now().UTC()); err != nil {
+		return model.SeedCounts{}, fmt.Errorf("loans: %w", err)
+	}
+
 	return st.Counts(ctx)
 }
 

@@ -39,7 +39,8 @@ func TestSeedParityIdempotencyAndReset(t *testing.T) {
 	if err := fx.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	want := model.SeedCounts{Users: 2, Books: 40, Copies: 60, Shelves: 40, CheckedOut: 12, ZeroCopyBooks: 5, LibraryEntries: 24, WaitlistRows: 2}
+	// 2 admin/demo + 20 reviewer accounts (user1@gmail.com…user20@gmail.com) + 12 open loans.
+	want := model.SeedCounts{Users: 22, Books: 40, Copies: 60, Shelves: 40, CheckedOut: 12, ZeroCopyBooks: 5, LibraryEntries: 24, WaitlistRows: 2, Loans: 12}
 
 	got, err := seed.Run(ctx, store, stubEnricher{}, fx, seed.Options{Users: seedUsers}, logging.Discard())
 	if err != nil {
@@ -104,7 +105,8 @@ func TestSeedParityIdempotencyAndReset(t *testing.T) {
 		t.Fatal(err)
 	}
 	c, _ := store.Counts(ctx)
-	if c.Books != 0 || c.Copies != 0 || c.Shelves != 0 || c.Users != 2 {
+	// After reset: books/copies/shelves gone; 22 users (admin+demo+20 reviewers) survive.
+	if c.Books != 0 || c.Copies != 0 || c.Shelves != 0 || c.Users != 22 || c.Loans != 0 {
 		t.Fatalf("after reset %+v", c)
 	}
 	var tokens int

@@ -18,6 +18,7 @@ const (
 	CodeEmailTaken               Code = "EMAIL_TAKEN"
 	CodeISBNConflict             Code = "ISBN_CONFLICT"
 	CodeBookNotAvailable         Code = "BOOK_NOT_AVAILABLE"
+	CodeBorrowLimit              Code = "BORROW_LIMIT"
 	CodeRateLimited              Code = "RATE_LIMITED"
 	CodeUpstreamError            Code = "UPSTREAM_ERROR"
 	CodeEmbeddingUnavailable     Code = "EMBEDDING_UNAVAILABLE"
@@ -78,6 +79,7 @@ var (
 	ErrNotFound           = New(CodeNotFound, "not found")
 	ErrConflict           = New(CodeConflict, "conflict")
 	ErrBookUnavailable    = New(CodeBookNotAvailable, "This book is not currently available in the building.")
+	ErrBorrowLimit        = New(CodeBorrowLimit, "You already have 5 loans")
 	ErrRateLimited        = New(CodeRateLimited, "too many requests")
 	ErrUpstream           = New(CodeUpstreamError, "upstream service error")
 	ErrEmbeddingUnavail   = New(CodeEmbeddingUnavailable, "embedding service unavailable")

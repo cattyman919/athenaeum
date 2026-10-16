@@ -46,6 +46,8 @@ type ScanResult struct {
 	Availability *DetailAvailability `json:"availability"`
 	Wayfinding   *Wayfinding         `json:"wayfinding"`
 	Returnable   bool                `json:"returnable"`
+	Borrowable   bool                `json:"borrowable"`
+	Loan         *ScanLoanRef        `json:"loan"`
 }
 
 // ReturnedCopy is the copy object of POST /api/copies/{id}/return (docs/03 §6.4).
@@ -70,15 +72,17 @@ type ReturnResult struct {
 	Copy         ReturnedCopy       `json:"copy"`
 	Availability DetailAvailability `json:"availability"`
 	Hold         *PromotedHold      `json:"hold"`
+	ClosedLoan   *ClosedLoanRef     `json:"closed_loan"`
 }
 
 // ReturnData is the raw repository result of a self-service return; the service derives
 // the location steps and availability state from it.
 type ReturnData struct {
-	Copy      AdminCopy
-	Location  *LocationRow
-	Total     int
-	Available int
-	Statuses  []string
-	Hold      *PromotedHold
+	Copy       AdminCopy
+	Location   *LocationRow
+	Total      int
+	Available  int
+	Statuses   []string
+	Hold       *PromotedHold
+	ClosedLoan *ClosedLoanRef
 }

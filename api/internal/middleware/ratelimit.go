@@ -40,10 +40,16 @@ var (
 	// 10/min final-transcript bucket.
 	BucketTranscribePartial = Bucket{Name: "transcribe_partial", Limit: 60, Window: time.Minute, ByUser: true}
 	BucketFetchISBN         = Bucket{Name: "fetch_isbn", Limit: 10, Window: time.Minute, ByUser: true}
+	// BucketIdentifyISBN governs patron ISBN identification lookups (POST /api/books/identify-isbn, docs/03 §5.5).
+	BucketIdentifyISBN = Bucket{Name: "identify_isbn", Limit: 10, Window: time.Minute, ByUser: true}
 	// BucketScan governs patron ISBN / copy-tag lookups (POST /api/books/scan).
 	BucketScan = Bucket{Name: "books_scan", Limit: 30, Window: time.Minute, ByUser: true}
 	// BucketCopyReturn governs patron self-service returns (POST /api/copies/{id}/return).
 	BucketCopyReturn = Bucket{Name: "copy_return", Limit: 10, Window: time.Minute, ByUser: true}
+	// BucketCopyBorrow governs patron self-service checkouts (POST /api/copies/{id}/borrow).
+	BucketCopyBorrow = Bucket{Name: "copy_borrow", Limit: 10, Window: time.Minute, ByUser: true}
+	// BucketCopyRenew governs loan renewals (POST /api/copies/{id}/renew).
+	BucketCopyRenew = Bucket{Name: "copy_renew", Limit: 5, Window: time.Minute, ByUser: true}
 )
 
 // RateLimiter applies Redis fixed-window counters (INCR + EXPIRE).

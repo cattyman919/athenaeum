@@ -51,14 +51,17 @@ type Deps struct {
 
 // specificBucketRoutes shadow the general 120/min bucket (docs/03 §2).
 var specificBucketRoutes = map[string]bool{
-	"POST /api/auth/login":        true,
-	"POST /api/auth/register":     true,
-	"GET /api/books/search":       true,
-	"POST /api/chat":              true,
-	"POST /api/chat/transcribe":   true,
-	"POST /api/books/fetch-isbn":  true,
-	"POST /api/books/scan":        true,
-	"POST /api/copies/:id/return": true,
+	"POST /api/auth/login":          true,
+	"POST /api/auth/register":       true,
+	"GET /api/books/search":         true,
+	"POST /api/chat":                true,
+	"POST /api/chat/transcribe":     true,
+	"POST /api/books/fetch-isbn":    true,
+	"POST /api/books/identify-isbn": true,
+	"POST /api/books/scan":          true,
+	"POST /api/copies/:id/return":   true,
+	"POST /api/copies/:id/borrow":   true,
+	"POST /api/copies/:id/renew":    true,
 }
 
 func isSpecific(c *gin.Context) bool {
@@ -122,6 +125,8 @@ func NewRouter(d Deps) *gin.Engine {
 		// Admin "Add Book" intake (docs/11 §1); dedicated 10/min bucket (docs/03 §2).
 		api.POST("/books/fetch-isbn", requireAuth, middleware.RequireAdmin(handler.RespondError),
 			limit(middleware.BucketFetchISBN), ih.FetchISBN)
+		// Patron ISBN identification (docs/03 §5.5); any signed-in user, 10/min.
+		api.POST("/books/identify-isbn", requireAuth, limit(middleware.BucketIdentifyISBN), ih.Identify)
 	}
 
 	if d.Scan != nil || d.Circulation != nil {
@@ -132,6 +137,9 @@ func NewRouter(d Deps) *gin.Engine {
 		}
 		if d.Circulation != nil {
 			api.POST("/copies/:id/return", requireAuth, limit(middleware.BucketCopyReturn), sh.Return)
+			api.POST("/copies/:id/borrow", requireAuth, limit(middleware.BucketCopyBorrow), sh.Borrow)
+			api.POST("/copies/:id/renew", requireAuth, limit(middleware.BucketCopyRenew), sh.Renew)
+			api.GET("/loans", requireAuth, sh.ListLoans)
 		}
 	}
 

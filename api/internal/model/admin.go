@@ -16,8 +16,9 @@ const (
 
 // Copy event sources (docs/02 copy_events.source).
 const (
-	SourceAdminPatch = "admin_patch"
-	SourceSelfReturn = "self_return"
+	SourceAdminPatch   = "admin_patch"
+	SourceSelfReturn   = "self_return"
+	SourceSelfCheckout = "self_checkout"
 )
 
 // ShelfSlots is the demo capacity per shelf in the manifest inspector (docs/13 §4).

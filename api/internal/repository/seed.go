@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,7 +23,7 @@ func NewSeedStore(pool *pgxpool.Pool) *SeedStore { return &SeedStore{pool: pool}
 
 // Reset truncates catalog content, children first; users/refresh_tokens stay.
 func (s *SeedStore) Reset(ctx context.Context) error {
-	_, err := s.pool.Exec(ctx, `TRUNCATE book_copies, copy_events, book_embeddings, user_library, waitlist,
+	_, err := s.pool.Exec(ctx, `TRUNCATE loans, book_copies, copy_events, book_embeddings, user_library, waitlist,
 		books, conversations, messages, shelves, aisles, sections, floors, buildings RESTART IDENTITY`)
 	if err != nil {
 		return fmt.Errorf("truncate: %w", err)
@@ -271,12 +272,75 @@ func (s *SeedStore) Counts(ctx context.Context) (model.SeedCounts, error) {
 		(SELECT count(*) FROM book_copies WHERE status = 'checked_out'),
 		(SELECT count(*) FROM books b WHERE NOT EXISTS (SELECT 1 FROM book_copies bc WHERE bc.book_id = b.id)),
 		(SELECT count(*) FROM user_library),
-		(SELECT count(*) FROM waitlist WHERE status IN ('waiting','ready'))`).
-		Scan(&c.Users, &c.Books, &c.Copies, &c.Shelves, &c.CheckedOut, &c.ZeroCopyBooks, &c.LibraryEntries, &c.WaitlistRows)
+		(SELECT count(*) FROM waitlist WHERE status IN ('waiting','ready')),
+		(SELECT count(*) FROM loans WHERE returned_at IS NULL)`).
+		Scan(&c.Users, &c.Books, &c.Copies, &c.Shelves, &c.CheckedOut, &c.ZeroCopyBooks, &c.LibraryEntries, &c.WaitlistRows, &c.Loans)
 	if err != nil {
 		return model.SeedCounts{}, fmt.Errorf("counts: %w", err)
 	}
 	return c, nil
+}
+
+// ApplyLoans creates one open loan per checked_out copy, cycling through the
+// 20 reviewer accounts (user1@gmail.com…user20@gmail.com, docs/08 §4, docs/13).
+// Idempotent: ON CONFLICT DO NOTHING on the partial unique index
+// loans_open_copy_key (copy_id WHERE returned_at IS NULL).
+func (s *SeedStore) ApplyLoans(ctx context.Context, now time.Time) error {
+	// Fetch reviewer user IDs sorted by email.
+	reviewerRows, err := s.pool.Query(ctx,
+		`SELECT id FROM users WHERE email ~* '^user[0-9]+@gmail\.com$' ORDER BY lower(email)`)
+	if err != nil {
+		return fmt.Errorf("reviewer users: %w", err)
+	}
+	var reviewerIDs []uuid.UUID
+	for reviewerRows.Next() {
+		var id uuid.UUID
+		if err := reviewerRows.Scan(&id); err != nil {
+			reviewerRows.Close()
+			return fmt.Errorf("scan reviewer: %w", err)
+		}
+		reviewerIDs = append(reviewerIDs, id)
+	}
+	reviewerRows.Close()
+	if err := reviewerRows.Err(); err != nil {
+		return fmt.Errorf("reviewer rows: %w", err)
+	}
+	if len(reviewerIDs) == 0 {
+		return nil // reviewer accounts not yet seeded; skip
+	}
+
+	// Fetch checked_out copies ordered by barcode.
+	copyRows, err := s.pool.Query(ctx,
+		`SELECT id FROM book_copies WHERE status = 'checked_out' ORDER BY barcode`)
+	if err != nil {
+		return fmt.Errorf("checked_out copies: %w", err)
+	}
+	var copyIDs []uuid.UUID
+	for copyRows.Next() {
+		var id uuid.UUID
+		if err := copyRows.Scan(&id); err != nil {
+			copyRows.Close()
+			return fmt.Errorf("scan copy: %w", err)
+		}
+		copyIDs = append(copyIDs, id)
+	}
+	copyRows.Close()
+	if err := copyRows.Err(); err != nil {
+		return fmt.Errorf("copy rows: %w", err)
+	}
+
+	dueAt := now.Add(model.LoanPeriod)
+	for i, copyID := range copyIDs {
+		reviewerID := reviewerIDs[i%len(reviewerIDs)]
+		if _, err := s.pool.Exec(ctx, `
+			INSERT INTO loans (id, copy_id, user_id, borrowed_at, due_at, renewals)
+			VALUES ($1,$2,$3,$4,$5,0)
+			ON CONFLICT DO NOTHING`,
+			uuid.New(), copyID, reviewerID, now, dueAt); err != nil {
+			return fmt.Errorf("insert loan for copy %s: %w", copyID, err)
+		}
+	}
+	return nil
 }
 
 func nullable(s string) any {

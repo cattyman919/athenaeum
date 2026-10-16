@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -13,7 +14,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/model"
 )
 
-// CirculationRepository implements circulation.Repository (patron self-service return).
+// CirculationRepository implements circulation.Repository (docs/03 §6.4–6.7).
 type CirculationRepository struct{ pool *pgxpool.Pool }
 
 // NewCirculationRepository wraps a pool.
@@ -24,7 +25,8 @@ func NewCirculationRepository(pool *pgxpool.Pool) *CirculationRepository {
 // ReturnCopy performs a self-service return in one transaction (docs/03 §6.4): the copy row
 // is locked, must be checked_out (else CONFLICT + current_status), and becomes available —
 // or reserved_waitlist when the oldest waiting hold of its book is promoted to ready with a
-// 48 h window. A copy_events row (source self_return, actor) records the transition.
+// 48 h window. The copy's open loan (if any) is closed (returned_at=now). A copy_events row
+// (source self_return, actor) records the transition.
 func (r *CirculationRepository) ReturnCopy(ctx context.Context, actor, copyID uuid.UUID, now time.Time) (model.ReturnData, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -46,7 +48,21 @@ func (r *CirculationRepository) ReturnCopy(ctx context.Context, actor, copyID uu
 			WithExtra(map[string]any{"current_status": from})
 	}
 
+	// Close the open loan for this copy, if any.
 	var data model.ReturnData
+	var closedLoan model.ClosedLoanRef
+	err = tx.QueryRow(ctx,
+		`UPDATE loans SET returned_at = $2
+		 WHERE copy_id = $1 AND returned_at IS NULL
+		 RETURNING id, returned_at`,
+		copyID, now).Scan(&closedLoan.ID, &closedLoan.ReturnedAt)
+	switch {
+	case err == nil:
+		data.ClosedLoan = &closedLoan
+	case !errors.Is(err, pgx.ErrNoRows):
+		return model.ReturnData{}, fmt.Errorf("close loan: %w", err)
+	}
+
 	var hold model.PromotedHold
 	err = tx.QueryRow(ctx, `
 		UPDATE waitlist SET status = 'ready', ready_at = $2, expires_at = $3
@@ -87,4 +103,256 @@ func (r *CirculationRepository) ReturnCopy(ctx context.Context, actor, copyID uu
 		return model.ReturnData{}, fmt.Errorf("availability: %w", err)
 	}
 	return data, tx.Commit(ctx)
+}
+
+// BorrowCopy creates a loan in one transaction (docs/03 §6.5):
+//   - Locks the copy row for UPDATE
+//   - Status must be available, OR reserved_waitlist held by the caller (hold goes picked_up)
+//   - Caller must have fewer than MaxOpenLoans (5) open loans
+//   - Sets copy.status → checked_out, inserts a loans row, appends a copy_events row
+func (r *CirculationRepository) BorrowCopy(ctx context.Context, actor, copyID uuid.UUID, now time.Time) (model.BorrowData, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return model.BorrowData{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var from string
+	var bookID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT status, book_id FROM book_copies WHERE id = $1 FOR UPDATE`, copyID).Scan(&from, &bookID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.BorrowData{}, model.New(model.CodeNotFound, "Copy not found.")
+	}
+	if err != nil {
+		return model.BorrowData{}, fmt.Errorf("lock copy: %w", err)
+	}
+
+	// Validate state transition.
+	switch from {
+	case model.CopyAvailable:
+		// OK for anyone.
+	case model.CopyReservedWaitlist:
+		// Only OK if the caller owns the ready hold.
+		var holdUserID uuid.UUID
+		err = tx.QueryRow(ctx,
+			`SELECT user_id FROM waitlist WHERE book_id = $1 AND status = 'ready' LIMIT 1`,
+			bookID).Scan(&holdUserID)
+		if errors.Is(err, pgx.ErrNoRows) || err == nil && holdUserID != actor {
+			return model.BorrowData{}, model.New(model.CodeConflict, "Copy is not available to borrow").
+				WithExtra(map[string]any{"current_status": from})
+		}
+		if err != nil {
+			return model.BorrowData{}, fmt.Errorf("check hold owner: %w", err)
+		}
+		// Mark the hold picked_up.
+		if _, err := tx.Exec(ctx,
+			`UPDATE waitlist SET status = 'picked_up', updated_at = now() WHERE book_id = $1 AND user_id = $2 AND status = 'ready'`,
+			bookID, actor); err != nil {
+			return model.BorrowData{}, fmt.Errorf("pick up hold: %w", err)
+		}
+	default:
+		return model.BorrowData{}, model.New(model.CodeConflict, "Copy is not available to borrow").
+			WithExtra(map[string]any{"current_status": from})
+	}
+
+	// Enforce borrow limit.
+	var openLoans int
+	if err := tx.QueryRow(ctx,
+		`SELECT count(*) FROM loans WHERE user_id = $1 AND returned_at IS NULL`, actor).Scan(&openLoans); err != nil {
+		return model.BorrowData{}, fmt.Errorf("count loans: %w", err)
+	}
+	if openLoans >= model.MaxOpenLoans {
+		return model.BorrowData{}, model.New(model.CodeBorrowLimit, "You already have 5 loans").
+			WithExtra(map[string]any{"limit": model.MaxOpenLoans})
+	}
+
+	// Insert the loan row.
+	loanID := uuid.New()
+	dueAt := now.Add(model.LoanPeriod)
+	var data model.BorrowData
+	data.Loan = model.LoanDetail{
+		ID:         loanID,
+		CopyID:     copyID,
+		UserID:     actor,
+		BorrowedAt: now,
+		DueAt:      dueAt,
+		ReturnedAt: nil,
+		Renewals:   0,
+		Renewable:  true,
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO loans (id, copy_id, user_id, borrowed_at, due_at, renewals) VALUES ($1,$2,$3,$4,$5,0)`,
+		loanID, copyID, actor, now, dueAt); err != nil {
+		return model.BorrowData{}, fmt.Errorf("insert loan: %w", err)
+	}
+
+	// Update the copy.
+	if _, err := tx.Exec(ctx,
+		`UPDATE book_copies SET status = 'checked_out', last_state_change = $2, updated_at = now() WHERE id = $1`,
+		copyID, now); err != nil {
+		return model.BorrowData{}, fmt.Errorf("update copy: %w", err)
+	}
+
+	// Append copy_event.
+	var actorID *uuid.UUID
+	if actor != uuid.Nil {
+		actorID = &actor
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO copy_events (copy_id, from_status, to_status, source, actor_id) VALUES ($1,$2,$3,$4,$5)`,
+		copyID, from, model.CopyCheckedOut, model.SourceSelfCheckout, actorID); err != nil {
+		return model.BorrowData{}, fmt.Errorf("copy event: %w", err)
+	}
+
+	// Load fresh copy+location.
+	if data.Copy, data.Location, err = loadCopy(ctx, tx, copyID); err != nil {
+		return model.BorrowData{}, err
+	}
+
+	// Book availability counts.
+	if err := tx.QueryRow(ctx, `
+		SELECT count(*)::int, (count(*) FILTER (WHERE status = 'available'))::int,
+		       COALESCE(array_agg(DISTINCT status), '{}')
+		FROM book_copies WHERE book_id = $1`, bookID).Scan(&data.Total, &data.Available, &data.Statuses); err != nil {
+		return model.BorrowData{}, fmt.Errorf("availability: %w", err)
+	}
+	return data, tx.Commit(ctx)
+}
+
+// RenewLoan extends an open loan by LoanPeriod (docs/03 §6.6). Only the borrower
+// may renew and only once (renewals may not exceed MaxRenewals).
+func (r *CirculationRepository) RenewLoan(ctx context.Context, actor, copyID uuid.UUID, now time.Time) (model.RenewData, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return model.RenewData{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Lock the copy row to serialise with concurrent borrows/returns.
+	var dummy string
+	err = tx.QueryRow(ctx, `SELECT status FROM book_copies WHERE id = $1 FOR UPDATE`, copyID).Scan(&dummy)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.RenewData{}, model.New(model.CodeNotFound, "Copy not found.")
+	}
+	if err != nil {
+		return model.RenewData{}, fmt.Errorf("lock copy: %w", err)
+	}
+
+	// Load the open loan.
+	var loanID, loanUserID uuid.UUID
+	var renewals int
+	err = tx.QueryRow(ctx,
+		`SELECT id, user_id, renewals FROM loans WHERE copy_id = $1 AND returned_at IS NULL FOR UPDATE`,
+		copyID).Scan(&loanID, &loanUserID, &renewals)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.RenewData{}, model.New(model.CodeConflict, "No open loan on this copy")
+	}
+	if err != nil {
+		return model.RenewData{}, fmt.Errorf("load loan: %w", err)
+	}
+	if loanUserID != actor {
+		return model.RenewData{}, model.New(model.CodeForbidden, "You may only renew your own loan.")
+	}
+	if renewals >= model.MaxRenewals {
+		return model.RenewData{}, model.New(model.CodeConflict, "Loan already renewed").
+			WithExtra(map[string]any{"renewals": renewals})
+	}
+
+	newDueAt := now.Add(model.LoanPeriod)
+	if _, err := tx.Exec(ctx,
+		`UPDATE loans SET due_at = $2, renewals = renewals + 1 WHERE id = $1`,
+		loanID, newDueAt); err != nil {
+		return model.RenewData{}, fmt.Errorf("renew loan: %w", err)
+	}
+
+	return model.RenewData{ID: loanID, DueAt: newDueAt, Renewals: renewals + 1}, tx.Commit(ctx)
+}
+
+// ListLoans returns all loans for the caller: active first (soonest due_at), then
+// past (newest returned_at DESC). (docs/03 §6.7).
+func (r *CirculationRepository) ListLoans(ctx context.Context, userID uuid.UUID, now time.Time) ([]model.LoanItem, model.LoansMeta, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT
+			l.id, l.copy_id, bc.barcode, l.borrowed_at, l.due_at, l.returned_at, l.renewals,
+			b.id AS book_id, b.title, b.cover_url, b.authors
+		FROM loans l
+		JOIN book_copies bc ON bc.id = l.copy_id
+		JOIN books b ON b.id = bc.book_id
+		WHERE l.user_id = $1
+		ORDER BY
+			(l.returned_at IS NULL) DESC,  -- active (NULL returned_at) first
+			CASE WHEN l.returned_at IS NULL THEN l.due_at END ASC NULLS LAST,
+			l.returned_at DESC NULLS LAST`,
+		userID)
+	if err != nil {
+		return nil, model.LoansMeta{}, fmt.Errorf("list loans: %w", err)
+	}
+	defer rows.Close()
+
+	var items []model.LoanItem
+	var meta model.LoansMeta
+	for rows.Next() {
+		var item model.LoanItem
+		var authorsJSON []byte
+		var returnedAt *time.Time
+		if err := rows.Scan(
+			&item.ID, &item.CopyID, &item.Barcode,
+			&item.BorrowedAt, &item.DueAt, &returnedAt, &item.Renewals,
+			&item.Book.ID, &item.Book.Title, &item.Book.CoverURL, &authorsJSON,
+		); err != nil {
+			return nil, model.LoansMeta{}, fmt.Errorf("scan loan row: %w", err)
+		}
+		if err := json.Unmarshal(authorsJSON, &item.Book.Authors); err != nil {
+			item.Book.Authors = []string{}
+		}
+		item.ReturnedAt = returnedAt
+		if returnedAt == nil {
+			item.Kind = "active"
+			item.Overdue = now.After(item.DueAt)
+			item.Renewable = item.Renewals < model.MaxRenewals
+			meta.Active++
+			if item.Overdue {
+				meta.Overdue++
+			}
+		} else {
+			item.Kind = "past"
+			item.Overdue = returnedAt.After(item.DueAt)
+			item.Renewable = false
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, model.LoansMeta{}, fmt.Errorf("loans rows: %w", err)
+	}
+	if items == nil {
+		items = []model.LoanItem{} // never marshal as null
+	}
+	return items, meta, nil
+}
+
+// OpenLoanByCopy returns the open loan for a copy, annotated with mine=true when the
+// caller is the borrower. Returns nil when there is no open loan.
+func (r *CirculationRepository) OpenLoanByCopy(ctx context.Context, copyID, callerID uuid.UUID) (*model.ScanLoanRef, error) {
+	var ref model.ScanLoanRef
+	err := r.pool.QueryRow(ctx,
+		`SELECT id, user_id, due_at, renewals FROM loans WHERE copy_id = $1 AND returned_at IS NULL`,
+		copyID).Scan(&ref.ID, &ref.UserID, &ref.DueAt, &ref.Renewals)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("open loan: %w", err)
+	}
+	ref.Mine = ref.UserID == callerID
+	return &ref, nil
+}
+
+// CountOpenLoansByUser returns the number of open loans for a user.
+func (r *CirculationRepository) CountOpenLoansByUser(ctx context.Context, userID uuid.UUID) (int, error) {
+	var n int
+	if err := r.pool.QueryRow(ctx,
+		`SELECT count(*) FROM loans WHERE user_id = $1 AND returned_at IS NULL`, userID).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count loans: %w", err)
+	}
+	return n, nil
 }

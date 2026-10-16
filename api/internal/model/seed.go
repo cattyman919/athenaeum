@@ -94,7 +94,7 @@ type LibraryEntryFixture struct {
 // SeedCounts are the totals printed after seeding (docs/08 §4 step 5).
 type SeedCounts struct {
 	Users, Books, Copies, Shelves, CheckedOut, ZeroCopyBooks int
-	LibraryEntries, WaitlistRows                             int
+	LibraryEntries, WaitlistRows, Loans                      int
 }
 
 // IndexBook is a book to be chunked and embedded (docs/06 §2).

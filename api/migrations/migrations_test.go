@@ -22,8 +22,8 @@ func TestUpDownUp(t *testing.T) {
 		 WHERE table_schema='public' AND table_type='BASE TABLE'`).Scan(&tables); err != nil {
 		t.Fatal(err)
 	}
-	if tables != 15 { // docs/02 §1: 15 tables (+1 view)
-		t.Fatalf("want 15 tables, got %d", tables)
+	if tables != 16 { // docs/02 §1: 15 original tables + loans (M17) = 16 (+1 view)
+		t.Fatalf("want 16 tables, got %d", tables)
 	}
 	var view int
 	if err := pool.QueryRow(ctx,
@@ -184,6 +184,114 @@ func TestMigration0006EmbeddingDirty(t *testing.T) {
 	execFile(ctx, t, pool, "0006_books_embedding_dirty.up.sql")
 	if col, idx := embeddingDirtyState(ctx, t, pool); !col || !idx {
 		t.Fatalf("after re-up: column=%v index=%v", col, idx)
+	}
+}
+
+func loansState(ctx context.Context, t *testing.T, pool *pgxpool.Pool) (table, openIdx, userIdx, copyIdx bool) {
+	t.Helper()
+	if err := pool.QueryRow(ctx, `SELECT
+		  EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='loans' AND table_schema='public'),
+		  EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='loans_open_copy_key'),
+		  EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='loans_user_open_idx'),
+		  EXISTS (SELECT 1 FROM pg_indexes WHERE indexname='loans_copy_idx')`).
+		Scan(&table, &openIdx, &userIdx, &copyIdx); err != nil {
+		t.Fatal(err)
+	}
+	return
+}
+
+func dueatState(ctx context.Context, t *testing.T, pool *pgxpool.Pool) bool {
+	t.Helper()
+	var exists bool
+	_ = pool.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM information_schema.columns
+		WHERE table_name='book_copies' AND column_name='due_at')`).Scan(&exists)
+	return exists
+}
+
+func TestMigration0007Loans(t *testing.T) {
+	ctx := context.Background()
+	pool := pgtest.New(t)
+
+	// After up: loans table and all indexes exist; book_copies.due_at is gone.
+	tbl, oIdx, uIdx, cIdx := loansState(ctx, t, pool)
+	if !tbl || !oIdx || !uIdx || !cIdx {
+		t.Fatalf("after up: table=%v openIdx=%v userIdx=%v copyIdx=%v", tbl, oIdx, uIdx, cIdx)
+	}
+	if dueatState(ctx, t, pool) {
+		t.Fatal("book_copies.due_at must be dropped by migration 0007")
+	}
+
+	// Verify partial unique index prevents two open loans for the same copy.
+	ids := map[string]uuid.UUID{}
+	for _, k := range []string{"bd", "fl", "se", "ai", "sh", "bk", "u1", "u2"} {
+		ids[k] = uuid.New()
+	}
+	setup := []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO buildings (id,code,name) VALUES ($1,'MAIN','M')`, []any{ids["bd"]}},
+		{`INSERT INTO floors (id,building_id,floor_number,name) VALUES ($1,$2,1,'F1')`, []any{ids["fl"], ids["bd"]}},
+		{`INSERT INTO sections (id,floor_id,code,name,color) VALUES ($1,$2,'SF','SF','#000')`, []any{ids["se"], ids["fl"]}},
+		{`INSERT INTO aisles (id,section_id,code) VALUES ($1,$2,'A-1')`, []any{ids["ai"], ids["se"]}},
+		{`INSERT INTO shelves (id,aisle_id,code,row_level,height_tier) VALUES ($1,$2,'S-1',1,'Eye Level')`, []any{ids["sh"], ids["ai"]}},
+		{`INSERT INTO books (id,title,section_id) VALUES ($1,'Dune',$2)`, []any{ids["bk"], ids["se"]}},
+	}
+	for _, s := range setup {
+		if _, err := pool.Exec(ctx, s.sql, s.args...); err != nil {
+			t.Fatalf("%s: %v", s.sql, err)
+		}
+	}
+	copyID := uuid.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO book_copies (id,book_id,barcode,status,shelf_id) VALUES ($1,$2,'ATH-000001-C01','checked_out',$3)`, copyID, ids["bk"], ids["sh"]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO users (id,email,name) VALUES ($1,'a@x.com','A'),($2,'b@x.com','B')`, ids["u1"], ids["u2"]); err != nil {
+		t.Fatal(err)
+	}
+	// First open loan — should succeed.
+	loanID := uuid.New()
+	dueAt := "2026-10-30 09:00:00+00"
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO loans (id,copy_id,user_id,borrowed_at,due_at) VALUES ($1,$2,$3,now(),$4)`,
+		loanID, copyID, ids["u1"], dueAt); err != nil {
+		t.Fatalf("first loan: %v", err)
+	}
+	// Second open loan for same copy — must fail (partial unique index).
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO loans (id,copy_id,user_id,borrowed_at,due_at) VALUES ($1,$2,$3,now(),$4)`,
+		uuid.New(), copyID, ids["u2"], dueAt); err == nil {
+		t.Fatal("two open loans for same copy must violate loans_open_copy_key")
+	}
+	// After closing the first loan a second open loan is allowed.
+	if _, err := pool.Exec(ctx, `UPDATE loans SET returned_at=now() WHERE id=$1`, loanID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO loans (id,copy_id,user_id,borrowed_at,due_at) VALUES ($1,$2,$3,now(),$4)`,
+		uuid.New(), copyID, ids["u2"], dueAt); err != nil {
+		t.Fatalf("open loan after close: %v", err)
+	}
+
+	// Down: loans table dropped; due_at restored.
+	execFile(ctx, t, pool, "0007_loans.down.sql")
+	tbl, oIdx, uIdx, cIdx = loansState(ctx, t, pool)
+	if tbl || oIdx || uIdx || cIdx {
+		t.Fatalf("after down: table=%v openIdx=%v userIdx=%v copyIdx=%v", tbl, oIdx, uIdx, cIdx)
+	}
+	if !dueatState(ctx, t, pool) {
+		t.Fatal("book_copies.due_at must be restored by down migration")
+	}
+
+	// Re-up: loans table back, due_at gone again.
+	execFile(ctx, t, pool, "0007_loans.up.sql")
+	tbl, oIdx, uIdx, cIdx = loansState(ctx, t, pool)
+	if !tbl || !oIdx || !uIdx || !cIdx {
+		t.Fatalf("after re-up: table=%v openIdx=%v userIdx=%v copyIdx=%v", tbl, oIdx, uIdx, cIdx)
+	}
+	if dueatState(ctx, t, pool) {
+		t.Fatal("book_copies.due_at must be gone after re-up")
 	}
 }
 
