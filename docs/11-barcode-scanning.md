@@ -19,7 +19,8 @@
 ## 1. Overview
 
 One **Universal Barcode & ISBN Scanner** dialog serves both audiences (Stitch artifact:
-`.artifacts/stitch/barscanner_ISBN/code.html`, a modal with a Patron/Staff mode switcher):
+`.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/`, refreshed 2026-10-16 — a bento modal;
+the two-tab **Patron Lookup / Staff Intake** model is kept, decided 2026-10-16):
 
 - **Patron Lookup** (default; every signed-in user):
   - scan an **ISBN-13/EAN-13** → the matching catalog record, its home shelf, and **how many
@@ -234,9 +235,16 @@ graph TD
 
 ## 7. UI/UX Specification
 
-Artifact: `.artifacts/stitch/barscanner_ISBN/code.html` (bento 7/5 split — viewfinder left,
-telemetry + result right). Stitch is the visual source of truth for layout; this table fixes
-behaviour.
+Artifact: `.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/code.html` (bento 7/5 split —
+viewfinder left, telemetry + result right; refreshed 2026-10-16). Stitch is the visual source of
+truth for layout; this table fixes behaviour.
+
+> Decided 2026-10-16 — the refreshed artifact is a **superset sketch** whose extra affordances are
+> **not** adopted: the three-way **Borrow / Return / Add to DB** mode selector (we keep the two tabs
+> Patron Lookup / Staff Intake, with Borrow/Return as actions inside Patron Lookup); **ISBN-10**
+> support (still out — a scanned ISBN-10 fails the EAN-13 pre-check); **RFID encode / Print Tag**
+> (deferred); and its loan copy ("21-day loan", "quota of 6") — the canonical values are the
+> **14-day loan, max 5** of [03 §6.5](03-api-spec.md#65-post-apicopiesidborrow).
 
 | Element | Behavior |
 | --- | --- |

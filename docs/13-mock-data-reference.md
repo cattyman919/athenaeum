@@ -226,6 +226,9 @@ books stay unrated. Never used by the e2e suite.
 
 > Correction: the favorites list includes *Designing Data-Intensive Applications*, which must be a library row to be favorited; it replaces *Zen and the Art of Motorcycle Maintenance* in `want_to_read` so the 24-entry / 7-favorite totals hold. Seeded from `api/mocks/library.json` (titles resolve against `books.json`; the account follows `SEED_USER_EMAIL`).
 
+The reading-stage enum now includes **`dropped`** ([02 §4](02-data-model.md#user_library)); the demo
+library seeds none, so the Dropped tab shows an empty state.
+
 `waitlist` seeds (2): demo holds on #33 and #40 (`status='waiting'`, `position`
 1 each — no other users so queues are short).
 

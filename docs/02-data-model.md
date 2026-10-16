@@ -150,7 +150,7 @@ erDiagram
         uuid id PK
         uuid user_id FK
         uuid book_id FK
-        text status "want_to_read, reading, read"
+        text status "want_to_read, reading, read, dropped"
         bool is_favorite
         int progress_pct
         int rating
@@ -334,7 +334,7 @@ CREATE TABLE user_library (
   user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   book_id      UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
   status       TEXT NOT NULL DEFAULT 'want_to_read'
-               CHECK (status IN ('want_to_read','reading','read')),
+               CHECK (status IN ('want_to_read','reading','read','dropped')),
   is_favorite  BOOL NOT NULL DEFAULT false,
   progress_pct SMALLINT CHECK (progress_pct BETWEEN 0 AND 100),
   rating       SMALLINT CHECK (rating BETWEEN 1 AND 5),

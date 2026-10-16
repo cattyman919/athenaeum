@@ -92,12 +92,12 @@ embedded gallery: [12-ui-design.md](./12-ui-design.md#7-stitch-screen-gallery).
 | `/login` | `b6e00ec93bff4f7dbabfeefcaad1166e` | Sign In - Athenaeum Library | ✅ [screen.png + code.html](../.artifacts/stitch/sign_in_athenaeum_library/) |
 | `/catalog` | `e9f24637e3da43c68aa771390938f8c4` | Catalog Browser - Athenaeum Library | ✅ [code.html](../.artifacts/stitch/catalog_browser_athenaeum_library/) (PNG pending) |
 | `/books/[id]` | `723960ca2605417eb085f6e17a579bd2` | Book Detail: Dune - Athenaeum Library | ✅ [code.html](../.artifacts/stitch/book_detail_dune_athenaeum_library/) (PNG pending) |
-| `/library` | `9cee348492a04f3a98ab9ddb2c791258` | My Library - Athenaeum Library | ✅ [code.html](../.artifacts/stitch/my_library_athenaeum_library/) (PNG pending) |
+| `/library` | `9cee348492a04f3a98ab9ddb2c791258` | My Library - Athenaeum Library | ✅ [screen.png + code.html](../.artifacts/stitch/my_library_athenaeum_library/) |
 | `/chat` | `70530f16d81642aa8d5784fe09076e11` | AI Librarian - Athenaeum Library | ✅ [code.html](../.artifacts/stitch/ai_librarian_athenaeum_library/) (PNG pending) |
 | `/admin` + `/admin/layout` | `3177da5282a94617b61e9333d4446237` | Admin Portal - Athenaeum Library | ⚠️ not exported (signed URLs in manifest) |
 | (early variant, unused route) | `77ccd1faf39d423cbbae00544f8f04b9` | Athenaeum Library Catalog & Wayfinding System | ⚠️ not exported — provenance only |
 
-Export state: HTML exported for all five patron-facing screens (`.artifacts/stitch/*_athenaeum_library/code.html`), sign-in PNG included; Admin Portal + draft variant + four screenshots pending (export notes: [12 §7.1.1](12-ui-design.md#711-stitch-mcp-tool-verification--export-runbook)).
+Export state: HTML exported for all five patron-facing screens (`.artifacts/stitch/*_athenaeum_library/code.html`); the Sign In and **My Library** PNGs plus a new **Universal Barcode & ISBN Scanner** export (`barcode_isbn_scanner_athenaeum_library/`) are included; Admin Portal + draft variant + remaining screenshots pending (export notes: [12 §7.1.1](12-ui-design.md#711-stitch-mcp-tool-verification--export-runbook)).
 
 Discrepancy notes (Stitch = visual source of truth; DESIGN.md = spec source; verified against exported HTML):
 
@@ -210,16 +210,36 @@ metadata; tri-state availability banner; `BookLocationCard` ladder (localized fr
 `neighbors` affinity carousel; waitlist join on the banner's suggested_actions
 ([03 §6.3](03-api-spec.md#63-waitlist)).
 
-### /library — screen 4 (Stitch `9cee3484…`)
+### /library — screen 4 (Stitch `9cee3484…`, refreshed 2026-10-16)
 
-4 KPI cards (In Collection / Currently Reading / Completed / Bookmarks & AI),
-reading-stage tabs (All/Reading/Read/Want to Read/Favorites/Holds & Waitlists/**Loans** —
-`GET /api/library?status=…`), `LibraryRowItem` rows (shelf coordinates, progress,
-rating), hold rows from `GET /api/waitlist`, **loan rows** from `GET /api/loans`
-([03 §6.7](03-api-spec.md#67-get-apiloans)) showing book, copy barcode, due date, an overdue
-flag and a **Renew (once)** / **Return** action (`POST /api/copies/{id}/renew|return`), AI cross-reference banner →
-`/chat?prefill=my-library`. A **Scan to return** action opens the shared
-[Barcode Scanner dialog](#scanner-dialog--patron-lookup--staff-intake) in Patron Lookup mode.
+Header: breadcrumb + title/subtitle, with actions **Scan to Return** (opens the shared
+[Barcode Scanner dialog](#scanner-dialog--patron-lookup--staff-intake) in Patron Lookup),
+**Export History** (client-side CSV of the library + loans — no backend call), **Add ISBN Entry**
+(👑 staff-only — hidden for patrons, who scan instead per [11 §9](11-barcode-scanning.md#9-endpoints--validation)),
+and **Browse Catalog**.
+
+4 KPI cards (In Collection / Currently Reading / Completed / Bookmarks & AI); the Currently
+Reading card shows a "1 due in 12 days" hint sourced from `GET /api/loans` (soonest active
+`due_at`).
+
+Stage tabs (All/Currently Reading/**Loans**/Read/Want to Read/Favorites/Holds & Waitlists, with
+counts — `GET /api/library?status=…` + `counts`): the **Loans** tab renders `GET /api/loans`
+([03 §6.7](03-api-spec.md#67-get-apiloans)). Toolbar: saved-books search, an **In Library
+Building** filter, a **Sort** dropdown (Recently Added / Title / Due date), and a **list/grid**
+view toggle — all URL-as-state.
+
+`LibraryRowItem` rows (shelf coordinates, progress, rating); **loan rows** show book, copy
+barcode, `borrowed_at`/`due_at` (with a **Due Soon** badge near the due date and an **overdue**
+flag), `renewals` left, and **Renew (once)** / **Return this copy** actions
+(`POST /api/copies/{id}/renew|return`, [03 §6.6](03-api-spec.md#66-post-apicopiesidrenew)) plus a
+**Loan Receipt** (client-side printable summary of a past loan). Hold rows from
+`GET /api/waitlist`. The stage selector offers Reading / Read / **Want to Read** / **Dropped**
+(`user_library.status`, [02 §4](02-data-model.md#user_library)). AI cross-reference banner →
+`/chat?prefill=my-library`.
+
+Row/loan test ids follow the existing `library-*` / `row-*` set; new: `tab-loans`, `loans-list`,
+`loan-row`, `loan-due`, `loan-overdue`, `loan-renew`, `loan-return`, `library-export`,
+`library-view-toggle`, `library-sort`.
 
 ### /chat — screen 5 (Stitch `70530f16…`)
 
@@ -266,7 +286,11 @@ floor mini-map (simple SVG grid highlighting the selected aisle).
 ### Scanner dialog — Patron Lookup / Staff Intake
 
 One `BarcodeScannerDialog` (`components/barcode-scanner/`, Client Component `ssr:false` — Stitch
-artifact `.artifacts/stitch/barscanner_ISBN/`) mounted in the app shell. Opened from the top-nav
+artifact `.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/`, refreshed 2026-10-16) mounted
+in the app shell. The refreshed artifact sketches a three-way **Borrow / Return / Add to DB** mode
+selector; that is **not adopted** — the dialog keeps its two tabs **Patron Lookup / Staff Intake**
+(decided 2026-10-16), with Borrow/Return as actions inside Patron Lookup. Its "ISBN-10" copy and
+its RFID/Print-Tag affordances are likewise **not implemented** ([11 §11](11-barcode-scanning.md#11-scope-impact)). Opened from the top-nav
 **Scan** button (all users, default **Patron Lookup**), from `/library` as "Scan a copy" (borrow or return), and
 from `/admin` on the **Staff Intake** tab (admin only). Behaviour + error states:
 [11 §7/§8](./11-barcode-scanning.md#7-uiux-specification).

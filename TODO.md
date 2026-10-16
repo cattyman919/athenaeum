@@ -26,8 +26,9 @@
 19. [Phase 16 — Hybrid Default Search & Rating Averages](#19-phase-16--hybrid-default-search--rating-averages)
 20. [Phase 17 — Startup Reviewer Accounts & Loan Seed](#20-phase-17--startup-reviewer-accounts--loan-seed)
 21. [Phase 18 — Scan-Based Borrowing & Loans](#21-phase-18--scan-based-borrowing--loans)
-22. [Open TODO Registry (from docs)](#22-open-todo-registry-from-docs)
-23. [Session Log](#23-session-log)
+22. [Phase 19 — Library Artifact Extras](#22-phase-19--library-artifact-extras)
+23. [Open TODO Registry (from docs)](#23-open-todo-registry-from-docs)
+24. [Session Log](#24-session-log)
 
 ## 1. How to Use This File
 
@@ -37,7 +38,7 @@ Rules for any AI session (or human) continuing this project:
 2. Work top-down within the current phase; do not skip ahead across phase boundaries without logging why.
 3. While implementing: update the checkboxes in **this** file as tasks complete; add new discovered tasks here instead of inventing scope in code.
 4. "Complete" means: code compiles, relevant `make lint` / `make test` pass, and behavior matches the owning doc. Do not tick otherwise.
-5. Never mark deferred features ([§22](#22-open-todo-registry-from-docs)) as done — they stay ⚠️ TODO until [10-roadmap.md](docs/10-roadmap.md) changes.
+5. Never mark deferred features ([§23](#23-open-todo-registry-from-docs)) as done — they stay ⚠️ TODO until [10-roadmap.md](docs/10-roadmap.md) changes.
 6. End the session with a Session Log row: date, engine/session id, tasks completed, current cursor ("resume from: …"), blockers.
 7. Mock/book/shelf values are a contract: change data only by editing `api/mocks/` + [docs/13-mock-data-reference.md](docs/13-mock-data-reference.md) together.
 
@@ -48,7 +49,7 @@ Rules for any AI session (or human) continuing this project:
 | Goal / phase | M0–M14 code complete (Phase 15 auto-index worker + detail rating built 2026-10-16). Execution order follows `.kilo/plans/*-athenaeum-v1-implementation-plan.md` milestones M0–M14; checkboxes below are still ticked per item |
 | Git | `main` with commits; remote `origin = git@github.com:cattyman919/athenaeum.git`; one branch per task, squash to `main`, push `main` per milestone ([docs/09 §9](docs/09-development.md#9-git-workflow)) |
 | Docs | all 16 files in `docs/` complete + link-audited (14 localization, 15 voice input added [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist); **11 re-scoped** to the universal patron+staff scanner) |
-| Stitch artifacts | 5 HTML + 1 PNG exported (`.artifacts/stitch/`); + scanner dialog `barscanner_ISBN/code.html`; re-exports pending + chat-screen regen for the mic ([§22](#22-open-todo-registry-from-docs)) |
+| Stitch artifacts | 5 HTML + 3 PNG exported (`.artifacts/stitch/`); refreshed **My Library** PNG + new **Universal Barcode & ISBN Scanner** export (`barcode_isbn_scanner_athenaeum_library/`) 2026-10-16; re-exports pending + chat-screen regen for the mic ([§23](#23-open-todo-registry-from-docs)) |
 | Stack pins | Go 1.27 · Next.js 15 · Postgres 16 + pgvector · Redis 7 · Ollama `nomic-embed-text` (768) · OpenRouter Claude 3.5 Sonnet · faster-whisper `small` · next-intl · Playwright |
 | Demo accounts | `admin@` / `demo@athenaeum.dev` · password `athenaeum-demo` ([docs/13 §6](docs/13-mock-data-reference.md#6-demo-users--personal-library)) |
 
@@ -72,7 +73,11 @@ Local `make e2e` = 75 passing (2026-10-16). Check `gh run list` for CI on the la
    `user20@gmail.com` (password = local part) each rating ~8-15 books deterministically, plus one
    open loan per seeded `checked_out` copy (14-day, future due); (d) **scan-based borrowing + loans** —
    `POST /api/copies/{id}/borrow|renew|return` + `GET /api/loans`, scanner **Borrow/Return**, a
-   `/library` **Loans** tab. Scope moved from deferred to v1 items 17-18 ([docs/10](docs/10-roadmap.md#1-in-scope-v1--checklist)).
+   `/library` **Loans** tab; (e) **Phase 19 / M18** (refreshed artifacts) — `dropped` reading stage,
+   library **Export History** CSV, staff-only **Add ISBN Entry**, list/grid **view + sort + In-Library
+   filter**, **Loan Receipt**. Scanner keeps its **two-tab** model (the artifact's 3-way
+   Borrow/Return/Add is not adopted) and loan terms stay **14d / max 5**. Scope moved from deferred to
+   v1 items 17-18 ([docs/10](docs/10-roadmap.md#1-in-scope-v1--checklist)); plan M15-M18.
 2. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
 3. **Done 2026-10-16 — Phase 15 / plan M14:** auto-index worker (in-process goroutine, `books.embedding_dirty` + zero-embedding backfill so a fresh seed self-heals on boot; notify + 5s poll; per-book; waits for Ollama with backoff instead of failing) and book-detail `my_library_entry.rating` (`internal/service/index/worker.go`, wired in `cmd/api/main.go`; admin service notifies via `WithIndexNotifier`). Copy delete **cascades** `copy_events` history (docs-only fix, done). Index visibility: `GET /api/admin/index-status`, `meta.index_pending`, admin badges, patron catalog note. Fresh start no longer needs `make reindex`.
 4. **Done 2026-10-16:** Phase 14 patron + staff barcode scanner (§17, plan M13) and ghost-text interim voice in the composer (Phase 12, [docs/15 §2a](docs/15-voice-input.md#2a-live-interim-transcript)).
@@ -286,7 +291,7 @@ Refs: [docs/09 §8–9](docs/09-development.md#8-testing-strategy).
 
 Refs: [docs/11](docs/11-barcode-scanning.md) (re-scoped 2026-10-15 to the universal patron + staff scanner),
 [docs/03 §5.4/§6.4](docs/03-api-spec.md#54-post-apibooksscan), [docs/10 §1](docs/10-roadmap.md#1-in-scope-v1--checklist) item 16.
-One dialog, two audiences; scanner artifact `.artifacts/stitch/barscanner_ISBN/code.html`.
+One dialog, two audiences; scanner artifact `.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/code.html` (refreshed 2026-10-16; two-tab model kept).
 
 - [x] `POST /api/books/scan` — local resolver (ISBN-13 → `books`, copy tag → `book_copies`) reusing `pkg/checkdigit`; `200 in_catalog:false` when no local match; service + handler tests ([docs/03 §5.4](docs/03-api-spec.md#54-post-apibooksscan))
 - [x] `POST /api/copies/{id}/return` — self-service return (`checked_out → available`, or `reserved_waitlist` + oldest-hold turnover); appends `copy_events` (`source='self_return'`); 409 `CONFLICT` when not `checked_out` ([docs/03 §6.4](docs/03-api-spec.md#64-post-apicopiesidreturn))
@@ -350,7 +355,22 @@ Implementation plan M17. Decisions locked 2026-10-16. Supersedes the prior "retu
 - [ ] Tests: Go borrow/renew/return/limits/state machine + loans endpoint; Playwright manual-code borrow→renew→return + Loans tab
 - [ ] > ⚠️ TODO: overdue fines, reminders, and multi-copy hold requests stay out of v1 ([docs/10 §2](docs/10-roadmap.md#2-out-of-scope--deferred))
 
-## 22. Open TODO Registry (from docs)
+## 22. Phase 19 — Library Artifact Extras
+
+Refs: [docs/12 §Screen 4](docs/12-ui-design.md#screen-4--library-personal-library--patron-dashboard),
+[docs/07 §/library](docs/07-frontend.md#library--screen-4-stitch-9cee3484), [docs/02 §4](docs/02-data-model.md#user_library).
+Implementation plan M18. Decisions locked 2026-10-16 (refreshed Stitch artifacts, PNGs in
+`.artifacts/stitch/my_library_athenaeum_library/` + `barcode_isbn_scanner_athenaeum_library/`).
+
+- [ ] Migration: extend `user_library.status` CHECK with `'dropped'`; API `GET /api/library?status=` + `counts.dropped` + `PATCH` accept it
+- [ ] `/library` stage selector adds **Dropped** (empty in seed; `library.stages.dropped`)
+- [ ] `/library` header **Export History** (client-side CSV of library + loans) and staff-only **Add ISBN Entry** (hidden for patrons)
+- [ ] `/library` toolbar: **In Library Building** filter, **Sort** (Recently Added/Title/Due), list/grid toggle (URL-as-state)
+- [ ] **Loan Receipt** printable summary on past loans (client-side)
+- [ ] Tests: Go `dropped` enum + counts; Playwright Dropped empty state, sort/view/filter, CSV export, receipt, Add-ISBN staff-gating
+- [ ] > ⚠️ TODO: loan **review text** and the scanner's 3-way Borrow/Return/Add selector are **not** adopted (kept: two-tab scanner, numeric rating only)
+
+## 23. Open TODO Registry (from docs)
 
 Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after changes: `grep -n "> ⚠️ TODO" docs/*.md`):
 
@@ -370,13 +390,14 @@ Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after chang
 | [docs/12 §12](docs/12-ui-design.md#12-accessibility-requirements) | axe-core audit; verify contrast ratios | polish |
 | [docs/11 §11](docs/11-barcode-scanning.md#11-scope-impact) | scanner Staff-Intake extras: RFID encode, thermal label print, Edit-MARC | deferred feature |
 
-## 23. Session Log
+## 24. Session Log
 
 Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
 | 2026-10-16 | Kilo (kilo-auto/efficient) | **Bug fix:** semantic/hybrid search with an empty query showed the generic catalog error (API 400 `VALIDATION_FAILED`, docs/03 §5.1 requires `q`); `/catalog` now renders an idle `catalog-query-required` prompt (`requiresQuery()`, en/zh-CN `catalog.queryRequired.*`) and maps stray `VALIDATION_FAILED` to it; e2e 81 green; docs/07 updated | Manual checks (§2a item 2) | — |
+| 2026-10-16 | Kilo (kilo-auto/efficient) | **Docs + plan (refreshed Stitch artifacts):** new scanner + My Library exports reviewed; decisions — keep the **two-tab scanner** (repo-3-way selector not adopted), keep **14d/5** loan terms (artifact's 21d/6 superseded), ISBN-10/RFID/Print stay out; **add `dropped`** reading stage; adopt library **Export History** (CSV), staff-only **Add ISBN Entry**, list/grid **view + sort + In-Library filter**, **Loan Receipt**, **Loans** tab; rating shows, **review text** deferred. New plan M18; TODO Phase 19; docs 02/03/07/11/12/13/14 updated | Implement M15-M18 | none (docs-only) |
 | 2026-10-16 | Kilo (kilo-auto/efficient) | **Docs + plan only:** hybrid search by default (mode tabs behind Advanced, empty-browse, keyword degradation via `meta.mode_used`/`degraded`), per-book rating average (`book_ratings` view) with 20 seeded reviewer accounts `user1..user20@gmail.com` rating books, and scan-based borrowing/return with a real `loans` table (14-day, one renewal) + `/library` Loans tab; scope moved from deferred to v1 items 17-18 (docs 10); new plan M15-M17; TODO phases 16-18 | Implement M15-M17 | none (docs-only) |
 | 2026-10-16 | Kilo (kilo-auto/frontier), subagents | **Phase 15 follow-up:** indexing visibility — `GET /api/admin/index-status`, `meta.index_pending` on search, admin Indexing badges + header chip, patron catalog indexing note (en/zh-CN); docs 01/03/06/07/14/TODO updated; e2e 80 green | Manual checks (§2a item 2) | Not tried against a real slow Ollama backfill |
 | 2026-10-16 | Kilo (kilo-auto/frontier) | **Phase 15 / M14:** migration 0006 `books.embedding_dirty` + partial index; admin `CreateBook` and title/authors/description patches set the flag and notify; `index.Worker` (pending = dirty ∪ non-blank books with no embedding rows; notify + 5 s poll; per-book `Indexer.Run`; clears the flag only if `updated_at` unchanged; Ollama down/model missing → exponential backoff ≤30 s, never fails requests; blank-description books cleared after one empty run) wired in `cmd/api/main.go`; detail `my_library_entry.rating`; README quickstart drops `make reindex`; tests: migration up/down, dirty-flag RAG vs non-RAG, worker fakes (success/failure/backfill/empty/concurrent edit/notify), worker+admin integration, rating detail | Remaining M12 manual checks (§2a item 2) | Not run: clean-volume demo, real OpenRouter/Whisper/Google SSO |

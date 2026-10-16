@@ -395,7 +395,7 @@ upstream call: an ISBN-13 looks up `books` (by `isbn13`), a copy tag looks up `b
 
 ### 6.1 GET /api/library
 
-Personal list. Params: `status=want_to_read|reading|read|favorites` (repeatable),
+Personal list. Params: `status=want_to_read|reading|read|dropped|favorites` (repeatable),
 `include_waitlist=false` default (adds `hold` items with `waitlist` subresource).
 
 ```json
@@ -414,14 +414,14 @@ Personal list. Params: `status=want_to_read|reading|read|favorites` (repeatable)
 
 Additive fields: every item carries `"kind":"entry"`; `include_waitlist=true` prepends
 `{"kind":"hold","book":{…},"waitlist":{"id","status","position",…}}` items on page 1 (not counted in
-`meta.total`); and the response carries `"counts":{"total","reading","read","want_to_read","favorites"}`
+`meta.total`); and the response carries `"counts":{"total","reading","read","want_to_read","dropped","favorites"}`
 for the KPI cards regardless of the active filter.
 
 ### 6.2 Add/Update library entry
 
 `POST /api/library` body `{ "book_id": "…", "status": "reading?" }` → 201;
 `PATCH /api/library/{book_id}` body any of
-`{ "status": "want_to_read|reading|read", "is_favorite": true|false, "progress_pct": 40, "rating": 5 }`
+`{ "status": "want_to_read|reading|read|dropped", "is_favorite": true|false, "progress_pct": 40, "rating": 5 }`
 → 200 upserted row; `DELETE /api/library/{book_id}` → 204.
 
 - Upsert semantics (idempotent): `POST` returns 201 for a new row and 200 when it already existed;

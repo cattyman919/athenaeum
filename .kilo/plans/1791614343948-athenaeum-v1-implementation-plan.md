@@ -103,7 +103,7 @@ Retry Stitch admin export (decision 10). `GET /api/admin/data`, `copy-events` po
 Loading/empty/error states (docs/07 §9); full one-command demo from clean volumes (`docker compose up --build` → migrate → seed → reindex → three searches → chat turn); manual bilingual QA checklist; README quickstart check; TODO.md registry re-grep (`grep -n "> ⚠️ TODO" docs/*.md`). axe-core audit stays ⚠️ TODO.
 
 ### M13 — Patron barcode scanner (Phase 14; scope added 2026-10-15)
-Docs re-scoped in docs/11 + docs/03 §5.4/§6.4 (v1 item 16). One dialog, two audiences; artifact `.artifacts/stitch/barscanner_ISBN/code.html`.
+Docs re-scoped in docs/11 + docs/03 §5.4/§6.4 (v1 item 16). One dialog, two audiences; artifact `.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/code.html` (refreshed 2026-10-16; two-tab model kept — see M18).
 1. `feat(api)`: `POST /api/books/scan` — local resolver (ISBN-13 → `books` by `isbn13`; `ATH-…-CYY` → `book_copies`), reusing `pkg/checkdigit`; `200 in_catalog:false` when validated but not local; service + handler tests.
 2. `feat(api)`: `POST /api/copies/{id}/return` — `checked_out → available` (or `reserved_waitlist` + oldest-hold turnover per docs/12 §10); appends `copy_events` (`source='self_return'`, actor = caller); 409 `CONFLICT` when not `checked_out`.
 3. `feat(api)`: rate-limit buckets (scan 30/1min, return 10/1min) + endpoint index + error catalog.
@@ -141,9 +141,17 @@ Gate: `make seed` twice keeps counts identical; docs/13 parity holds.
 2. `feat(api)`: `POST /api/copies/{id}/borrow` — available (or caller's `reserved_waitlist` → hold `picked_up`) → `checked_out`, insert loan (`due_at=now+14d`), `copy_events.source='self_checkout'`; 409 `CONFLICT`/`BORROW_LIMIT`; one transaction + row lock.
 3. `feat(api)`: `POST /api/copies/{id}/return` — also close the open loan (`returned_at=now()`), keep waitlist turnover; `POST /api/copies/{id}/renew` — +14d, `renewals` ≤ 1, borrower-only; `GET /api/loans` — active + past, `overdue`/`renewable`.
 4. `feat(api)`: `POST /api/books/scan` copy result gains `borrowable` + `loan` (`{id,user_id,due_at,renewals,mine}`); rate limits borrow 10/min, renew 5/min.
-5. `feat(web)`: scanner Patron Lookup shows **Borrow this copy** / **Return this copy** by state (with due date); `/library` **Loans** tab (due dates, overdue flag, renew once, return); `scanner.*`/`library.loans.*` en+zh-CN keys.
+5. `feat(web)`: scanner **keeps the two-tab Patron Lookup / Staff Intake model** (the refreshed artifact's 3-way selector is not adopted, decision 2026-10-16); Patron Lookup shows **Borrow this copy** / **Return this copy** by state (with due date); `/library` **Loans** tab (due dates, overdue flag, renew once, return); `scanner.*`/`library.loans.*` en+zh-CN keys.
 6. `test`: Go borrow/renew/return/limit/state-machine + loans endpoint; Playwright manual-code borrow→due date→renew→return and the Loans tab.
 Gate: docs/10 §1 items 16-17 done, §2 deferrals updated (fines/notices only); RFID/label/MARC stay unbuilt.
+
+### M18 — Library artifact extras: Dropped stage, export, receipt, view/sort (decisions 2026-10-16; docs/02 §4, docs/03 §6.1/§6.2, docs/07, docs/12, docs/13, docs/14)
+1. `feat(db)`: migration — extend `user_library.status` CHECK to include `'dropped'` (docs/02 §4 canonical DDL).
+2. `feat(api)`: `GET /api/library?status=` accepts `dropped`; `counts` object gains `dropped`; `PATCH /api/library/{book_id}` accepts `status:"dropped"`.
+3. `feat(web)`: `/library` — stage selector gains **Dropped**; header **Export History** (client-side CSV of library + loans, no backend call); header **Add ISBN Entry** hidden for non-admins (patrons scan instead); toolbar **In Library Building** filter, **Sort** (Recently Added/Title/Due) and list/grid toggle (URL-as-state); **Loan Receipt** printable summary on past loans (client-side).
+4. `test`: Go status-enum + counts for `dropped`; Playwright: Dropped tab empty state, sort/view/filter, export downloads a CSV, receipt renders, Add ISBN Entry absent for a patron and present for an admin.
+Gate: en+zh-CN keys parity; no review text, no RFID/label/MARC.
+
 
 ## Milestone gate (every milestone)
 

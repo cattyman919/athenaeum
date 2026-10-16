@@ -158,7 +158,7 @@ Manifest with all signed URLs: `.artifacts/stitch/stitch-manifest.json`.
 | 1 | Sign In - Athenaeum Library | `b6e00ec93bff4f7dbabfeefcaad1166e` | `/login` | 2560×2536 | ![Sign In](../.artifacts/stitch/sign_in_athenaeum_library/screen.png) | [sign_in/code.html](../.artifacts/stitch/sign_in_athenaeum_library/code.html) |
 | 2 | Catalog Browser - Athenaeum Library | `e9f24637e3da43c68aa771390938f8c4` | `/catalog` | 2560×3068 | — ([FIFE](#711-stitch-mcp-tool-verification--export-runbook)) | [catalog_browser/code.html](../.artifacts/stitch/catalog_browser_athenaeum_library/code.html) |
 | 3 | Book Detail: Dune - Athenaeum Library | `723960ca2605417eb085f6e17a579bd2` | `/books/[id]` | 2560×4884 | — (FIFE) | [book_detail/code.html](../.artifacts/stitch/book_detail_dune_athenaeum_library/code.html) |
-| 4 | My Library - Athenaeum Library | `9cee348492a04f3a98ab9ddb2c791258` | `/library` | 2560×3358 | — (FIFE) | [my_library/code.html](../.artifacts/stitch/my_library_athenaeum_library/code.html) |
+| 4 | My Library - Athenaeum Library | `9cee348492a04f3a98ab9ddb2c791258` | `/library` | 2560×3358 | ![My Library](../.artifacts/stitch/my_library_athenaeum_library/screen.png) | [my_library/code.html](../.artifacts/stitch/my_library_athenaeum_library/code.html) |
 | 5 | AI Librarian - Athenaeum Library | `70530f16d81642aa8d5784fe09076e11` | `/chat` | 2560×2186 | — (FIFE) | [ai_librarian/code.html](../.artifacts/stitch/ai_librarian_athenaeum_library/code.html) |
 | 6 | Admin Portal - Athenaeum Library | `3177da5282a94617b61e9333d4446237` | `/admin`, `/admin/layout` | 2560×4182 | — ([not exported](#711-stitch-mcp-tool-verification--export-runbook)) | — |
 | 7 | Athenaeum Library Catalog & Wayfinding System (early draft variant) | `77ccd1faf39d423cbbae00544f8f04b9` | — (superseded by #2) | 1280×1024 | — (not exported) | — |
@@ -169,12 +169,13 @@ Document artifacts on the canvas (not app screens): **DESIGN.md mirror exported 
 manifest-only rows in `.artifacts/stitch/stitch-manifest.json`.
 
 The **Universal Barcode & ISBN Scanner** dialog is a newer artifact (not one of the six app
-screens; it is a modal on any route): local export
-[../.artifacts/stitch/barscanner_ISBN/code.html](../.artifacts/stitch/barscanner_ISBN/code.html) —
+screens; it is a modal on any route), refreshed 2026-10-16 with a PNG:
+[../.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/](../.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/) —
 the visual reference for Patron Lookup + Staff Intake ([11](./11-barcode-scanning.md#7-uiux-specification),
-wiring [07 §Scanner dialog](07-frontend.md#scanner-dialog--patron-lookup--staff-intake)). It is a
-behavioural addition, not a Stitch screen ID; the RFID/label/MARC affordances it sketches stay
-deferred ([§13](#13-deferred-ui-items)).
+wiring [07 §Scanner dialog](07-frontend.md#scanner-dialog--patron-lookup--staff-intake)). Per decision
+2026-10-16 the **two-tab model is kept**; the artifact's three-way Borrow/Return/Add selector,
+ISBN-10 copy and RFID/Print affordances are **not** adopted. Behavioural addition, not a Stitch screen
+ID; the RFID/label/MARC affordances it sketches stay deferred ([§13](#13-deferred-ui-items)).
 
 > ⚠️ TODO: Admin Portal + draft variant exports; `screen.png` re-export for the
 > four FIFE failures (rows 2–5). HTML is complete for rows 1–5 — export verified:
@@ -278,12 +279,19 @@ manifest table of `book_copies` rows; archival affinity carousel (`neighbors` �
 [03 §5.2](03-api-spec.md#52-get-apibooksid)).
 
 ### Screen 4 — `/library` Personal Library & Patron Dashboard
-Stitch: **My Library** (`9cee…`). KPI bar (In Collection 24 / Currently Reading 2 /
-Completed 15 / Bookmarks & AI 7 — seeded to match, [13 §demo users](13-mock-data-reference.md#6-demo-users--personal-library));
-reading-stage tabs; `LibraryRowItem` rows with shelf coordinates + progress +
-inline ratings; **Loans** tab (`GET /api/loans`, [03 §6.7](03-api-spec.md#67-get-apiloans)) with
-due dates, one renewal and a return action; holds & waitlists tab ([03 §6.3](03-api-spec.md#63-waitlist));
-AI cross-reference banner deep-linking `/chat`.
+Stitch: **My Library** (`9cee…`, PNG refreshed 2026-10-16). Header actions **Scan to Return**,
+**Export History** (client-side CSV), **Add ISBN Entry** (👑 staff-only) and **Browse Catalog**.
+KPI bar (In Collection 24 / Currently Reading 2 — "+1 due in 12 days" from loans / Completed 15 /
+Bookmarks & AI 7 — seeded to match, [13 §demo users](13-mock-data-reference.md#6-demo-users--personal-library)).
+Stage tabs with counts (All / Currently Reading / **Loans** / Read / Want to Read / Favorites /
+Holds & Waitlists); toolbar with saved-book search, **In Library Building** filter, **Sort**
+(Recently Added) and a **list/grid** toggle (URL-as-state). `LibraryRowItem` rows with shelf
+coordinates + progress + inline ratings; **Loans** tab (`GET /api/loans`,
+[03 §6.7](03-api-spec.md#67-get-apiloans)) with due dates, a Due Soon/overdue badge, one renewal,
+a return action and a client-side **Loan Receipt**; holds & waitlists tab
+([03 §6.3](03-api-spec.md#63-waitlist)). The stage selector includes **Dropped**
+(`user_library.status`, [02 §4](02-data-model.md#user_library)). AI cross-reference banner
+deep-linking `/chat`.
 
 ### Screen 5 — `/chat` AI Librarian Research Assistant
 Stitch: **AI Librarian** (`7053…`). Two-pane (session drawer + stream), message
@@ -384,6 +392,7 @@ Every transition appends a `copy_events` row (`from_status`, `to_status`,
 | --- | --- |
 | RFID hardware UI (gates/robots) & live audit hardware streams | mimic in the audit stream only; hardware out of scope — [10](10-roadmap.md) |
 | Scanner Staff-Intake extras: RFID encode, thermal label print, Edit MARC | deferred — the scanner artifact sketches them but v1 renders ISBN intake + copy-tag assignment only ([11 §11](11-barcode-scanning.md#11-scope-impact)) |
+| Loan **review text** and the scanner's three-way Borrow/Return/Add mode selector | deferred — v1 ships a numeric rating (no review prose) and keeps the two-tab scanner model (decided 2026-10-16) |
 | Shibboleth/SAML row on login screen | disabled placeholder only ([04](04-auth.md#3-google-sso)) |
 | Rate-limit analytics dashboard | quota meters only — [03 §2](03-api-spec.md#2-rate-limiting) |
 | Draft Stitch variant screen `77cc…` | kept for provenance; do not implement |

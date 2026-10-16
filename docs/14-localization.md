@@ -76,7 +76,15 @@ web/
 - **Keys are namespaced by area** (`shell.nav.catalog`, `catalog.filters.available`,
   `chat.composer.placeholder`, `scanner.patron.*`, …) so screens stay greppable.
 - `catalog.indexingNote` (ICU plural, en + zh-CN) is the patron note shown while books are still being indexed ([07](07-frontend.md)); the admin index badges/chip stay English like the rest of admin.
-- New patron keys for these features (en + zh-CN parity, §12): the rating average on cards/detail (`catalog.card.rating` = `★ {avg} ({count})`, `book.rating.none`), the catalog **Advanced** mode reveal, the `/library` **Loans** tab (`library.tabs.loans`, `library.loans.{due,dueSoon,overdue,renew,renewed,returned}`), and the scanner borrow/return actions (`scanner.patron.{borrow,returned,dueOn,borrowed}`). API enum labels for loans (`active`/`past`) map through the enum table (§6).
+- New patron keys for these features (en + zh-CN parity, §12): the `/library` header actions
+  (`library.actions.{export,addIsbn,browse}`, `library.export.*` for the CSV columns), the toolbar
+  (`library.search.saved`, `library.filter.inBuilding`, `library.sort.*`, `library.view.{list,grid}`),
+  the **Loans** tab (`library.tabs.loans`, `library.loans.{due,dueSoon,overdue,renew,renewed,returned,receipt,empty}`),
+  the **Dropped** stage label (`library.stages.dropped`), and the scanner borrow/return actions
+  (`scanner.patron.{borrow,returned,dueOn,borrowed}`). The **Add ISBN Entry** action is staff-only so
+  its label stays English like the rest of admin. Plus the rating average on cards/detail
+  (`catalog.card.rating` = `★ {avg} ({count})`, `book.rating.none`) and the catalog **Advanced**
+  mode reveal. API enum labels for loans (`active`/`past`) map through the enum table (§6).
 - No user-facing literals in components — every string resolves through the catalog.
 - ICU messages cover interpolation and plurals; the en and zh-CN catalogs MUST stay
   key-for-key in sync (a unit test enforces parity — §12).
@@ -91,7 +99,7 @@ wayfinding `parts` object ([§6.1](#61-wayfinding-vocabulary)).
 | --- | --- | --- |
 | Availability state | `GET /api/books/*`, search | `available`, `in_building`, `checked_out`, `missing_lost` |
 | Copy status | admin / detail copy manifest | `available` / `checked_out` / …, [12 §10](./12-ui-design.md#10-copy-state-machine) |
-| Reading stage | `GET /api/library?status=` | `reading`, `read`, `want_to_read`, `favorites` |
+| Reading stage | `GET /api/library?status=` | `reading`, `read`, `want_to_read`, `dropped`, `favorites` |
 | Availability/copy beacons | [12 §3](./12-ui-design.md#3-design-tokens) | badge and Alert labels |
 
 > The mapping table lives beside the component primitives so a new enum value is a

@@ -15,7 +15,11 @@ contract and are being built in parallel.
 3. `docs/07-frontend.md` — the `/catalog`, `/library` and Scanner-dialog sections (updated for
    this work).
 4. `docs/12-ui-design.md` — Screen 2 (catalog), Screen 4 (library), §10 copy state machine.
-5. `docs/14-localization.md` — §1 scope (patron screens + scanner Patron Lookup are localized;
+5. **Refreshed Stitch artifacts (2026-10-16)** — visual source of truth for the scanner and the
+   library page: `.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/` (screen.png + code.html)
+   and `.artifacts/stitch/my_library_athenaeum_library/` (screen.png + code.html). These are
+   **superset sketches** — implement only what the docs below say, not every affordance they draw.
+6. `docs/14-localization.md` — §1 scope (patron screens + scanner Patron Lookup are localized;
    **admin stays English**), §5 message catalog, §6 enum label maps.
 6. `docs/11-barcode-scanning.md` — §7 UI spec, §8 error table.
 
@@ -62,6 +66,11 @@ components.
 ## Feature C — Scan-based borrow / return + Loans tab
 
 **Scanner dialog — Patron Lookup** (`web/components/barcode-scanner/patron-lookup-panel.tsx`)
+
+> The refreshed scanner artifact draws a **three-way Borrow / Return / Add to DB** selector. **Do not
+> adopt it** — keep the existing **two tabs** (Patron Lookup / Staff Intake) and put Borrow/Return as
+> actions inside Patron Lookup (decided 2026-10-16). Do **not** add ISBN-10 support, RFID encode or
+> Print Tag. Loan terms are **14-day, max 5 open loans** (not the artifact's "21-day / quota 6").
 - The scan result already renders a copy for a copy-tag match. Use the new fields:
   - `returnable` → **Return this copy** → `POST /api/copies/{id}/return`.
   - `borrowable` → **Borrow this copy** → `POST /api/copies/{id}/borrow`; on success show a
@@ -91,6 +100,21 @@ components.
 - i18n keys (en + zh-CN): `library.tabs.loans` + `library.loans.{empty,due,dueSoon,overdue,renew,renewed,returned,scanHint}`.
 - Do **not** add fines, reminders, or pickup notifications (out of scope, `docs/10 §2`).
 
+## Feature D — Library extras (from the refreshed My Library artifact)
+
+Per `docs/12` Screen 4 and `docs/07 §/library`:
+
+- Stage selector gains a fourth stage **Dropped** (new `user_library.status` value — the backend adds
+  it; render the tab and the selector option; seed has none so the tab shows an empty state).
+- Header actions: **Scan to Return** (existing), **Export History** (client-side CSV of the library +
+  loans — no backend call), **Add ISBN Entry** (👑 **admin-only**; hide for patrons — patrons scan
+  instead), **Browse Catalog**.
+- Toolbar: saved-books search, **In Library Building** filter, **Sort** (Recently Added / Title /
+  Due date) and a **list/grid** view toggle — all URL-as-state.
+- Past-loan rows get a client-side **Loan Receipt** (printable summary). **No review text** (numeric
+  rating only).
+- Suggested test ids: `library-export`, `library-view-toggle`, `library-sort`, `loan-receipt`.
+
 ## API client additions (`web/lib/api-client.ts`, `web/lib/types.ts`)
 
 - `searchBooks` / types: add `mode_used`, `degraded` to the meta type; `rating_avg`,
@@ -117,6 +141,9 @@ components.
     copy → **Borrow this copy** → assert the due date is described; then **Return this copy**.
     Update the existing `web/e2e/scanner.spec.ts` expectations that assume return-only.
   - `/library` Loans tab: renew once (button disappears / `renewable` false) and return.
+  - `/library` extras: Dropped tab shows the empty state; sort/view toggle changes the layout and
+    URL; Export History downloads a CSV; Add ISBN Entry is absent for the demo patron and present
+    for an admin; Loan Receipt renders for a past loan.
   - **Update `web/e2e/catalog.spec.ts`**: it currently clicks the visible mode tabs
     (`mode-semantic`, `mode-hybrid`); retarget those through the new **Advanced** control.
   - The e2e DB is seeded with the 20 reviewer accounts and loans, so ratings and a Loans tab
