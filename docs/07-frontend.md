@@ -132,7 +132,7 @@ Discrepancy notes (Stitch = visual source of truth; DESIGN.md = spec source; ver
 | Client mutations | plain `fetch` in handlers + `router.refresh()` |
 | Search state | URL query params are the state (shareable `/catalog?q=…&mode=hybrid`) |
 | Global store | none — React context only for auth + theme |
-| Polling | audit stream `GET /api/admin/copy-events?since=…` every 3 s (WebSockets out of scope — [10](./10-roadmap.md)) |
+| Polling | audit stream `GET /api/admin/copy-events?since=…` every 3 s; auto-index backlog `GET /api/admin/index-status` every 4 s while pending (admin) and the `/catalog` indexing note's `meta.index_pending` re-check — both stop at 0 and pause while the tab is hidden (WebSockets out of scope — [10](./10-roadmap.md)) |
 | Keys/exports | `lib/api-client.ts` exports typed functions mirroring [03-api-spec.md](./03-api-spec.md) route-for-route |
 
 ## 6. Chat Streaming Client
@@ -184,6 +184,12 @@ buckets), `BookCard` 2:3 grid with availability beacons, `⌘K`
 `command-palette.tsx` calling the same search endpoint. URL params drive state.
 The shell **Scan** button opens ISBN lookup from here (and everywhere else — see
 [Scanner dialog](#scanner-dialog--patron-lookup--staff-intake)).
+In `semantic`/`hybrid` mode, when `meta.index_pending > 0`
+([03 §5.1](03-api-spec.md#51-get-apibookssearch)) a subtle non-blocking
+`role="status"` note (`catalog.indexingNote`, `components/catalog-indexing-note.tsx`) says
+“N new books are still being indexed — semantic results may be incomplete”. It re-checks
+with a cheap `mode=keyword&per_page=1` search every 4 s (no embedding call), hides at 0
+and `router.refresh()`es the results.
 
 ### /books/[id] — screen 3 (Stitch `723960ca…`)
 
@@ -228,6 +234,14 @@ Executive KPI grid (`GET /api/admin/data`), recent `copy_events` via
 `RealTimeAuditStream` (3 s poll), quick nav to layout manager and the shared
 Barcode Scanner dialog opened on its **Staff Intake** tab
 ([Scanner dialog](#scanner-dialog--patron-lookup--staff-intake), [11](./11-barcode-scanning.md#6-component-structure)).
+**Auto-index status** (`components/admin/index-status.tsx`, also on 6b):
+`IndexStatusProvider` polls `GET /api/admin/index-status`
+([03 §8.1](03-api-spec.md#81-admin-kpis--audit)) on mount and every 4 s while
+`pending_count > 0` (visible tab only; stops at 0 / on unmount). The header shows an
+“N books indexing” chip; books whose id is in `pending_book_ids` get a spinner
+**Indexing…** badge (English, [14 §1](14-localization.md#1-scope)) — on the “Recently added” card
+(books created by the Add Book flow this visit, which fires `athenaeum:book-created` and
+restarts polling) and on 6b manifest rows. Badges vanish when the worker clears them.
 
 ### /admin/layout — screen 6b (Stitch `3177da52…`)
 

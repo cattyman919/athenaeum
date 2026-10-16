@@ -52,13 +52,25 @@ func (s *stubAdminRepo) CopyIDByBarcode(context.Context, string) (uuid.UUID, err
 	return uuid.New(), nil
 }
 
+type stubIndexStatus struct {
+	gotLimit int
+	st       model.IndexStatus
+}
+
+func (s *stubIndexStatus) PendingStatus(_ context.Context, limit int) (model.IndexStatus, error) {
+	s.gotLimit = limit
+	return s.st, nil
+}
+
 func adminApp(t *testing.T) (http.Handler, *stubAdminRepo, *http.Cookie, *http.Cookie, uuid.UUID) {
 	t.Helper()
 	jm, _ := jwt.NewManager("0123456789abcdef0123456789abcdef", time.Minute)
 	repo := &stubAdminRepo{}
 	r := server.NewRouter(server.Deps{
 		Config: config.Config{}, Log: logging.Discard(), JWT: jm,
-		Admin: admin.New(repo, nil, nil),
+		Admin: admin.New(repo, nil, nil).WithIndexStatus(&stubIndexStatus{
+			st: model.IndexStatus{PendingCount: 2, PendingBookIDs: []string{"a", "b"}},
+		}),
 	})
 	adminID := uuid.New()
 	at, _, _ := jm.Issue(jwt.Claims{Subject: adminID.String(), Role: "admin"})
@@ -89,6 +101,7 @@ func adminBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 
 var adminRoutes = []struct{ method, path string }{
 	{"GET", "/api/admin/data"},
+	{"GET", "/api/admin/index-status"},
 	{"GET", "/api/admin/copy-events"},
 	{"GET", "/api/admin/books"},
 	{"POST", "/api/admin/books"},
@@ -139,6 +152,24 @@ func TestAdminDataAndEvents(t *testing.T) {
 		if rec := adminSend(r, "GET", "/api/admin/copy-events?"+q, "", adm); rec.Code != 400 {
 			t.Fatalf("%s: %d", q, rec.Code)
 		}
+	}
+}
+
+func TestAdminIndexStatus(t *testing.T) {
+	r, _, adm, _, _ := adminApp(t)
+	rec := adminSend(r, "GET", "/api/admin/index-status", "", adm)
+	if rec.Code != 200 || rec.Body.String() != `{"pending_count":2,"pending_book_ids":["a","b"]}` {
+		t.Fatalf("index-status %d %s", rec.Code, rec.Body)
+	}
+
+	src := &stubIndexStatus{}
+	svc := admin.New(&stubAdminRepo{}, nil, nil).WithIndexStatus(src)
+	st, err := svc.IndexStatus(context.Background())
+	if err != nil || src.gotLimit != admin.MaxIndexStatusIDs || st.PendingBookIDs == nil || st.PendingCount != 0 {
+		t.Fatalf("empty backlog %+v %v limit=%d", st, err, src.gotLimit)
+	}
+	if _, err := admin.New(&stubAdminRepo{}, nil, nil).IndexStatus(context.Background()); err == nil {
+		t.Fatal("unconfigured source must error")
 	}
 }
 

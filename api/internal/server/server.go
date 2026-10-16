@@ -180,6 +180,7 @@ func NewRouter(d Deps) *gin.Engine {
 		adm := handler.NewAdminHandler(d.Admin)
 		ad := api.Group("/admin", requireAuth, middleware.RequireAdmin(handler.RespondError))
 		ad.GET("/data", adm.Data)
+		ad.GET("/index-status", adm.IndexStatus)
 		ad.GET("/copy-events", adm.CopyEvents)
 		ad.GET("/books", adm.ListBooks)
 		ad.POST("/books", adm.CreateBook)

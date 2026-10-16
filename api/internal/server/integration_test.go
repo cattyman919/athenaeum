@@ -9,14 +9,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/cattyman919/athenaeum/api/internal/config"
 	"github.com/cattyman919/athenaeum/api/internal/logging"
 	"github.com/cattyman919/athenaeum/api/internal/pkg/jwt"
 	"github.com/cattyman919/athenaeum/api/internal/repository"
 	"github.com/cattyman919/athenaeum/api/internal/server"
+	"github.com/cattyman919/athenaeum/api/internal/service/admin"
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 	"github.com/cattyman919/athenaeum/api/internal/service/circulation"
+	"github.com/cattyman919/athenaeum/api/internal/service/index"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
 	"github.com/cattyman919/athenaeum/api/internal/service/seed"
 	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
@@ -26,6 +30,7 @@ import (
 type api struct {
 	t       *testing.T
 	h       http.Handler
+	pool    *pgxpool.Pool
 	cookies []*http.Cookie
 }
 
@@ -56,15 +61,19 @@ func newAPI(t *testing.T) *api {
 	jm, _ := jwt.NewManager("0123456789abcdef0123456789abcdef", time.Minute)
 	authSvc := auth.New(repository.NewUserRepository(pool), repository.NewTokenRepository(pool), jm, nil, time.Hour, logging.Discard())
 	libRepo, waitRepo := repository.NewLibraryRepository(pool), repository.NewWaitlistRepository(pool)
+	indexStore := repository.NewIndexStore(pool)
+	catalogSvc := catalog.New(repository.NewCatalogRepository(pool), nil).WithPendingCounter(indexStore)
 	h := server.NewRouter(server.Deps{
 		Config: config.Config{}, Log: logging.Discard(), JWT: jm, Auth: authSvc,
-		Catalog:     catalog.New(repository.NewCatalogRepository(pool), nil),
+		Catalog: catalogSvc,
+		Admin: admin.New(repository.NewAdminRepository(pool), catalogSvc, repository.NewBuildingRepository(pool)).
+			WithIndexStatus(indexStore),
 		Library:     library.New(libRepo, waitRepo),
 		Waitlist:    waitlist.New(waitRepo, libRepo),
 		Scan:        catalog.NewScanService(repository.NewCatalogRepository(pool)),
 		Circulation: circulation.New(repository.NewCirculationRepository(pool)),
 	})
-	return &api{t: t, h: h}
+	return &api{t: t, h: h, pool: pool}
 }
 
 func (a *api) register(email string) {
@@ -280,5 +289,76 @@ func TestPatronScanAndSelfReturnJourney(t *testing.T) {
 	}
 	if _, out := a.do("POST", "/api/books/scan", `{"code":"ATH-002941-C01"}`); out["returnable"] != false {
 		t.Fatalf("rescan after return: %v", out)
+	}
+}
+
+type unitEmb struct{}
+
+func (unitEmb) EmbedDocuments(_ context.Context, texts []string) ([][]float32, error) {
+	out := make([][]float32, len(texts))
+	for i := range texts {
+		v := make([]float32, 768)
+		v[0] = 1
+		out[i] = v
+	}
+	return out, nil
+}
+
+func TestIndexStatusDrainsAfterWorkerRun(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := newAPI(t)
+	a.register("archivist@athenaeum.dev")
+	if rec, _ := a.do("GET", "/api/admin/index-status", ""); rec.Code != 403 {
+		t.Fatalf("patron: %d", rec.Code)
+	}
+	if _, err := a.pool.Exec(ctx, `UPDATE users SET role='admin' WHERE email='archivist@athenaeum.dev'`); err != nil {
+		t.Fatal(err)
+	}
+	rec, _ := a.do("POST", "/api/auth/login", `{"email":"archivist@athenaeum.dev","password":"correct horse battery"}`)
+	if rec.Code != 200 {
+		t.Fatalf("login: %d %s", rec.Code, rec.Body)
+	}
+	a.cookies = rec.Result().Cookies()
+
+	// Fresh seed has no embeddings: every described book is pending.
+	rec, st := a.do("GET", "/api/admin/index-status", "")
+	ids, _ := st["pending_book_ids"].([]any)
+	if rec.Code != 200 || st["pending_count"] != float64(40) || len(ids) != 40 {
+		t.Fatalf("fresh index-status %d %s", rec.Code, rec.Body)
+	}
+	for _, mode := range []string{"", "&mode=keyword"} {
+		_, out := a.do("GET", "/api/books/search?per_page=1"+mode, "")
+		if m := out["meta"].(map[string]any); m["index_pending"] != float64(40) {
+			t.Fatalf("search meta%s %v", mode, m)
+		}
+	}
+
+	store := repository.NewIndexStore(a.pool)
+	w := index.NewWorker(store, index.New(store, unitEmb{}, "nomic-embed-text", logging.Discard()), logging.Discard()).
+		WithTimings(time.Hour, time.Millisecond, 10*time.Millisecond)
+	done := make(chan struct{})
+	go func() { w.Run(ctx); close(done) }()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		_, st = a.do("GET", "/api/admin/index-status", "")
+		if st["pending_count"] == float64(0) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("backlog never drained: %v", st)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	<-done
+
+	rec, _ = a.do("GET", "/api/admin/index-status", "")
+	if rec.Body.String() != `{"pending_count":0,"pending_book_ids":[]}` {
+		t.Fatalf("drained body %s", rec.Body)
+	}
+	_, out := a.do("GET", "/api/books/search?per_page=1", "")
+	if m := out["meta"].(map[string]any); m["index_pending"] != float64(0) {
+		t.Fatalf("drained search meta %v", m)
 	}
 }

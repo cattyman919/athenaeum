@@ -195,3 +195,52 @@ func TestWorkerEmbedsAdminCreatedBook(t *testing.T) {
 	cancel()
 	<-done
 }
+
+func TestIndexStoreStatusMatchesPending(t *testing.T) {
+	ctx := context.Background()
+	pool := pgtest.New(t)
+	fx, _ := seed.Load("../../mocks")
+	if _, err := seed.Run(ctx, repository.NewSeedStore(pool), nil, fx, seed.Options{}, logging.Discard()); err != nil {
+		t.Fatal(err)
+	}
+	st := repository.NewIndexStore(pool)
+	dune := bookID(t, pool, "Dune")
+	if _, err := pool.Exec(ctx, `UPDATE books SET embedding_dirty = true WHERE id = $1`, dune); err != nil {
+		t.Fatal(err)
+	}
+
+	want, err := st.PendingBooks(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := st.PendingCount(ctx)
+	if err != nil || n != len(want) || n != 40 {
+		t.Fatalf("count %d err %v, want %d", n, err, len(want))
+	}
+	s, err := st.PendingStatus(ctx, 5)
+	if err != nil || s.PendingCount != 40 || len(s.PendingBookIDs) != 5 {
+		t.Fatalf("status %+v %v", s, err)
+	}
+	for i, id := range s.PendingBookIDs {
+		if id != want[i].ID {
+			t.Fatalf("ids[%d] = %s, want worker order %s", i, id, want[i].ID)
+		}
+	}
+	if s.PendingBookIDs[0] != dune.String() {
+		t.Fatalf("dirty book must come first: %v", s.PendingBookIDs)
+	}
+
+	if _, err := index.New(st, constEmb{}, "nomic-embed-text", logging.Discard()).Run(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE books SET embedding_dirty = false`); err != nil {
+		t.Fatal(err)
+	}
+	s, err = st.PendingStatus(ctx, 5)
+	if err != nil || s.PendingCount != 0 || s.PendingBookIDs == nil || len(s.PendingBookIDs) != 0 {
+		t.Fatalf("drained status %+v %v", s, err)
+	}
+	if n, _ := st.PendingCount(ctx); n != 0 {
+		t.Fatalf("drained count %d", n)
+	}
+}

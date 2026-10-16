@@ -64,6 +64,10 @@ func (s *stubCatalogRepo) Detail(_ context.Context, id uuid.UUID, _ uuid.UUID) (
 	}, nil
 }
 
+type stubPending int
+
+func (p stubPending) PendingCount(context.Context) (int, error) { return int(p), nil }
+
 type downEmbedder struct{}
 
 func (downEmbedder) EmbedQuery(context.Context, string) ([]float32, error) {
@@ -76,7 +80,7 @@ func searchApp(t *testing.T) (http.Handler, *stubCatalogRepo, *http.Cookie) {
 	repo := &stubCatalogRepo{id: uuid.New()}
 	r := server.NewRouter(server.Deps{
 		Config: config.Config{}, Log: logging.Discard(), JWT: jm,
-		Catalog: catalog.New(repo, downEmbedder{}),
+		Catalog: catalog.New(repo, downEmbedder{}).WithPendingCounter(stubPending(4)),
 	})
 	tok, _, _ := jm.Issue(jwt.Claims{Subject: uuid.NewString(), Role: "user"})
 	return r, repo, &http.Cookie{Name: middleware.AccessCookie, Value: tok}
@@ -118,7 +122,8 @@ func TestSearchEndpoint(t *testing.T) {
 	if _, leaked := it["Statuses"]; leaked {
 		t.Fatal("internal field leaked")
 	}
-	if body.Meta["total"] != float64(1) || body.Meta["per_page"] != float64(10) || body.Meta["total_pages"] != float64(1) {
+	if body.Meta["total"] != float64(1) || body.Meta["per_page"] != float64(10) || body.Meta["total_pages"] != float64(1) ||
+		body.Meta["index_pending"] != float64(4) {
 		t.Fatalf("meta %v", body.Meta)
 	}
 	if repo.gotQ != "dune" || len(repo.gotF.Sections) != 2 || !repo.gotF.AvailableOnly || repo.gotF.Eras[0] != "2000_n" {

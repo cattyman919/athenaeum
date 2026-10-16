@@ -40,6 +40,11 @@ type Embedder interface {
 	EmbedQuery(ctx context.Context, text string) ([]float32, error)
 }
 
+// PendingCounter reports the auto-index backlog size (repository.IndexStore).
+type PendingCounter interface {
+	PendingCount(ctx context.Context) (int, error)
+}
+
 // Request is a validated-by-Service search request.
 type Request struct {
 	Query   string
@@ -52,12 +57,17 @@ type Request struct {
 
 // Service runs searches.
 type Service struct {
-	repo Repository
-	emb  Embedder
+	repo    Repository
+	emb     Embedder
+	pending PendingCounter
 }
 
 // New builds the service.
 func New(repo Repository, emb Embedder) *Service { return &Service{repo: repo, emb: emb} }
+
+// WithPendingCounter fills meta.index_pending on search responses (docs/03 §5.1);
+// without one it stays 0.
+func (s *Service) WithPendingCounter(p PendingCounter) *Service { s.pending = p; return s }
 
 var (
 	validSections = map[string]bool{"SF": true, "SCI": true, "HVA": true, "REF": true, "PER": true}
@@ -138,13 +148,23 @@ func (s *Service) Search(ctx context.Context, req Request) (model.SearchPage, er
 	}
 	sortItems(items, req)
 
+	indexPending := 0
+	if s.pending != nil {
+		if indexPending, err = s.pending.PendingCount(ctx); err != nil {
+			return model.SearchPage{}, err
+		}
+	}
+
 	total := len(items)
 	pages := (total + req.PerPage - 1) / req.PerPage
 	start := min((req.Page-1)*req.PerPage, total)
 	end := min(start+req.PerPage, total)
 	return model.SearchPage{
 		Items: items[start:end],
-		Meta:  model.PageMeta{Page: req.Page, PerPage: req.PerPage, Total: total, TotalPages: pages},
+		Meta: model.SearchMeta{
+			PageMeta:     model.PageMeta{Page: req.Page, PerPage: req.PerPage, Total: total, TotalPages: pages},
+			IndexPending: indexPending,
+		},
 	}, nil
 }
 

@@ -174,6 +174,15 @@ func (s *IndexStore) StaleChunkCount(ctx context.Context, modelName, chunkerVers
 	return n, nil
 }
 
+// pendingWhere / pendingOrder define the auto-index backlog shared by the worker
+// (PendingBooks) and the visibility endpoints (PendingStatus, PendingCount).
+const (
+	pendingWhere = `(b.embedding_dirty
+		   OR (coalesce(b.description, '') ~ '\S'
+		       AND NOT EXISTS (SELECT 1 FROM book_embeddings e WHERE e.book_id = b.id)))`
+	pendingOrder = `b.embedding_dirty DESC, b.updated_at, b.id`
+)
+
 // PendingBooks lists the auto-index backlog (docs/06 §2): books flagged
 // embedding_dirty plus books with a non-blank description and no embedding rows
 // (fresh-seed backfill). Blank-description books never embed, so they only appear
@@ -181,10 +190,8 @@ func (s *IndexStore) StaleChunkCount(ctx context.Context, modelName, chunkerVers
 func (s *IndexStore) PendingBooks(ctx context.Context) ([]model.PendingBook, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT b.id::text, b.embedding_dirty, b.updated_at FROM books b
-		WHERE b.embedding_dirty
-		   OR (coalesce(b.description, '') ~ '\S'
-		       AND NOT EXISTS (SELECT 1 FROM book_embeddings e WHERE e.book_id = b.id))
-		ORDER BY b.embedding_dirty DESC, b.updated_at, b.id`)
+		WHERE `+pendingWhere+`
+		ORDER BY `+pendingOrder)
 	if err != nil {
 		return nil, fmt.Errorf("pending books: %w", err)
 	}
@@ -210,4 +217,44 @@ func (s *IndexStore) ClearDirty(ctx context.Context, bookID string, snapshot tim
 		return false, fmt.Errorf("clear dirty: %w", err)
 	}
 	return tag.RowsAffected() == 1, nil
+}
+
+// PendingCount counts the auto-index backlog (same set as PendingBooks).
+func (s *IndexStore) PendingCount(ctx context.Context) (int, error) {
+	var n int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM books b WHERE `+pendingWhere).Scan(&n); err != nil {
+		return 0, fmt.Errorf("pending count: %w", err)
+	}
+	return n, nil
+}
+
+// PendingStatus returns the backlog size plus up to limit pending ids in worker
+// order (same set as PendingBooks).
+func (s *IndexStore) PendingStatus(ctx context.Context, limit int) (model.IndexStatus, error) {
+	st := model.IndexStatus{PendingBookIDs: []string{}}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return st, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM books b WHERE `+pendingWhere).Scan(&st.PendingCount); err != nil {
+		return st, fmt.Errorf("pending count: %w", err)
+	}
+	rows, err := tx.Query(ctx, `SELECT b.id::text FROM books b WHERE `+pendingWhere+
+		` ORDER BY `+pendingOrder+` LIMIT $1`, limit)
+	if err != nil {
+		return st, fmt.Errorf("pending ids: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return st, err
+		}
+		st.PendingBookIDs = append(st.PendingBookIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		return st, err
+	}
+	return st, tx.Commit(ctx)
 }

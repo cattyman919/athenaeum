@@ -159,7 +159,7 @@ func TestSearchKeywordPaginationAndMeta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if titles(p) != "C,D" || p.Meta != (model.PageMeta{Page: 2, PerPage: 2, Total: 5, TotalPages: 3}) {
+	if titles(p) != "C,D" || p.Meta != (model.SearchMeta{PageMeta: model.PageMeta{Page: 2, PerPage: 2, Total: 5, TotalPages: 3}}) {
 		t.Fatalf("%s %+v", titles(p), p.Meta)
 	}
 	if p.Items[0].Availability.State != "available" {
@@ -168,6 +168,33 @@ func TestSearchKeywordPaginationAndMeta(t *testing.T) {
 	p, _ = svc.Search(context.Background(), catalog.Request{Query: "x", PerPage: 2, Page: 9})
 	if len(p.Items) != 0 || p.Meta.Total != 5 {
 		t.Fatalf("out-of-range page: %+v", p)
+	}
+}
+
+type fakePending struct {
+	n   int
+	err error
+}
+
+func (f fakePending) PendingCount(context.Context) (int, error) { return f.n, f.err }
+
+func TestSearchIndexPendingAllModes(t *testing.T) {
+	repo, ids := setup(book("A", yr(2000), 1, 1, "available"))
+	repo.kw, repo.vec = hits(ids...), hits(ids...)
+	svc := catalog.New(repo, fakeEmb{}).WithPendingCounter(fakePending{n: 3})
+	for _, mode := range []string{model.ModeKeyword, model.ModeSemantic, model.ModeHybrid} {
+		p, err := svc.Search(context.Background(), catalog.Request{Query: "x", Mode: mode})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Meta.IndexPending != 3 {
+			t.Fatalf("%s: index_pending %d", mode, p.Meta.IndexPending)
+		}
+	}
+	boom := errors.New("db down")
+	svc = catalog.New(repo, fakeEmb{}).WithPendingCounter(fakePending{err: boom})
+	if _, err := svc.Search(context.Background(), catalog.Request{Query: "x"}); !errors.Is(err, boom) {
+		t.Fatalf("counter error must propagate: %v", err)
 	}
 }
 

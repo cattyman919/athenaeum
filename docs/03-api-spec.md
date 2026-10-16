@@ -113,6 +113,7 @@ Auth column: 🔓 public · 🔒 `user` · 👑 `admin`.
 | 37 | PATCH | `/api/admin/users/{id}` | 👑 | change role | [§8.5](#85-admin-users) |
 | 38 | POST | `/api/books/scan` | 🔒 | resolve scanned ISBN / copy tag | [§5.4](#54-post-apibooksscan) |
 | 39 | POST | `/api/copies/{id}/return` | 🔒 | self-service return | [§6.4](#64-post-apicopiesidreturn) |
+| 40 | GET | `/api/admin/index-status` | 👑 | auto-index backlog | [§8.1](#81-admin-kpis--audit) |
 
 404 for unknown `id` values on every `/api/.../{id}` route.
 
@@ -211,9 +212,15 @@ Response 200 (`items`), each item:
       "score": 0.874
     }
   ],
-  "meta": { "page": 1, "per_page": 20, "total": 40, "total_pages": 2 }
+  "meta": { "page": 1, "per_page": 20, "total": 40, "total_pages": 2, "index_pending": 0 }
 }
 ```
+
+`meta.index_pending` (int, every `mode`, additive to the standard [§1](#1-conventions)
+meta) is the auto-index backlog size — the same count as `pending_count` of
+[`GET /api/admin/index-status`](#81-admin-kpis--audit): books whose embeddings are
+not yet current, so they may be missing from `semantic`/`hybrid` results until the
+worker ([06 §2](06-ai-rag.md#2-rag-pipeline)) catches up. `0` when fully indexed.
 
 `availability.state` resolution: `available` when `available_copies > 0`;
 `not_in_building` when `total_copies == 0`; otherwise the status shared by all
@@ -542,6 +549,18 @@ stream" (client-server polling every 3 s; WebSockets out of scope
     "created_at": "2026-10-06T19:52:03Z"
   }
 ] }
+```
+
+`GET /api/admin/index-status` — auto-index backlog ([06 §2](06-ai-rag.md#2-rag-pipeline)).
+Pending is exactly the worker's set: books with `embedding_dirty = true`, plus books
+with a non-blank `description` and zero `book_embeddings` rows
+([02](02-data-model.md#book_embeddings)). `pending_count` is the full count;
+`pending_book_ids` lists at most 200 ids in worker order (dirty first, then oldest
+`updated_at`) and is `[]` when the backlog is empty. General 120/min bucket
+([§2](#2-rate-limiting)).
+
+```json
+{ "pending_count": 2, "pending_book_ids": ["8c14…", "1f0a…"] }
 ```
 
 ### 8.2 Admin books

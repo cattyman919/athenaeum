@@ -130,3 +130,10 @@ type PendingBook struct {
 	Dirty     bool
 	UpdatedAt time.Time
 }
+
+// IndexStatus is the auto-index backlog snapshot (GET /api/admin/index-status,
+// docs/03 §8.1): the full pending count plus the first pending ids in worker order.
+type IndexStatus struct {
+	PendingCount   int      `json:"pending_count"`
+	PendingBookIDs []string `json:"pending_book_ids"`
+}

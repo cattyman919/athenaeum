@@ -51,7 +51,11 @@ side runs inside the agent turn.
 > model is not yet pulled — it waits and retries with backoff (startup backfill and
 > later edits both queue until Ollama is ready), so the book stays keyword-searchable
 > and the admin request still succeeds. Observability is structured slog lines
-> (start/success/failure + pending count).
+> (start/success/failure + pending count), plus the admin
+> [`GET /api/admin/index-status`](03-api-spec.md#81-admin-kpis--audit) endpoint
+> (`pending_count` + up to 200 `pending_book_ids`) and the additive
+> [`meta.index_pending`](03-api-spec.md#51-get-apibookssearch) count on every search
+> response — both report exactly the worker's pending set.
 
 ```mermaid
 flowchart LR

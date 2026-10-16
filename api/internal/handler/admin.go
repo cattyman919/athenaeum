@@ -83,6 +83,12 @@ func (h *AdminHandler) Data(c *gin.Context) {
 	respondJSON(c, http.StatusOK, k, err)
 }
 
+// IndexStatus handles GET /api/admin/index-status.
+func (h *AdminHandler) IndexStatus(c *gin.Context) {
+	st, err := h.svc.IndexStatus(c.Request.Context())
+	respondJSON(c, http.StatusOK, st, err)
+}
+
 // CopyEvents handles GET /api/admin/copy-events?since=&limit=.
 func (h *AdminHandler) CopyEvents(c *gin.Context) {
 	limit, err := intParam(c, "limit")

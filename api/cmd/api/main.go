@@ -84,7 +84,8 @@ func run() error {
 
 	embedder := embed.NewOllama(cfg.OllamaBaseURL, cfg.OllamaEmbedModel, cfg.OllamaEmbedDim)
 	catalogRepo := repository.NewCatalogRepository(pool)
-	catalogSvc := catalog.New(catalogRepo, embedder)
+	indexStore := repository.NewIndexStore(pool)
+	catalogSvc := catalog.New(catalogRepo, embedder).WithPendingCounter(indexStore)
 	// Barcode intake (docs/11): Open Library behind OPENLIBRARY_BASE_URL, Redis cache.
 	isbnSvc := catalog.NewISBNService(catalogRepo, olbooks.New(cfg.OpenLibraryBaseURL, cfg.OfflineMode),
 		repository.NewISBNCache(rdb), log)
@@ -121,13 +122,12 @@ func run() error {
 
 	// Auto-index worker (docs/06 §2, docs/08 §7): embeds dirty books and backfills
 	// books without embeddings; waits for Ollama with backoff instead of failing.
-	indexStore := repository.NewIndexStore(pool)
 	indexWorker := index.NewWorker(indexStore, index.New(indexStore, embedder, cfg.OllamaEmbedModel, log), log)
 	go indexWorker.Run(ctx)
 
 	// Admin (docs/03 §8): book/copy CRUD, audit stream, building tree, users.
 	adminSvc := admin.New(repository.NewAdminRepository(pool), catalogSvc, repository.NewBuildingRepository(pool)).
-		WithIndexNotifier(indexWorker)
+		WithIndexNotifier(indexWorker).WithIndexStatus(indexStore)
 
 	srv := server.New(server.Deps{
 		Config:      cfg,

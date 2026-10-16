@@ -49,13 +49,22 @@ type IndexNotifier interface {
 	Notify()
 }
 
+// IndexStatusSource reports the auto-index backlog (repository.IndexStore).
+type IndexStatusSource interface {
+	PendingStatus(ctx context.Context, limit int) (model.IndexStatus, error)
+}
+
+// MaxIndexStatusIDs caps pending_book_ids in GET /api/admin/index-status (docs/03 §8.1).
+const MaxIndexStatusIDs = 200
+
 // Service is the admin use-case layer.
 type Service struct {
-	repo    Repository
-	details Details
-	paths   building.Lookup
-	indexer IndexNotifier
-	now     func() time.Time
+	repo        Repository
+	details     Details
+	paths       building.Lookup
+	indexer     IndexNotifier
+	indexStatus IndexStatusSource
+	now         func() time.Time
 }
 
 // New builds the service.
@@ -65,6 +74,24 @@ func New(repo Repository, details Details, paths building.Lookup) *Service {
 
 // WithIndexNotifier wakes n after book writes that mark embeddings dirty (docs/06 §2).
 func (s *Service) WithIndexNotifier(n IndexNotifier) *Service { s.indexer = n; return s }
+
+// WithIndexStatus sets the backlog source behind GET /api/admin/index-status.
+func (s *Service) WithIndexStatus(src IndexStatusSource) *Service { s.indexStatus = src; return s }
+
+// IndexStatus returns the auto-index backlog (GET /api/admin/index-status).
+func (s *Service) IndexStatus(ctx context.Context) (model.IndexStatus, error) {
+	if s.indexStatus == nil {
+		return model.IndexStatus{}, model.New(model.CodeUnexpected, "Index status is not configured.")
+	}
+	st, err := s.indexStatus.PendingStatus(ctx, MaxIndexStatusIDs)
+	if err != nil {
+		return model.IndexStatus{}, err
+	}
+	if st.PendingBookIDs == nil {
+		st.PendingBookIDs = []string{}
+	}
+	return st, nil
+}
 
 func (s *Service) notifyIndex() {
 	if s.indexer != nil {

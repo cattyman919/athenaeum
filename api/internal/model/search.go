@@ -77,8 +77,15 @@ type PageMeta struct {
 	TotalPages int `json:"total_pages"`
 }
 
+// SearchMeta is the search pagination meta plus the auto-index backlog size
+// (docs/03 §5.1): books whose embeddings are not yet current.
+type SearchMeta struct {
+	PageMeta
+	IndexPending int `json:"index_pending"`
+}
+
 // SearchPage is the search response.
 type SearchPage struct {
 	Items []BookSummary `json:"items"`
-	Meta  PageMeta      `json:"meta"`
+	Meta  SearchMeta    `json:"meta"`
 }
