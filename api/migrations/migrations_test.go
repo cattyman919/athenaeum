@@ -2,11 +2,14 @@ package migrations_test
 
 import (
 	"context"
+	"io/fs"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/cattyman919/athenaeum/api/internal/testutil/pgtest"
+	"github.com/cattyman919/athenaeum/api/migrations"
 )
 
 func TestUpDownUp(t *testing.T) {
@@ -130,6 +133,57 @@ func TestBookLocationsViewAndTriggers(t *testing.T) {
 		`INSERT INTO book_embeddings (book_id, chunk_index, content, embedding, model, chunker_version)
 		 VALUES ($1,1,'x','[0.1,0.2]'::vector,'m','v1')`, ids["bk"]); err == nil {
 		t.Fatal("wrong dimension must fail")
+	}
+}
+
+func embeddingDirtyState(ctx context.Context, t *testing.T, pool *pgxpool.Pool) (column, index bool) {
+	t.Helper()
+	if err := pool.QueryRow(ctx, `SELECT
+		  EXISTS (SELECT 1 FROM information_schema.columns
+		          WHERE table_name='books' AND column_name='embedding_dirty'
+		            AND data_type='boolean' AND is_nullable='NO' AND column_default='false'),
+		  EXISTS (SELECT 1 FROM pg_indexes
+		          WHERE indexname='books_embedding_dirty_idx' AND indexdef LIKE '%WHERE embedding_dirty%')`).
+		Scan(&column, &index); err != nil {
+		t.Fatal(err)
+	}
+	return column, index
+}
+
+func execFile(ctx context.Context, t *testing.T, pool *pgxpool.Pool, name string) {
+	t.Helper()
+	b, err := fs.ReadFile(migrations.FS, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(b)); err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+}
+
+func TestMigration0006EmbeddingDirty(t *testing.T) {
+	ctx := context.Background()
+	pool := pgtest.New(t)
+
+	if col, idx := embeddingDirtyState(ctx, t, pool); !col || !idx {
+		t.Fatalf("after up: column=%v index=%v", col, idx)
+	}
+	id := uuid.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO books (id, title) VALUES ($1,'Dune')`, id); err != nil {
+		t.Fatal(err)
+	}
+	var dirty bool
+	if err := pool.QueryRow(ctx, `SELECT embedding_dirty FROM books WHERE id=$1`, id).Scan(&dirty); err != nil || dirty {
+		t.Fatalf("default must be false: %v %v", dirty, err)
+	}
+
+	execFile(ctx, t, pool, "0006_books_embedding_dirty.down.sql")
+	if col, idx := embeddingDirtyState(ctx, t, pool); col || idx {
+		t.Fatalf("after down: column=%v index=%v", col, idx)
+	}
+	execFile(ctx, t, pool, "0006_books_embedding_dirty.up.sql")
+	if col, idx := embeddingDirtyState(ctx, t, pool); !col || !idx {
+		t.Fatalf("after re-up: column=%v index=%v", col, idx)
 	}
 }
 
