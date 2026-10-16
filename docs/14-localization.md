@@ -75,6 +75,7 @@ web/
 - One JSON catalog per locale at `web/messages/{locale}.json`.
 - **Keys are namespaced by area** (`shell.nav.catalog`, `catalog.filters.available`,
   `chat.composer.placeholder`, `scanner.patron.*`, …) so screens stay greppable.
+- `catalog.indexingNote` (ICU plural, en + zh-CN) is the patron note shown while books are still being indexed ([07](07-frontend.md)); the admin index badges/chip stay English like the rest of admin.
 - No user-facing literals in components — every string resolves through the catalog.
 - ICU messages cover interpolation and plurals; the en and zh-CN catalogs MUST stay
   key-for-key in sync (a unit test enforces parity — §12).

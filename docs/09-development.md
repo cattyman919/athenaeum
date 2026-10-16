@@ -199,6 +199,8 @@ slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelIn
 
 ### 8.1 E2E harness
 
+Indexing visibility specs (`web/e2e/index-status.spec.ts`) mock `GET /api/admin/index-status` with `page.route` (the seeded e2e DB is fully indexed, so pending is normally 0); the catalog note re-checks via a browser keyword search whose `meta.index_pending` is also mocked.
+
 `make e2e` runs `scripts/e2e-prepare.sh` (compose `postgres` + `redis` + **real `ollama`**
 with `nomic-embed-text`, an isolated `athenaeum_e2e` database that is dropped, migrated,
 seeded with `--offline` and reindexed with real embeddings, and a cleared Redis
