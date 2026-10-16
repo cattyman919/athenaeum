@@ -1,5 +1,6 @@
 import { AdminForbidden } from "@/components/admin/admin-forbidden";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { IndexStatusProvider, IndexingChip } from "@/components/admin/index-status";
 import { LayoutManager } from "@/components/admin/layout-manager";
 import { Alert } from "@/components/ui/alert";
 import { adminGet } from "@/lib/admin-server";
@@ -12,7 +13,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Screen 6b — Stitch 3177da52… stacks manager (docs/07 §7, docs/12 screen 6, docs/05 §2).
 // BuildingTreeBrowser (GET /api/admin/tree), shelf manifest inspector
 // (GET /api/admin/shelves/{id}, quick-assign via PATCH /api/admin/copies/{barcode}) and a
-// floor mini-map. `?shelf=<id>` is the selected shelf (URL-as-state). English only (docs/14 §1).
+// floor mini-map. `?shelf=<id>` is the selected shelf (URL-as-state). Manifest rows carry the
+// auto-index "Indexing…" badge (GET /api/admin/index-status). English only (docs/14 §1).
 export default async function AdminLayoutPage({
   searchParams,
 }: {
@@ -29,23 +31,28 @@ export default async function AdminLayoutPage({
   ]);
 
   return (
-    <div className="space-y-6" data-testid="admin-layout-page">
-      <header className="space-y-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
-            Staff Admin
-          </p>
-          <h1 className="text-2xl font-semibold">Stacks manager</h1>
-        </div>
-        <AdminNav />
-      </header>
-      {tree ? (
-        <LayoutManager initialTree={tree} initialShelf={shelf} />
-      ) : (
-        <Alert variant="destructive" data-testid="tree-error">
-          Could not load the building layout. Refresh to retry.
-        </Alert>
-      )}
-    </div>
+    <IndexStatusProvider>
+      <div className="space-y-6" data-testid="admin-layout-page">
+        <header className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-on-surface-variant">
+                Staff Admin
+              </p>
+              <h1 className="text-2xl font-semibold">Stacks manager</h1>
+            </div>
+            <IndexingChip />
+          </div>
+          <AdminNav />
+        </header>
+        {tree ? (
+          <LayoutManager initialTree={tree} initialShelf={shelf} />
+        ) : (
+          <Alert variant="destructive" data-testid="tree-error">
+            Could not load the building layout. Refresh to retry.
+          </Alert>
+        )}
+      </div>
+    </IndexStatusProvider>
   );
 }

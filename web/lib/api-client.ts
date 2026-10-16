@@ -11,6 +11,7 @@ import type {
   CopyCreate,
   CopyEvent,
   CopyPatch,
+  IndexStatus,
   ShelfInspectorData,
   UserRole,
 } from "./admin-types";
@@ -20,6 +21,7 @@ import type {
   ConversationSummary,
   ReturnResponse,
   ScanResponse,
+  SearchResponse,
   TranscribeResponse,
 } from "./types";
 
@@ -123,6 +125,10 @@ export function createApiClient(opts: ClientOptions = {}) {
       }).then((r) => r.user),
     logout: () => json<void>("/api/auth/logout", { method: "POST" }),
 
+    // Catalog search (docs/03 §5.1); `params` is the catalog query string (lib/catalog-query).
+    searchBooks: (params: URLSearchParams | string) =>
+      json<SearchResponse>(`/api/books/search?${params}`),
+
     // Personal library (docs/03 §6.2). `force` bypasses the soft 409 BOOK_NOT_AVAILABLE.
     addToLibrary: (bookId: string, status?: ReadingStatus, opts: { force?: boolean } = {}) =>
       json<LibraryEntry>(`/api/library${opts.force ? "?force=true" : ""}`, {
@@ -169,6 +175,8 @@ export function createApiClient(opts: ClientOptions = {}) {
       if (since) q.set("since", since);
       return json<{ items: CopyEvent[] }>(`/api/admin/copy-events?${q}`).then((r) => r.items);
     },
+    /** Auto-index worker backlog: books still waiting for embeddings. */
+    adminIndexStatus: () => json<IndexStatus>("/api/admin/index-status"),
     adminShelf: (id: string) =>
       json<ShelfInspectorData>(`/api/admin/shelves/${encodeURIComponent(id)}`),
     /** `ref` is a copy id or barcode. */

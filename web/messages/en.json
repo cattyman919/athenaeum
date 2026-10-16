@@ -140,6 +140,7 @@
   "catalog": {
     "title": "Catalog",
     "subtitle": "Browse the stacks by keyword, meaning, or both.",
+    "indexingNote": "{count, plural, one {# new book is still being indexed — semantic results may be incomplete} other {# new books are still being indexed — semantic results may be incomplete}}",
     "search": {
       "label": "Search the catalog",
       "placeholder": "Title, author, topic, or a question…",

@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api-client";
 import { classifyBarcode } from "@/lib/barcode";
+import { BOOK_CREATED_EVENT, type BookCreatedDetail } from "@/lib/index-status";
 import {
   EMPTY_FORM,
   SECTIONS,
@@ -156,6 +157,12 @@ export function AddBookFlow({ onClose, initialIsbn }: AddBookFlowProps) {
     setSubmitting(true);
     try {
       const book = await api.createAdminBook(built.body);
+      // Lets the /admin index-status poller badge the new book while it is embedded.
+      window.dispatchEvent(
+        new CustomEvent<BookCreatedDetail>(BOOK_CREATED_EVENT, {
+          detail: { id: book.id, title: book.title },
+        }),
+      );
       toast.success(`Added “${book.title}” to the catalog.`, {
         action: { label: "View", onClick: () => router.push(`/books/${book.id}`) },
       });

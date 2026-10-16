@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { normalizeBarcode, occupancyLevel, statusLabel } from "@/lib/admin";
 import { COPY_STATUSES, type CopyStatus, type ShelfInspectorData } from "@/lib/admin-types";
 import { cn } from "@/lib/utils";
+import { IndexingBadge } from "./index-status";
 
 const selectClass =
   "h-8 rounded-md border border-border bg-card px-2 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50";
@@ -220,7 +221,10 @@ export function ShelfInspector({ shelf, loading, onAssign, onStatus, onSelectShe
                     >
                       {c.title}
                     </Link>
-                    <span className="mono-label text-muted-foreground">{c.barcode}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="mono-label text-muted-foreground">{c.barcode}</span>
+                      <IndexingBadge bookId={c.book_id} />
+                    </span>
                   </div>
                   <select
                     aria-label={`Status of ${c.barcode}`}

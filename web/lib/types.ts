@@ -33,9 +33,14 @@ export interface PageMeta {
   total_pages: number;
 }
 
+/** GET /api/books/search meta: paging plus the auto-index backlog size (docs/03 §5.1). */
+export interface SearchMeta extends PageMeta {
+  index_pending: number;
+}
+
 export interface SearchResponse {
   items: BookSummary[];
-  meta: PageMeta;
+  meta: SearchMeta;
 }
 
 /** Structured shelf location (docs/03 §5.2); localized via `wayfinding.*` (docs/14 §6.1). */

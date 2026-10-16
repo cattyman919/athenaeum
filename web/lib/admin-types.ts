@@ -118,6 +118,12 @@ export interface AdminBookItem {
   updated_at: string;
 }
 
+/** GET /api/admin/index-status — the auto-index worker backlog (docs/03 §8.1, docs/06 §2). */
+export interface IndexStatus {
+  pending_count: number;
+  pending_book_ids: string[];
+}
+
 export interface AdminBookPage {
   items: AdminBookItem[];
   meta: PageMeta;

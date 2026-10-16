@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { BookCard } from "@/components/book-card";
+import { CatalogIndexingNote } from "@/components/catalog-indexing-note";
 import { CatalogSearchBar, FacetSidebar } from "@/components/catalog-controls";
 import { ResultsSkeleton } from "@/components/catalog-skeleton";
 import { apiServer } from "@/lib/api-server";
@@ -43,6 +44,9 @@ async function Results({ query }: { query: CatalogQuery }) {
   ]);
   return (
     <>
+      {result.ok && query.mode !== "keyword" && (
+        <CatalogIndexingNote initial={result.data.meta.index_pending ?? 0} />
+      )}
       {!result.ok ? (
         <div
           role="alert"

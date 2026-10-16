@@ -140,6 +140,7 @@
   "catalog": {
     "title": "馆藏目录",
     "subtitle": "按关键词、语义或两者结合浏览书库。",
+    "indexingNote": "{count} 本新书仍在建立索引——语义检索结果可能不完整",
     "search": {
       "label": "搜索馆藏",
       "placeholder": "书名、作者、主题或一个问题…",
