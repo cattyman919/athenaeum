@@ -122,6 +122,7 @@ erDiagram
         text dewey_num
         text loc_num
         text cover_url
+        bool embedding_dirty "auto-index backlog"
     }
     book_copies {
         uuid id PK
@@ -238,10 +239,12 @@ CREATE TABLE books (
   dewey_num       TEXT,
   loc_num         TEXT,
   section_id      UUID REFERENCES sections(id),       -- default wayfinding section
+  embedding_dirty BOOL NOT NULL DEFAULT false,        -- auto-index worker backlog (docs/06 §2)
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX books_isbn13_key ON books (isbn13) WHERE isbn13 IS NOT NULL;
+CREATE INDEX books_embedding_dirty_idx ON books (embedding_dirty) WHERE embedding_dirty;
 ```
 
 ### book_copies

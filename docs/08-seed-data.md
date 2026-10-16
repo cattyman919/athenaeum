@@ -186,8 +186,13 @@ better-known works, neutral editorial blurb templates for archive items
 3. exit summary: indexed_books, chunks_written, stale_chunks
 ```
 
-Trigger manually after changing `OLLAMA_EMBED_DIM`/model or `chunker_version`
-(columns documented in [02 §book_embeddings](02-data-model.md#book_embeddings)).
+Trigger manually for full runs: after changing `OLLAMA_EMBED_DIM`/model or
+`chunker_version` (columns documented in [02 §book_embeddings](02-data-model.md#book_embeddings)),
+and after `cmd/seed` (seed leaves `embedding_dirty=false` by design — decided 2026-10-16).
+Admin book create and RAG-field patches (`title`/`authors`/`description`) set
+`embedding_dirty=true`; the auto-index worker ([06 §2](06-ai-rag.md#2-rag-pipeline))
+re-embeds them within ~5 s. Until the worker lands, `make reindex --book={id}` is
+the manual step for admin edits.
 
 ## 8. Failure Modes
 

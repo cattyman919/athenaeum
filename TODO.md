@@ -62,8 +62,7 @@ Local `make e2e` = 75 passing (2026-10-16). Check `gh run list` for CI on the la
 1. **Done 2026-10-16:** Phase 14 patron + staff barcode scanner (§17, implementation-plan M13) and ghost-text interim
    voice in the composer (Phase 12, [docs/15 §2a](docs/15-voice-input.md#2a-live-interim-transcript)).
 2. Remaining M12 items: one-command demo from clean volumes (`docker compose down -v` then README quickstart — not run, it wipes Ollama/Whisper models), manual bilingual QA, real OpenRouter turn (en + zh-CN).
-3. Open decisions: `copy_events` rows cascade-delete with a copy (docs/03 §8.3 says audit keeps its last row); new/edited books
-   are not re-embedded until `cmd/reindex`; `/api/library` rating missing from book detail `my_library_entry`.
+3. Decided 2026-10-16 (docs 03 §5.2/§8.3, 06 §2, 08 §7): copy delete cascades `copy_events` history; book detail `my_library_entry` gains nullable `rating` (implement next); re-embed freshness is a dirty-flag + background worker (`make reindex --book={id}` until it lands).
    **Resolved 2026-10-15:** `fetch-isbn` is now documented 👑 admin-only (the patron path is `POST /api/books/scan`).
 4. zh RAG note (docs/06 §2 English-only embeddings) remains a documented deferral.
 5. E2E rate limits: specs share two seeded accounts; `web/e2e/rate-limit.ts` clears `rl:*` in `beforeAll` of heavy specs.

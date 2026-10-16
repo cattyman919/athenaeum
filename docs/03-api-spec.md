@@ -257,10 +257,11 @@ Response 200:
   "neighbors": [
     { "id": "b3aa…", "title": "Hyperion", "authors": ["Dan Simmons"], "cover_url": "…" }
   ],
-  "my_library_entry": { "status": "reading", "is_favorite": false }
+  "my_library_entry": { "status": "reading", "is_favorite": false, "rating": null }
 }
 ```
 
+- `my_library_entry` carries the caller's `user_library` state: `status`, `is_favorite`, and `rating` (1–5 or `null`; decided 2026-10-16 — matches the `/api/library` item shape; `progress_pct` stays library-list-only).
 - `wayfinding.parts` (and the same object at `copies[].location.parts`) is the **structured** form of
   the ladder (additive; always present wherever `location`/`wayfinding` is non-null, all ten keys
   populated). The web composes localized wayfinding text from it
@@ -563,7 +564,7 @@ plus `updated_at`).
 - `PATCH /api/admin/copies/{id}` body `{"status":"checked_out","shelf_id":"…","condition":"missing"}`
   → 200; appends `copy_events` row (`from_status ≠ to_status` recorded). Barcode is
   immutable once registered ([13](08-seed-data.md#5-barcode-allocation)).
-- `DELETE /api/admin/copies/{id}` → 204 (hard delete; audit keeps its last event row).
+- `DELETE /api/admin/copies/{id}` → 204 (hard delete; `copy_events` rows cascade-delete with the copy — decided 2026-10-16, matches migration 0002 `ON DELETE CASCADE`; the admin audit stream shows only surviving copies' events).
 
 Barcode state machine semantics: [12-ui-design.md](./12-ui-design.md#10-copy-state-machine).
 

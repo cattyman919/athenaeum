@@ -34,8 +34,20 @@ flowchart LR
 
 ## 2. RAG Pipeline
 
-Indexing side runs in `cmd/reindex` ([08 §reindex](08-seed-data.md#7-reindex)); query
+Indexing side: `cmd/reindex` full runs plus an in-process auto-index worker that
+re-embeds admin-created/edited books ([08 §7](08-seed-data.md#7-reindex)); query
 side runs inside the agent turn.
+
+> Decided 2026-10-16: freshness is a dirty-flag + background worker. Design:
+> in-process goroutine in `cmd/api` (like the waitlist sweeper); `books.embedding_dirty`
+> set by admin create and by patch touching `title`/`authors`/`description` only
+> (cover/section/year edits skip reindex); `cmd/seed` leaves dirty=false (full manual
+> reindex after seed stays required); worker handles dirty books only — model/chunker
+> upgrades still need a manual full reindex. Wake-up is notify (non-blocking channel
+> send from admin writes) + poll fallback every 5s (crash/restart self-heal); one
+> `Indexer.Run(bookID)` per dirty book per tick; Ollama down keeps dirty + retries
+> with backoff — the book stays keyword-searchable, admin request still succeeds;
+> observability is structured slog lines (start/success/failure + pending count).
 
 ```mermaid
 flowchart LR
