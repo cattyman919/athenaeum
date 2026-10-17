@@ -35,3 +35,23 @@ func (h *ISBNHandler) FetchISBN(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, md)
 }
+
+type identifyISBNRequest struct {
+	ISBN string `json:"isbn"`
+}
+
+// Identify handles POST /api/books/identify-isbn (docs/03 §5.5).
+// Available to any signed-in user; never returns 5xx for upstream trouble.
+func (h *ISBNHandler) Identify(c *gin.Context) {
+	var req identifyISBNRequest
+	if err := c.ShouldBindJSON(&req); err != nil || req.ISBN == "" {
+		RespondError(c, model.New(model.CodeValidationFailed, "isbn is required."))
+		return
+	}
+	result, err := h.svc.Identify(c.Request.Context(), req.ISBN)
+	if err != nil {
+		RespondError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}

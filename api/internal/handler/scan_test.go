@@ -111,6 +111,43 @@ func (s *stubCircRepo) CountOpenLoansByUser(_ context.Context, _ uuid.UUID) (int
 	return 0, nil
 }
 
+func (s *stubCircRepo) BorrowCopyForBook(_ context.Context, actor, id uuid.UUID, now time.Time) (model.BorrowData, error) {
+	s.gotActor = actor
+	switch id {
+	case s.knownBorrow:
+		loanID := uuid.New()
+		dueAt := now.Add(model.LoanPeriod)
+		return model.BorrowData{
+			Loan:  model.LoanDetail{ID: loanID, CopyID: uuid.New(), UserID: actor, BorrowedAt: now, DueAt: dueAt, Renewals: 0, Renewable: true},
+			Copy:  model.AdminCopy{ID: uuid.New(), Barcode: "ATH-002941-C01", Status: model.CopyCheckedOut, Condition: "good", LastStateChange: now},
+			Total: 2, Available: 1, Statuses: []string{model.CopyAvailable, model.CopyCheckedOut},
+		}, nil
+	case uuid.Nil:
+		return model.BorrowData{}, model.New(model.CodeNotFound, "Book not found.")
+	default:
+		return model.BorrowData{}, model.New(model.CodeConflict, "No copy available to borrow for this book.")
+	}
+}
+
+func (s *stubCircRepo) ReturnCopyForBook(_ context.Context, actor, id uuid.UUID, now time.Time) (model.ReturnData, error) {
+	s.gotActor = actor
+	switch id {
+	case s.knownReturn:
+		return model.ReturnData{
+			Copy:  model.AdminCopy{ID: uuid.New(), Barcode: "ATH-002941-C01", Status: model.CopyAvailable, Condition: "good", LastStateChange: now},
+			Total: 2, Available: 2, Statuses: []string{model.CopyAvailable},
+		}, nil
+	case uuid.Nil:
+		return model.ReturnData{}, model.New(model.CodeNotFound, "Book not found.")
+	default:
+		return model.ReturnData{}, model.New(model.CodeConflict, "You have no open loan for this book.")
+	}
+}
+
+func (s *stubCircRepo) BookBorrowInfo(_ context.Context, _, _ uuid.UUID) (bool, *model.ScanBorrowCopy, bool, []model.ScanMyLoan, error) {
+	return false, nil, false, []model.ScanMyLoan{}, nil
+}
+
 type scanFixture struct {
 	h      http.Handler
 	cookie *http.Cookie
@@ -175,19 +212,23 @@ func TestScanEndpoint(t *testing.T) {
 	}
 	var body map[string]any
 	_ = json.Unmarshal(rec.Body.Bytes(), &body)
-	// Now 11 keys: 9 original + borrowable + loan (docs/03 §5.4).
+	// Now 13 keys: 9 original + borrowable + loan + borrow_copy + my_loans (plan M21).
 	for _, k := range []string{"code", "code_type", "in_catalog", "match", "book", "copy",
-		"availability", "wayfinding", "returnable", "borrowable", "loan"} {
+		"availability", "wayfinding", "returnable", "borrowable", "loan", "borrow_copy", "my_loans"} {
 		if _, ok := body[k]; !ok {
 			t.Errorf("missing key %q in scan response", k)
 		}
 	}
-	if len(body) != 11 {
+	if len(body) != 13 {
 		t.Errorf("unexpected keys (%d): %v", len(body), body)
 	}
 	if body["code"] != "9780441013593" || body["code_type"] != "isbn13" || body["match"] != "book" || body["in_catalog"] != true ||
-		body["copy"] != nil || body["returnable"] != false || body["borrowable"] != false || body["loan"] != nil {
+		body["copy"] != nil || body["returnable"] != false || body["borrowable"] != false || body["loan"] != nil ||
+		body["borrow_copy"] != nil {
 		t.Fatalf("body %v", body)
+	}
+	if loans, ok := body["my_loans"].([]any); !ok || len(loans) != 0 {
+		t.Fatalf("my_loans: %v", body["my_loans"])
 	}
 	book := body["book"].(map[string]any)
 	if book["title"] != "Dune" || len(book) != 6 {
@@ -379,6 +420,72 @@ func TestListLoansEndpoint(t *testing.T) {
 	}
 }
 
+// ── POST /api/books/{id}/borrow ───────────────────────────────────────────────
+
+func TestBorrowByBookEndpoint(t *testing.T) {
+	f := scanApp(t, false)
+
+	// Unauthenticated → 401.
+	if rec := post(f.h, "/api/books/"+f.circ.knownBorrow.String()+"/borrow", "", nil); rec.Code != 401 {
+		t.Fatalf("anon: %d", rec.Code)
+	}
+
+	// Known book → 201 with loan + copy + availability.
+	rec := post(f.h, "/api/books/"+f.circ.knownBorrow.String()+"/borrow", "", f.cookie)
+	if rec.Code != 201 {
+		t.Fatalf("201 expected: %d %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Loan         map[string]any `json:"loan"`
+		Copy         map[string]any `json:"copy"`
+		Availability map[string]any `json:"availability"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Loan == nil || body.Copy == nil || body.Availability == nil {
+		t.Fatalf("envelope: %s", rec.Body)
+	}
+	for _, k := range []string{"id", "copy_id", "user_id", "borrowed_at", "due_at", "renewals", "renewable"} {
+		if _, ok := body.Loan[k]; !ok {
+			t.Errorf("loan missing %q", k)
+		}
+	}
+
+	// No copy available → 409 CONFLICT.
+	rec = post(f.h, "/api/books/"+uuid.NewString()+"/borrow", "", f.cookie)
+	if rec.Code != 409 || errCode(t, rec) != "CONFLICT" {
+		t.Fatalf("conflict: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// ── POST /api/books/{id}/return ───────────────────────────────────────────────
+
+func TestReturnByBookEndpoint(t *testing.T) {
+	f := scanApp(t, false)
+
+	// Unauthenticated → 401.
+	if rec := post(f.h, "/api/books/"+f.circ.knownReturn.String()+"/return", "", nil); rec.Code != 401 {
+		t.Fatalf("anon: %d", rec.Code)
+	}
+
+	// Known book → 200 with copy + availability.
+	rec := post(f.h, "/api/books/"+f.circ.knownReturn.String()+"/return", "", f.cookie)
+	if rec.Code != 200 {
+		t.Fatalf("200 expected: %d %s", rec.Code, rec.Body)
+	}
+	var body struct {
+		Copy         map[string]any `json:"copy"`
+		Availability map[string]any `json:"availability"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body.Copy == nil || body.Availability == nil {
+		t.Fatalf("envelope: %s", rec.Body)
+	}
+
+	// No loan → 409 CONFLICT.
+	rec = post(f.h, "/api/books/"+uuid.NewString()+"/return", "", f.cookie)
+	if rec.Code != 409 || errCode(t, rec) != "CONFLICT" {
+		t.Fatalf("conflict: %d %s", rec.Code, rec.Body)
+	}
+}
+
 // ── Rate limits ───────────────────────────────────────────────────────────────
 
 func TestScanAndReturnRateLimits(t *testing.T) {
@@ -420,6 +527,17 @@ func TestScanAndReturnRateLimits(t *testing.T) {
 	}
 	if !f.mr.Exists("rl:copy_borrow:u:"+f.user.String()) || !f.mr.Exists("rl:copy_renew:u:"+f.user.String()) {
 		t.Fatalf("borrow/renew keys missing in %v", f.mr.Keys())
+	}
+	// Book borrow/return reuse copy_borrow/copy_return buckets (plan M21);
+	// verify the X-RateLimit-Limit header regardless of whether the bucket
+	// is already exhausted (it may be after the 10 copy-return calls above).
+	bbPath := "/api/books/" + f.circ.knownBorrow.String() + "/borrow"
+	if rec := post(f.h, bbPath, "", f.cookie); rec.Header().Get("X-RateLimit-Limit") != "10" {
+		t.Fatalf("book borrow limit header: %d hdr=%s", rec.Code, rec.Header().Get("X-RateLimit-Limit"))
+	}
+	brPath := "/api/books/" + f.circ.knownReturn.String() + "/return"
+	if rec := post(f.h, brPath, "", f.cookie); rec.Header().Get("X-RateLimit-Limit") != "10" {
+		t.Fatalf("book return limit header: %d hdr=%s", rec.Code, rec.Header().Get("X-RateLimit-Limit"))
 	}
 	for _, k := range f.mr.Keys() {
 		if strings.HasPrefix(k, "rl:general") {

@@ -55,6 +55,11 @@ func (s *Service) Detail(ctx context.Context, id string, userID uuid.UUID) (mode
 func assembleDetail(data model.BookDetailData) model.BookDetail {
 	d := data.Detail
 	d.Availability.State = AvailabilityState(d.Availability.TotalCopies, d.Availability.AvailableCopies, data.Statuses)
+	if data.Isbns != nil {
+		d.Isbns = data.Isbns
+	} else {
+		d.Isbns = []model.ISBNRef{}
+	}
 
 	// Home shelf: prefer an available copy that has a shelf, else any shelved copy.
 	var home *model.LocationRow

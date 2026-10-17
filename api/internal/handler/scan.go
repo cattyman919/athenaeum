@@ -41,20 +41,60 @@ func (h *ScanHandler) Scan(c *gin.Context) {
 		return
 	}
 
-	// Enrich copy-tag matches with loan info and borrowable flag (docs/03 §5.4).
-	if res.Match == model.ScanMatchCopy && res.Copy != nil && h.circulation != nil {
-		uid, _ := middleware.UserID(c)
-		if loan, lerr := h.circulation.GetOpenLoan(c.Request.Context(), res.Copy.ID, uid); lerr == nil {
-			res.Loan = loan
+	uid, _ := middleware.UserID(c)
+	isAuthed := uid.String() != "00000000-0000-0000-0000-000000000000"
+
+	if h.circulation != nil {
+		if res.Match == model.ScanMatchCopy && res.Copy != nil {
+			// Enrich copy-tag matches with loan info and borrowable flag (docs/03 §5.4).
+			if loan, lerr := h.circulation.GetOpenLoan(c.Request.Context(), res.Copy.ID, uid); lerr == nil {
+				res.Loan = loan
+			}
+			if res.Copy.Status == model.CopyAvailable && isAuthed {
+				if count, cerr := h.circulation.CountOpenLoans(c.Request.Context(), uid); cerr == nil {
+					res.Borrowable = count < model.MaxOpenLoans
+				}
+			}
 		}
-		// borrowable: copy is available AND caller is under the borrow limit.
-		if res.Copy.Status == model.CopyAvailable && uid.String() != "00000000-0000-0000-0000-000000000000" {
-			if count, cerr := h.circulation.CountOpenLoans(c.Request.Context(), uid); cerr == nil {
-				res.Borrowable = count < model.MaxOpenLoans
+		if res.Match == model.ScanMatchBook && res.Book != nil {
+			// Enrich book-ISBN matches with borrow/return fields (plan M21, docs/03 §5.4).
+			borrowable, borrowCopy, returnable, myLoans, berr := h.circulation.GetBookBorrowInfo(
+				c.Request.Context(), res.Book.ID, uid)
+			if berr == nil {
+				res.Borrowable = borrowable
+				res.BorrowCopy = borrowCopy
+				res.Returnable = returnable
+				if myLoans == nil {
+					res.MyLoans = []model.ScanMyLoan{}
+				} else {
+					res.MyLoans = myLoans
+				}
 			}
 		}
 	}
 
+	c.JSON(http.StatusOK, res)
+}
+
+// BorrowBook handles POST /api/books/{id}/borrow (plan M21, docs/03 §6.8).
+func (h *ScanHandler) BorrowBook(c *gin.Context) {
+	uid, _ := middleware.UserID(c)
+	res, err := h.circulation.BorrowBook(c.Request.Context(), uid, c.Param("id"))
+	if err != nil {
+		RespondError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, res)
+}
+
+// ReturnBook handles POST /api/books/{id}/return (plan M21, docs/03 §6.9).
+func (h *ScanHandler) ReturnBook(c *gin.Context) {
+	uid, _ := middleware.UserID(c)
+	res, err := h.circulation.ReturnBook(c.Request.Context(), uid, c.Param("id"))
+	if err != nil {
+		RespondError(c, err)
+		return
+	}
 	c.JSON(http.StatusOK, res)
 }
 

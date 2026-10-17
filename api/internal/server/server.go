@@ -62,6 +62,8 @@ var specificBucketRoutes = map[string]bool{
 	"POST /api/copies/:id/return":   true,
 	"POST /api/copies/:id/borrow":   true,
 	"POST /api/copies/:id/renew":    true,
+	"POST /api/books/:id/borrow":    true,
+	"POST /api/books/:id/return":    true,
 }
 
 func isSpecific(c *gin.Context) bool {
@@ -140,6 +142,9 @@ func NewRouter(d Deps) *gin.Engine {
 			api.POST("/copies/:id/borrow", requireAuth, limit(middleware.BucketCopyBorrow), sh.Borrow)
 			api.POST("/copies/:id/renew", requireAuth, limit(middleware.BucketCopyRenew), sh.Renew)
 			api.GET("/loans", requireAuth, sh.ListLoans)
+			// Borrow/return by book (plan M21); reuse copy borrow/return buckets.
+			api.POST("/books/:id/borrow", requireAuth, limit(middleware.BucketCopyBorrow), sh.BorrowBook)
+			api.POST("/books/:id/return", requireAuth, limit(middleware.BucketCopyReturn), sh.ReturnBook)
 		}
 	}
 
@@ -194,6 +199,9 @@ func NewRouter(d Deps) *gin.Engine {
 		ad.POST("/books", adm.CreateBook)
 		ad.PATCH("/books/:id", adm.PatchBook)
 		ad.DELETE("/books/:id", adm.DeleteBook)
+		ad.POST("/books/:id/isbns", adm.AttachISBN)
+		ad.DELETE("/books/:id/isbns/:isbn13", adm.DetachISBN)
+		ad.POST("/books/:id/merge", adm.MergeBooks)
 		ad.POST("/copies", adm.AddCopy)
 		ad.PATCH("/copies/:id", adm.PatchCopy)
 		ad.DELETE("/copies/:id", adm.DeleteCopy)

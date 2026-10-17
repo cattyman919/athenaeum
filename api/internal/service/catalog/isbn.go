@@ -15,10 +15,13 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/service/olbooks"
 )
 
-// Intake sources (docs/03 §5.3, docs/08 §6).
+// Intake sources (docs/03 §5.3, §5.5, docs/08 §6).
 const (
 	SourceOpenLibrary    = "openlibrary"
 	SourceOfflinePartial = "offline_partial"
+	// SourceLocal indicates the ISBN was found in the local catalog
+	// without hitting Open Library (docs/03 §5.5).
+	SourceLocal = "local"
 
 	// WarnUpstreamUnavailable marks a partial record after Open Library failed.
 	WarnUpstreamUnavailable = "upstream_unavailable"
@@ -55,9 +58,10 @@ type ISBNCache interface {
 	Set(ctx context.Context, isbn13 string, val []byte, ttl time.Duration) error
 }
 
-// ISBNRepository finds existing catalog rows by ISBN.
+// ISBNRepository finds existing catalog rows by ISBN and locates similar books.
 type ISBNRepository interface {
 	BookIDByISBN(ctx context.Context, isbn13 string) (uuid.UUID, bool, error)
+	SimilarBooks(ctx context.Context, title string, authors []string) ([]model.SimilarBook, error)
 }
 
 // ISBNService implements POST /api/books/fetch-isbn (docs/03 §5.3).
@@ -94,6 +98,7 @@ func (s *ISBNService) FetchISBN(ctx context.Context, raw string) (model.ISBNMeta
 	}
 
 	if md, ok := s.cached(ctx, isbn); ok {
+		md.Similar = s.loadSimilar(ctx, md.Title, md.Authors)
 		return md, nil
 	}
 
@@ -102,6 +107,7 @@ func (s *ISBNService) FetchISBN(ctx context.Context, raw string) (model.ISBNMeta
 	case err == nil:
 		md := fromOpenLibrary(isbn, meta)
 		s.store(ctx, isbn, md)
+		md.Similar = s.loadSimilar(ctx, md.Title, md.Authors)
 		return md, nil
 	case errors.Is(err, olbooks.ErrNotFound):
 		return partial(isbn, WarnNotFound), nil
@@ -109,6 +115,23 @@ func (s *ISBNService) FetchISBN(ctx context.Context, raw string) (model.ISBNMeta
 		s.log.WarnContext(ctx, "fetch-isbn upstream unavailable", "isbn", isbn, "err", err)
 		return partial(isbn, WarnUpstreamUnavailable), nil
 	}
+}
+
+// loadSimilar queries for catalog books with the same normalized title and ≥1 shared author.
+// Failures are silenced (similar is best-effort; the intake can still proceed).
+func (s *ISBNService) loadSimilar(ctx context.Context, title string, authors []string) []model.SimilarBook {
+	if title == "" || len(authors) == 0 {
+		return []model.SimilarBook{}
+	}
+	sim, err := s.repo.SimilarBooks(ctx, title, authors)
+	if err != nil {
+		s.log.WarnContext(ctx, "similar books query failed", "err", err)
+		return []model.SimilarBook{}
+	}
+	if sim == nil {
+		return []model.SimilarBook{}
+	}
+	return sim
 }
 
 func (s *ISBNService) cached(ctx context.Context, isbn string) (model.ISBNMetadata, bool) {
@@ -164,6 +187,7 @@ func fromOpenLibrary(isbn string, m olbooks.Metadata) model.ISBNMetadata {
 		Source:         SourceOpenLibrary,
 		Covers:         []string{},
 		Warnings:       []string{},
+		Similar:        []model.SimilarBook{},
 	}
 	if m.CoverURL != "" {
 		md.Covers = []string{m.CoverURL}
@@ -186,5 +210,92 @@ func partial(isbn, warning string) model.ISBNMetadata {
 		Source:   SourceOfflinePartial,
 		Covers:   []string{},
 		Warnings: []string{warning},
+		Similar:  []model.SimilarBook{},
+	}
+}
+
+// Identify validates the ISBN, checks the local catalog, then calls Open
+// Library (via the shared Redis cache) and maps to patron-safe fields
+// (docs/03 §5.5). Upstream failures and offline mode never return 5xx: they
+// yield identified:null + source:"offline_partial" + a warnings entry.
+func (s *ISBNService) Identify(ctx context.Context, raw string) (model.IdentifyResult, error) {
+	isbn, err := ValidateISBN(raw)
+	if err != nil {
+		return model.IdentifyResult{}, err
+	}
+
+	// Already in catalog → skip upstream (docs/03 §5.5).
+	id, found, err := s.repo.BookIDByISBN(ctx, isbn)
+	if err != nil {
+		return model.IdentifyResult{}, err
+	}
+	if found {
+		idStr := id.String()
+		return model.IdentifyResult{
+			ISBN13:     isbn,
+			InCatalog:  true,
+			BookID:     &idStr,
+			Identified: nil,
+			Source:     SourceLocal,
+			Warnings:   []string{},
+		}, nil
+	}
+
+	// Reuse the shared cache (same Redis key written by admin intake).
+	if md, ok := s.cached(ctx, isbn); ok {
+		return identifyFromMetadata(isbn, md), nil
+	}
+
+	// Hit Open Library and cache the result on success.
+	meta, err := s.lookup.Lookup(ctx, isbn)
+	switch {
+	case err == nil:
+		md := fromOpenLibrary(isbn, meta)
+		s.store(ctx, isbn, md)
+		return identifyFromMetadata(isbn, md), nil
+	case errors.Is(err, olbooks.ErrNotFound):
+		return identifyPartial(isbn, WarnNotFound), nil
+	default:
+		s.log.WarnContext(ctx, "identify-isbn upstream unavailable", "isbn", isbn, "err", err)
+		return identifyPartial(isbn, WarnUpstreamUnavailable), nil
+	}
+}
+
+// identifyFromMetadata maps a full ISBNMetadata (admin intake shape) to the
+// patron-safe IdentifyResult, omitting dewey/loc/description.
+func identifyFromMetadata(isbn string, md model.ISBNMetadata) model.IdentifyResult {
+	authors := md.Authors
+	if authors == nil {
+		authors = []string{}
+	}
+	warnings := md.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
+	return model.IdentifyResult{
+		ISBN13:    isbn,
+		InCatalog: false,
+		BookID:    nil,
+		Identified: &model.ISBNIdentification{
+			Title:         md.Title,
+			Authors:       authors,
+			Publisher:     md.Publisher,
+			PublishedYear: md.PublishedYear,
+			CoverURL:      md.CoverURL,
+		},
+		Source:   md.Source,
+		Warnings: warnings,
+	}
+}
+
+// identifyPartial returns a 200 result when OL has no record or is unavailable.
+func identifyPartial(isbn, warning string) model.IdentifyResult {
+	return model.IdentifyResult{
+		ISBN13:     isbn,
+		InCatalog:  false,
+		BookID:     nil,
+		Identified: nil,
+		Source:     SourceOfflinePartial,
+		Warnings:   []string{warning},
 	}
 }

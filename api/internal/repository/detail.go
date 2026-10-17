@@ -87,6 +87,27 @@ func (r *CatalogRepository) Detail(ctx context.Context, id uuid.UUID, userID uui
 	if err != nil {
 		return model.BookDetailData{}, err
 	}
+
+	// Load ISBNs from book_isbns (primary first).
+	isbnRows, err := r.pool.Query(ctx,
+		`SELECT isbn13, is_primary FROM book_isbns WHERE book_id = $1 ORDER BY is_primary DESC, isbn13`, id)
+	if err != nil {
+		return model.BookDetailData{}, fmt.Errorf("book_isbns: %w", err)
+	}
+	data.Isbns = []model.ISBNRef{}
+	for isbnRows.Next() {
+		var ref model.ISBNRef
+		if err := isbnRows.Scan(&ref.ISBN13, &ref.IsPrimary); err != nil {
+			isbnRows.Close()
+			return model.BookDetailData{}, err
+		}
+		data.Isbns = append(data.Isbns, ref)
+	}
+	isbnRows.Close()
+	if err := isbnRows.Err(); err != nil {
+		return model.BookDetailData{}, err
+	}
+
 	if userID != uuid.Nil {
 		var e model.LibraryEntryRef
 		err := r.pool.QueryRow(ctx, `SELECT status, is_favorite, rating FROM user_library WHERE user_id = $1 AND book_id = $2`,

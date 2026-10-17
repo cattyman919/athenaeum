@@ -17,6 +17,9 @@ import (
 type Repository interface {
 	ReturnCopy(ctx context.Context, actor, copyID uuid.UUID, now time.Time) (model.ReturnData, error)
 	BorrowCopy(ctx context.Context, actor, copyID uuid.UUID, now time.Time) (model.BorrowData, error)
+	BorrowCopyForBook(ctx context.Context, actor, bookID uuid.UUID, now time.Time) (model.BorrowData, error)
+	ReturnCopyForBook(ctx context.Context, actor, bookID uuid.UUID, now time.Time) (model.ReturnData, error)
+	BookBorrowInfo(ctx context.Context, bookID, callerID uuid.UUID) (borrowable bool, borrowCopy *model.ScanBorrowCopy, returnable bool, myLoans []model.ScanMyLoan, err error)
 	RenewLoan(ctx context.Context, actor, copyID uuid.UUID, now time.Time) (model.RenewData, error)
 	ListLoans(ctx context.Context, userID uuid.UUID, now time.Time) ([]model.LoanItem, model.LoansMeta, error)
 	OpenLoanByCopy(ctx context.Context, copyID, callerID uuid.UUID) (*model.ScanLoanRef, error)
@@ -117,6 +120,73 @@ func (s *Service) Renew(ctx context.Context, actor uuid.UUID, copyID string) (mo
 			Renewable: d.Renewals < model.MaxRenewals,
 		},
 	}, nil
+}
+
+// BorrowBook picks a copy of the given book and borrows it (plan M21, docs/03 §6.8).
+// The copy selection order: caller's reserved_waitlist copy first, else lowest barcode available.
+// CONFLICT when no copy is borrowable; BORROW_LIMIT when at limit; NOT_FOUND for bad id.
+func (s *Service) BorrowBook(ctx context.Context, actor uuid.UUID, bookID string) (model.BorrowResult, error) {
+	bid, err := uuid.Parse(bookID)
+	if err != nil {
+		return model.BorrowResult{}, model.New(model.CodeNotFound, "Book not found.")
+	}
+	d, err := s.repo.BorrowCopyForBook(ctx, actor, bid, s.now().UTC())
+	if err != nil {
+		return model.BorrowResult{}, err
+	}
+	res := model.BorrowResult{
+		Loan: d.Loan,
+		Copy: model.ReturnedCopy{
+			ID: d.Copy.ID, Barcode: d.Copy.Barcode, Status: d.Copy.Status, Condition: d.Copy.Condition,
+			LastStateChange: d.Copy.LastStateChange,
+		},
+		Availability: model.DetailAvailability{
+			TotalCopies:     d.Total,
+			AvailableCopies: d.Available,
+			State:           catalog.AvailabilityState(d.Total, d.Available, d.Statuses),
+		},
+	}
+	if d.Location != nil {
+		res.Copy.Location = catalog.LocationWayfinding(*d.Location)
+	}
+	return res, nil
+}
+
+// ReturnBook closes the caller's oldest open loan for any copy of the given book (plan M21, docs/03 §6.9).
+// CONFLICT when no open loan; NOT_FOUND for bad id.
+func (s *Service) ReturnBook(ctx context.Context, actor uuid.UUID, bookID string) (model.ReturnResult, error) {
+	bid, err := uuid.Parse(bookID)
+	if err != nil {
+		return model.ReturnResult{}, model.New(model.CodeNotFound, "Book not found.")
+	}
+	d, err := s.repo.ReturnCopyForBook(ctx, actor, bid, s.now().UTC())
+	if err != nil {
+		return model.ReturnResult{}, err
+	}
+	res := model.ReturnResult{
+		Copy: model.ReturnedCopy{
+			ID: d.Copy.ID, Barcode: d.Copy.Barcode, Status: d.Copy.Status, Condition: d.Copy.Condition,
+			LastStateChange: d.Copy.LastStateChange,
+		},
+		Availability: model.DetailAvailability{
+			TotalCopies:     d.Total,
+			AvailableCopies: d.Available,
+			State:           catalog.AvailabilityState(d.Total, d.Available, d.Statuses),
+		},
+		Hold:       d.Hold,
+		ClosedLoan: d.ClosedLoan,
+	}
+	if d.Location != nil {
+		res.Copy.Location = catalog.LocationWayfinding(*d.Location)
+	}
+	return res, nil
+}
+
+// GetBookBorrowInfo returns the borrow_copy and my_loans fields for a scan book-match result (plan M21).
+func (s *Service) GetBookBorrowInfo(ctx context.Context, bookID, callerID uuid.UUID) (
+	borrowable bool, borrowCopy *model.ScanBorrowCopy, returnable bool, myLoans []model.ScanMyLoan, err error,
+) {
+	return s.repo.BookBorrowInfo(ctx, bookID, callerID)
 }
 
 // ListLoans returns the caller's loans, active first then past.

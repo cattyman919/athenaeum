@@ -356,3 +356,217 @@ func (r *CirculationRepository) CountOpenLoansByUser(ctx context.Context, userID
 	}
 	return n, nil
 }
+
+// BorrowCopyForBook picks the best available copy for a book and borrows it (plan M21,
+// docs/03 §6.8): caller's reserved_waitlist copy first, else lowest barcode available copy.
+// Uses SELECT … FOR UPDATE SKIP LOCKED to handle concurrent requests.
+func (r *CirculationRepository) BorrowCopyForBook(ctx context.Context, actor, bookID uuid.UUID, now time.Time) (model.BorrowData, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return model.BorrowData{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Enforce borrow limit first (cheap check before locking copies).
+	var openLoans int
+	if err := tx.QueryRow(ctx,
+		`SELECT count(*) FROM loans WHERE user_id = $1 AND returned_at IS NULL`, actor).Scan(&openLoans); err != nil {
+		return model.BorrowData{}, fmt.Errorf("count loans: %w", err)
+	}
+	if openLoans >= model.MaxOpenLoans {
+		return model.BorrowData{}, model.New(model.CodeBorrowLimit, "You already have 5 loans").
+			WithExtra(map[string]any{"limit": model.MaxOpenLoans})
+	}
+
+	// Pick the best copy: caller's reserved_waitlist copy first, else lowest barcode available.
+	// FOR UPDATE SKIP LOCKED prevents two concurrent book borrows from picking the same copy.
+	var copyID uuid.UUID
+	var from string
+	err = tx.QueryRow(ctx, `
+		SELECT id, status FROM book_copies
+		WHERE book_id = $1
+		  AND (
+		    (status = 'reserved_waitlist'
+		     AND EXISTS (
+		       SELECT 1 FROM waitlist w
+		       WHERE w.book_id = $1 AND w.user_id = $2 AND w.status = 'ready'))
+		    OR status = 'available'
+		  )
+		ORDER BY
+		  (status = 'reserved_waitlist'
+		   AND EXISTS (
+		     SELECT 1 FROM waitlist w
+		     WHERE w.book_id = $1 AND w.user_id = $2 AND w.status = 'ready')) DESC,
+		  barcode ASC
+		LIMIT 1
+		FOR UPDATE SKIP LOCKED`, bookID, actor).Scan(&copyID, &from)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.BorrowData{}, model.New(model.CodeConflict, "No copy available to borrow for this book.")
+	}
+	if err != nil {
+		return model.BorrowData{}, fmt.Errorf("pick copy: %w", err)
+	}
+
+	// If picking the hold copy, mark it picked_up.
+	if from == model.CopyReservedWaitlist {
+		if _, err := tx.Exec(ctx,
+			`UPDATE waitlist SET status = 'picked_up', updated_at = now()
+			 WHERE book_id = $1 AND user_id = $2 AND status = 'ready'`,
+			bookID, actor); err != nil {
+			return model.BorrowData{}, fmt.Errorf("pick up hold: %w", err)
+		}
+	}
+
+	// Insert loan row.
+	loanID := uuid.New()
+	dueAt := now.Add(model.LoanPeriod)
+	data := model.BorrowData{
+		Loan: model.LoanDetail{
+			ID: loanID, CopyID: copyID, UserID: actor,
+			BorrowedAt: now, DueAt: dueAt, Renewals: 0, Renewable: true,
+		},
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO loans (id, copy_id, user_id, borrowed_at, due_at, renewals) VALUES ($1,$2,$3,$4,$5,0)`,
+		loanID, copyID, actor, now, dueAt); err != nil {
+		return model.BorrowData{}, fmt.Errorf("insert loan: %w", err)
+	}
+
+	// Update the copy.
+	if _, err := tx.Exec(ctx,
+		`UPDATE book_copies SET status = 'checked_out', last_state_change = $2, updated_at = now() WHERE id = $1`,
+		copyID, now); err != nil {
+		return model.BorrowData{}, fmt.Errorf("update copy: %w", err)
+	}
+
+	// Append copy_event.
+	var actorID *uuid.UUID
+	if actor != uuid.Nil {
+		actorID = &actor
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO copy_events (copy_id, from_status, to_status, source, actor_id) VALUES ($1,$2,$3,$4,$5)`,
+		copyID, from, model.CopyCheckedOut, model.SourceSelfCheckout, actorID); err != nil {
+		return model.BorrowData{}, fmt.Errorf("copy event: %w", err)
+	}
+
+	// Load fresh copy+location.
+	if data.Copy, data.Location, err = loadCopy(ctx, tx, copyID); err != nil {
+		return model.BorrowData{}, err
+	}
+	// Book availability counts.
+	if err := tx.QueryRow(ctx, `
+		SELECT count(*)::int, (count(*) FILTER (WHERE status = 'available'))::int,
+		       COALESCE(array_agg(DISTINCT status), '{}')
+		FROM book_copies WHERE book_id = $1`, bookID).Scan(&data.Total, &data.Available, &data.Statuses); err != nil {
+		return model.BorrowData{}, fmt.Errorf("availability: %w", err)
+	}
+	return data, tx.Commit(ctx)
+}
+
+// ReturnCopyForBook closes the caller's oldest open loan for any copy of the given book
+// (plan M21, docs/03 §6.9). Returns CONFLICT when no open loan exists.
+func (r *CirculationRepository) ReturnCopyForBook(ctx context.Context, actor, bookID uuid.UUID, now time.Time) (model.ReturnData, error) {
+	// Find caller's oldest open loan for a copy of this book.
+	var copyID uuid.UUID
+	err := r.pool.QueryRow(ctx, `
+		SELECT l.copy_id FROM loans l
+		JOIN book_copies bc ON bc.id = l.copy_id
+		WHERE bc.book_id = $1 AND l.user_id = $2 AND l.returned_at IS NULL
+		ORDER BY l.borrowed_at ASC, l.id ASC
+		LIMIT 1`, bookID, actor).Scan(&copyID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.ReturnData{}, model.New(model.CodeConflict, "You have no open loan for this book.")
+	}
+	if err != nil {
+		return model.ReturnData{}, fmt.Errorf("find loan for book: %w", err)
+	}
+	// Reuse the existing ReturnCopy logic on the selected copy.
+	return r.ReturnCopy(ctx, actor, copyID, now)
+}
+
+// BookBorrowInfo returns the borrow_copy and my_loans fields for a book-match scan result
+// (plan M21). Returns nil borrow_copy when nothing is borrowable.
+func (r *CirculationRepository) BookBorrowInfo(ctx context.Context, bookID, callerID uuid.UUID) (
+	borrowable bool, borrowCopy *model.ScanBorrowCopy, returnable bool, myLoans []model.ScanMyLoan, err error,
+) {
+	myLoans = []model.ScanMyLoan{}
+
+	// My open loans for any copy of this book.
+	rows, err := r.pool.Query(ctx, `
+		SELECT l.id, l.copy_id, bc.barcode, l.due_at FROM loans l
+		JOIN book_copies bc ON bc.id = l.copy_id
+		WHERE bc.book_id = $1 AND l.user_id = $2 AND l.returned_at IS NULL
+		ORDER BY l.borrowed_at ASC`, bookID, callerID)
+	if err != nil {
+		return false, nil, false, nil, fmt.Errorf("my book loans: %w", err)
+	}
+	for rows.Next() {
+		var loan model.ScanMyLoan
+		if err := rows.Scan(&loan.ID, &loan.CopyID, &loan.Barcode, &loan.DueAt); err != nil {
+			rows.Close()
+			return false, nil, false, nil, err
+		}
+		myLoans = append(myLoans, loan)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return false, nil, false, nil, err
+	}
+	returnable = len(myLoans) > 0
+
+	// Pick borrow_copy: caller's reserved_waitlist copy first, else lowest barcode available.
+	var bcID uuid.UUID
+	var bcBarcode string
+	err = r.pool.QueryRow(ctx, `
+		SELECT id, barcode FROM book_copies
+		WHERE book_id = $1
+		  AND (
+		    (status = 'reserved_waitlist'
+		     AND EXISTS (
+		       SELECT 1 FROM waitlist w WHERE w.book_id = $1 AND w.user_id = $2 AND w.status = 'ready'))
+		    OR status = 'available'
+		  )
+		ORDER BY
+		  (status = 'reserved_waitlist'
+		   AND EXISTS (
+		     SELECT 1 FROM waitlist w WHERE w.book_id = $1 AND w.user_id = $2 AND w.status = 'ready')) DESC,
+		  barcode ASC
+		LIMIT 1`, bookID, callerID).Scan(&bcID, &bcBarcode)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// No borrowable copy.
+	case err != nil:
+		return false, nil, returnable, myLoans, fmt.Errorf("borrow copy: %w", err)
+	default:
+		// Load location for this copy.
+		var bcPath *string
+		var bCode, bName, fName, sName, aisle, shelf, tier, sCode *string
+		var floorN, rowLevel *int
+		_ = r.pool.QueryRow(ctx, `
+			SELECT bl.path, bl.building_code, bl.building_name, bl.floor_number, bl.floor_name,
+			       bl.section_code, bl.section_name, bl.aisle_code, bl.shelf_code, bl.row_level, bl.height_tier
+			FROM book_locations bl WHERE bl.copy_id = $1`, bcID).
+			Scan(&bcPath, &bCode, &bName, &floorN, &fName, &sCode, &sName, &aisle, &shelf, &rowLevel, &tier)
+		bc := &model.ScanBorrowCopy{ID: bcID, Barcode: bcBarcode}
+		if bcPath != nil {
+			loc := model.LocationRow{
+				CopyID: bcID, BuildingCode: deref(bCode), BuildingName: deref(bName),
+				FloorNumber: derefInt(floorN), FloorName: deref(fName),
+				SectionCode: deref(sCode), SectionName: deref(sName),
+				AisleCode: deref(aisle), ShelfCode: deref(shelf),
+				RowLevel: derefInt(rowLevel), HeightTier: deref(tier), Path: *bcPath,
+			}
+			bc.Location = &model.Wayfinding{Path: loc.Path, Parts: model.LocationParts{
+				BuildingCode: loc.BuildingCode, BuildingName: loc.BuildingName,
+				FloorNumber: loc.FloorNumber, FloorName: loc.FloorName,
+				SectionCode: loc.SectionCode, SectionName: loc.SectionName,
+				AisleCode: loc.AisleCode, ShelfCode: loc.ShelfCode,
+				RowLevel: loc.RowLevel, HeightTier: loc.HeightTier,
+			}}
+		}
+		borrowCopy = bc
+		borrowable = true
+	}
+	return borrowable, borrowCopy, returnable, myLoans, nil
+}

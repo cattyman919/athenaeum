@@ -55,7 +55,8 @@ func filterSQL(f model.SearchFilters, args []any) ([]string, []any) {
 
 const ftsDoc = `to_tsvector('english', b.title || ' ' || b.title || ' ' || coalesce(b.description, ''))`
 
-// Keyword ranks by FTS rank plus title-trigram and author matches.
+// Keyword ranks by FTS rank plus title-trigram, author matches, and ISBN match via
+// book_isbns (plan M21: searching an alt-ISBN finds the book).
 func (r *CatalogRepository) Keyword(ctx context.Context, f model.SearchFilters, q string) ([]model.SearchHit, error) {
 	var args []any
 	var where []string
@@ -66,12 +67,14 @@ func (r *CatalogRepository) Keyword(ctx context.Context, f model.SearchFilters, 
 		match := fmt.Sprintf(`(%[1]s @@ websearch_to_tsquery('english', $1)
 			OR b.title %% $1
 			OR position(lower($1) in lower(b.title)) > 0
-			OR position(lower($1) in lower(b.authors::text)) > 0)`, ftsDoc)
+			OR position(lower($1) in lower(b.authors::text)) > 0
+			OR EXISTS (SELECT 1 FROM book_isbns bi WHERE bi.book_id = b.id AND bi.isbn13 = $1))`, ftsDoc)
 		where = append(where, match)
 		score = fmt.Sprintf(`(ts_rank(%s, websearch_to_tsquery('english', $1))
 			+ 0.3 * similarity(b.title, $1)
 			+ CASE WHEN position(lower($1) in lower(b.title)) > 0 THEN 0.3 ELSE 0 END
-			+ CASE WHEN position(lower($1) in lower(b.authors::text)) > 0 THEN 0.2 ELSE 0 END)::float8`, ftsDoc)
+			+ CASE WHEN position(lower($1) in lower(b.authors::text)) > 0 THEN 0.2 ELSE 0 END
+			+ CASE WHEN EXISTS (SELECT 1 FROM book_isbns bi WHERE bi.book_id = b.id AND bi.isbn13 = $1) THEN 1.0 ELSE 0 END)::float8`, ftsDoc)
 		order = "score DESC, b.title"
 	}
 	fc, args := filterSQL(f, args)

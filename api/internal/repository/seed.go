@@ -23,7 +23,7 @@ func NewSeedStore(pool *pgxpool.Pool) *SeedStore { return &SeedStore{pool: pool}
 
 // Reset truncates catalog content, children first; users/refresh_tokens stay.
 func (s *SeedStore) Reset(ctx context.Context) error {
-	_, err := s.pool.Exec(ctx, `TRUNCATE loans, book_copies, copy_events, book_embeddings, user_library, waitlist,
+	_, err := s.pool.Exec(ctx, `TRUNCATE loans, book_copies, copy_events, book_embeddings, book_isbns, user_library, waitlist,
 		books, conversations, messages, shelves, aisles, sections, floors, buildings RESTART IDENTITY`)
 	if err != nil {
 		return fmt.Errorf("truncate: %w", err)
@@ -169,6 +169,17 @@ func (s *SeedStore) ApplyBook(ctx context.Context, index int, b model.BookFixtur
 			`UPDATE books SET title=$1, subtitle=$2, authors=$3, isbn13=$4, publisher=$5, published_year=$6, description=$7,
 			   cover_url=$8, open_library_key=COALESCE($9, open_library_key), dewey_num=$10, loc_num=$11, section_id=$12 WHERE id=$13`, append(args, bookID)...); err != nil {
 			return fmt.Errorf("update book: %w", err)
+		}
+	}
+
+	// Keep book_isbns in sync: upsert the primary ISBN row (idempotent).
+	if b.ISBN13 != "" {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO book_isbns (isbn13, book_id, is_primary)
+			 VALUES ($1, $2, true)
+			 ON CONFLICT (isbn13) DO UPDATE SET book_id = EXCLUDED.book_id, is_primary = true`,
+			b.ISBN13, bookID); err != nil {
+			return fmt.Errorf("book_isbns upsert: %w", err)
 		}
 	}
 

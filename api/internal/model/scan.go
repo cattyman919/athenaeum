@@ -35,6 +35,22 @@ type ScanCopy struct {
 	Location  *Wayfinding `json:"location"`
 }
 
+// ScanBorrowCopy is the copy that WOULD be loaned on a book-level borrow
+// (plan M21, docs/03 §5.4): caller's reserved_waitlist copy first, else lowest barcode available.
+type ScanBorrowCopy struct {
+	ID       uuid.UUID   `json:"id"`
+	Barcode  string      `json:"barcode"`
+	Location *Wayfinding `json:"location"`
+}
+
+// ScanMyLoan is one active loan in the scan book-match my_loans list (plan M21).
+type ScanMyLoan struct {
+	ID      uuid.UUID `json:"id"`
+	CopyID  uuid.UUID `json:"copy_id"`
+	Barcode string    `json:"barcode"`
+	DueAt   time.Time `json:"due_at"`
+}
+
 // ScanResult is POST /api/books/scan (docs/03 §5.4).
 type ScanResult struct {
 	Code         string              `json:"code"`
@@ -48,6 +64,9 @@ type ScanResult struct {
 	Returnable   bool                `json:"returnable"`
 	Borrowable   bool                `json:"borrowable"`
 	Loan         *ScanLoanRef        `json:"loan"`
+	// Book-level borrow/return fields (plan M21, match:"book" only).
+	BorrowCopy *ScanBorrowCopy `json:"borrow_copy"`
+	MyLoans    []ScanMyLoan    `json:"my_loans"`
 }
 
 // ReturnedCopy is the copy object of POST /api/copies/{id}/return (docs/03 §6.4).

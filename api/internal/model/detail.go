@@ -6,6 +6,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// ISBNRef is one row from book_isbns (plan M21, docs/03 §5.2).
+type ISBNRef struct {
+	ISBN13    string `json:"isbn13"`
+	IsPrimary bool   `json:"is_primary"`
+}
+
 // CopyLocation is a copy's resolved shelf location.
 type CopyLocation struct {
 	Path   string        `json:"path"`
@@ -84,6 +90,7 @@ type BookDetail struct {
 	Section        *SectionRef        `json:"section"`
 	Availability   DetailAvailability `json:"availability"`
 	Copies         []CopyDetail       `json:"copies"`
+	Isbns          []ISBNRef          `json:"isbns"`
 	Wayfinding     *Wayfinding        `json:"wayfinding"`
 	Neighbors      []Neighbor         `json:"neighbors"`
 	MyLibraryEntry *LibraryEntryRef   `json:"my_library_entry"`
@@ -112,4 +119,5 @@ type BookDetailData struct {
 	Detail    BookDetail
 	Locations map[uuid.UUID]LocationRow // keyed by copy id; absent when the copy has no shelf
 	Statuses  []string                  // DISTINCT copy statuses (availability.state resolution)
+	Isbns     []ISBNRef                 // from book_isbns, primary first (plan M21)
 }

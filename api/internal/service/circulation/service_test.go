@@ -60,6 +60,18 @@ func (f *fakeRepo) OpenLoanByCopy(_ context.Context, _, _ uuid.UUID) (*model.Sca
 func (f *fakeRepo) CountOpenLoansByUser(_ context.Context, _ uuid.UUID) (int, error) {
 	return f.loanCount, f.loanCountErr
 }
+func (f *fakeRepo) BorrowCopyForBook(_ context.Context, actor, id uuid.UUID, now time.Time) (model.BorrowData, error) {
+	f.gotActor, f.gotID, f.gotNow = actor, id, now
+	return f.borrowData, f.borrowErr
+}
+func (f *fakeRepo) ReturnCopyForBook(_ context.Context, actor, id uuid.UUID, now time.Time) (model.ReturnData, error) {
+	f.calls++
+	f.gotActor, f.gotID, f.gotNow = actor, id, now
+	return f.returnData, f.returnErr
+}
+func (f *fakeRepo) BookBorrowInfo(_ context.Context, _, _ uuid.UUID) (bool, *model.ScanBorrowCopy, bool, []model.ScanMyLoan, error) {
+	return false, nil, false, []model.ScanMyLoan{}, nil
+}
 
 // ── Return ────────────────────────────────────────────────────────────────────
 

@@ -50,11 +50,21 @@ func fakeOpenLibrary(t *testing.T, status int) (*httptest.Server, *atomic.Int32)
 	return srv, &hits
 }
 
-type fakeISBNRepo struct{ byISBN map[string]uuid.UUID }
+type fakeISBNRepo struct {
+	byISBN  map[string]uuid.UUID
+	similar []model.SimilarBook
+}
 
 func (f fakeISBNRepo) BookIDByISBN(_ context.Context, isbn string) (uuid.UUID, bool, error) {
 	id, ok := f.byISBN[isbn]
 	return id, ok, nil
+}
+
+func (f fakeISBNRepo) SimilarBooks(_ context.Context, _ string, _ []string) ([]model.SimilarBook, error) {
+	if f.similar != nil {
+		return f.similar, nil
+	}
+	return []model.SimilarBook{}, nil
 }
 
 type memCache struct {
@@ -198,5 +208,140 @@ func TestFetchISBNOfflineMode(t *testing.T) {
 	md, err := svc.FetchISBN(context.Background(), foundationISBN)
 	if err != nil || md.Source != catalog.SourceOfflinePartial || md.Warnings[0] != catalog.WarnUpstreamUnavailable {
 		t.Fatalf("%+v %v", md, err)
+	}
+}
+
+// ── Identify tests (docs/03 §5.5) ────────────────────────────────────────────
+
+func TestIdentifyFoundReturnsPatronSafeFields(t *testing.T) {
+	ol, hits := fakeOpenLibrary(t, http.StatusOK)
+	cache := &memCache{}
+	svc := newISBN(t, ol.URL, fakeISBNRepo{}, cache)
+
+	res, err := svc.Identify(context.Background(), "978-0-553-29335-7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.ISBN13 != foundationISBN || res.InCatalog || res.BookID != nil {
+		t.Fatalf("header fields: %+v", res)
+	}
+	if res.Source != catalog.SourceOpenLibrary || len(res.Warnings) != 0 {
+		t.Fatalf("source/warnings: %+v", res)
+	}
+	if res.Identified == nil {
+		t.Fatal("Identified must not be nil on success")
+	}
+	id := res.Identified
+	if id.Title != "Foundation" || len(id.Authors) != 1 || id.Authors[0] != "Isaac Asimov" {
+		t.Fatalf("title/authors: %+v", id)
+	}
+	if id.Publisher == nil || *id.Publisher != "Bantam Spectra" {
+		t.Fatalf("publisher: %v", id.Publisher)
+	}
+	if id.PublishedYear == nil || *id.PublishedYear != 1991 {
+		t.Fatalf("year: %v", id.PublishedYear)
+	}
+	// CoverURL must be present; admin-only fields must be absent from result type.
+	if id.CoverURL == nil || *id.CoverURL == "" {
+		t.Fatalf("cover_url missing: %+v", id)
+	}
+	// Cache written for future hits.
+	if len(cache.m) != 1 {
+		t.Fatalf("cache not written: %v", cache.m)
+	}
+	_ = hits
+}
+
+func TestIdentifyCacheHitSkipsOpenLibrary(t *testing.T) {
+	ol, hits := fakeOpenLibrary(t, http.StatusOK)
+	cache := &memCache{}
+	svc := newISBN(t, ol.URL, fakeISBNRepo{}, cache)
+
+	_, _ = svc.Identify(context.Background(), foundationISBN)
+	before := hits.Load()
+	res, err := svc.Identify(context.Background(), foundationISBN)
+	if err != nil || res.Identified == nil || res.Identified.Title != "Foundation" {
+		t.Fatalf("second call: %+v %v", res, err)
+	}
+	if hits.Load() != before {
+		t.Fatalf("cache miss: %d→%d OL calls", before, hits.Load())
+	}
+}
+
+func TestIdentifyInvalidISBN(t *testing.T) {
+	svc := catalog.NewISBNService(fakeISBNRepo{}, olbooks.New("", false), nil, logging.Discard())
+	_, err := svc.Identify(context.Background(), "9780553293358") // bad check digit
+	var de *model.Error
+	if !errors.As(err, &de) || de.Code != model.CodeInvalidISBN {
+		t.Fatalf("want INVALID_ISBN, got %v", err)
+	}
+}
+
+func TestIdentifyInCatalog(t *testing.T) {
+	id := uuid.New()
+	ol, hits := fakeOpenLibrary(t, http.StatusOK)
+	svc := newISBN(t, ol.URL, fakeISBNRepo{byISBN: map[string]uuid.UUID{foundationISBN: id}}, nil)
+
+	res, err := svc.Identify(context.Background(), foundationISBN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.InCatalog || res.BookID == nil || *res.BookID != id.String() {
+		t.Fatalf("in_catalog: %+v", res)
+	}
+	if res.Identified != nil {
+		t.Fatalf("identified must be nil when in catalog: %+v", res.Identified)
+	}
+	if res.Source != catalog.SourceLocal || len(res.Warnings) != 0 {
+		t.Fatalf("source/warnings: %+v", res)
+	}
+	if hits.Load() != 0 {
+		t.Fatal("must not hit Open Library when already in catalog")
+	}
+}
+
+func TestIdentifyNotFound(t *testing.T) {
+	ol, _ := fakeOpenLibrary(t, http.StatusOK) // returns {} for unknown ISBNs
+	svc := newISBN(t, ol.URL, fakeISBNRepo{}, nil)
+
+	res, err := svc.Identify(context.Background(), "9780441013593") // not in stub
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.InCatalog || res.BookID != nil || res.Identified != nil {
+		t.Fatalf("unexpected hit: %+v", res)
+	}
+	if res.Source != catalog.SourceOfflinePartial || len(res.Warnings) != 1 || res.Warnings[0] != catalog.WarnNotFound {
+		t.Fatalf("partial fields: %+v", res)
+	}
+}
+
+func TestIdentifyUpstreamDown(t *testing.T) {
+	ol, _ := fakeOpenLibrary(t, http.StatusInternalServerError)
+	svc := newISBN(t, ol.URL, fakeISBNRepo{}, nil)
+
+	res, err := svc.Identify(context.Background(), foundationISBN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Identified != nil {
+		t.Fatalf("Identified must be nil on upstream error: %+v", res.Identified)
+	}
+	if res.Source != catalog.SourceOfflinePartial || len(res.Warnings) != 1 || res.Warnings[0] != catalog.WarnUpstreamUnavailable {
+		t.Fatalf("partial fields: %+v", res)
+	}
+}
+
+func TestIdentifyOfflineMode(t *testing.T) {
+	svc := catalog.NewISBNService(fakeISBNRepo{}, olbooks.New("http://127.0.0.1:1", true), nil, logging.Discard())
+	res, err := svc.Identify(context.Background(), foundationISBN)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Source != catalog.SourceOfflinePartial || res.Warnings[0] != catalog.WarnUpstreamUnavailable {
+		t.Fatalf("%+v", res)
+	}
+	if res.Identified != nil {
+		t.Fatalf("identified must be nil in offline mode")
 	}
 }

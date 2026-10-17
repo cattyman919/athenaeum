@@ -325,3 +325,34 @@ func (h *AdminHandler) PatchUser(c *gin.Context) {
 	u, err := h.svc.SetRole(c.Request.Context(), actor(c), c.Param("id"), body.Role)
 	respondJSON(c, http.StatusOK, u, err)
 }
+
+// AttachISBN handles POST /api/admin/books/{id}/isbns (plan M21).
+func (h *AdminHandler) AttachISBN(c *gin.Context) {
+	var body struct {
+		ISBN13 string `json:"isbn13"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || body.ISBN13 == "" {
+		RespondError(c, badBody())
+		return
+	}
+	result, err := h.svc.AttachISBN(c.Request.Context(), c.Param("id"), body.ISBN13)
+	respondJSON(c, http.StatusCreated, result, err)
+}
+
+// DetachISBN handles DELETE /api/admin/books/{id}/isbns/{isbn13} (plan M21).
+func (h *AdminHandler) DetachISBN(c *gin.Context) {
+	noContent(c, h.svc.DetachISBN(c.Request.Context(), c.Param("id"), c.Param("isbn13")))
+}
+
+// MergeBooks handles POST /api/admin/books/{id}/merge (plan M21).
+func (h *AdminHandler) MergeBooks(c *gin.Context) {
+	var body struct {
+		Into string `json:"into"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || body.Into == "" {
+		RespondError(c, badBody())
+		return
+	}
+	result, err := h.svc.MergeBooks(c.Request.Context(), actor(c), c.Param("id"), body.Into)
+	respondJSON(c, http.StatusOK, result, err)
+}

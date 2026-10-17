@@ -152,10 +152,10 @@ func (r *AdminRepository) BookMeta(ctx context.Context, id uuid.UUID) (model.Boo
 	return m, nil
 }
 
-// BookIDByISBN finds a book by ISBN-13.
+// BookIDByISBN finds a book by ISBN-13 via book_isbns (plan M21).
 func (r *AdminRepository) BookIDByISBN(ctx context.Context, isbn13 string) (uuid.UUID, bool, error) {
 	var id uuid.UUID
-	err := r.pool.QueryRow(ctx, `SELECT id FROM books WHERE isbn13 = $1`, isbn13).Scan(&id)
+	err := r.pool.QueryRow(ctx, `SELECT book_id FROM book_isbns WHERE isbn13 = $1`, isbn13).Scan(&id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, false, nil
 	}
@@ -163,6 +163,195 @@ func (r *AdminRepository) BookIDByISBN(ctx context.Context, isbn13 string) (uuid
 		return uuid.Nil, false, fmt.Errorf("book by isbn: %w", err)
 	}
 	return id, true, nil
+}
+
+// ISBNsForBook returns all ISBNs for a book from book_isbns, primary first.
+func (r *AdminRepository) ISBNsForBook(ctx context.Context, bookID uuid.UUID) ([]model.ISBNRef, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT isbn13, is_primary FROM book_isbns WHERE book_id = $1 ORDER BY is_primary DESC, isbn13`, bookID)
+	if err != nil {
+		return nil, fmt.Errorf("isbns for book: %w", err)
+	}
+	defer rows.Close()
+	var out []model.ISBNRef
+	for rows.Next() {
+		var ref model.ISBNRef
+		if err := rows.Scan(&ref.ISBN13, &ref.IsPrimary); err != nil {
+			return nil, err
+		}
+		out = append(out, ref)
+	}
+	if out == nil {
+		out = []model.ISBNRef{}
+	}
+	return out, rows.Err()
+}
+
+// AttachISBN adds an additional edition ISBN to a book. Returns ISBN_CONFLICT (409) if the
+// ISBN is already owned by any book (including this one, so callers know it's a duplicate).
+func (r *AdminRepository) AttachISBN(ctx context.Context, bookID uuid.UUID, isbn13 string) ([]model.ISBNRef, error) {
+	// Check ownership.
+	ownerID, found, err := r.BookIDByISBN(ctx, isbn13)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return nil, model.New(model.CodeISBNConflict, "This ISBN is already attached to a book.").
+			WithExtra(map[string]any{"book_id": ownerID.String()})
+	}
+	if _, err := r.pool.Exec(ctx,
+		`INSERT INTO book_isbns (isbn13, book_id, is_primary) VALUES ($1, $2, false)`,
+		isbn13, bookID); err != nil {
+		return nil, fmt.Errorf("attach isbn: %w", err)
+	}
+	return r.ISBNsForBook(ctx, bookID)
+}
+
+// DetachISBN removes a non-primary ISBN from a book. Returns CONFLICT if it is primary,
+// VALIDATION_FAILED if it does not belong to this book.
+func (r *AdminRepository) DetachISBN(ctx context.Context, bookID uuid.UUID, isbn13 string) error {
+	var isPrimary bool
+	var ownerID uuid.UUID
+	err := r.pool.QueryRow(ctx,
+		`SELECT book_id, is_primary FROM book_isbns WHERE isbn13 = $1`, isbn13).Scan(&ownerID, &isPrimary)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return model.New(model.CodeNotFound, "ISBN not found.")
+	}
+	if err != nil {
+		return fmt.Errorf("detach isbn lookup: %w", err)
+	}
+	if ownerID != bookID {
+		return model.New(model.CodeValidationFailed, "ISBN does not belong to this book.")
+	}
+	if isPrimary {
+		return model.New(model.CodeConflict, "Cannot remove the primary ISBN. Update books.isbn13 instead.")
+	}
+	if _, err := r.pool.Exec(ctx, `DELETE FROM book_isbns WHERE isbn13 = $1`, isbn13); err != nil {
+		return fmt.Errorf("detach isbn: %w", err)
+	}
+	return nil
+}
+
+// MergeBooks merges source book into target in one transaction (plan M21):
+//   - Repoints book_copies (copy tags unchanged)
+//   - Upserts user_library keeping higher status/rating
+//   - Moves waitlist entries (conflict → keep target's)
+//   - Moves all source ISBNs as non-primary to target
+//   - Deletes the source book
+//   - Sets target embedding_dirty = true
+//   - Appends one copy_event per moved copy (source admin_patch)
+//   - Appends one audit row
+func (r *AdminRepository) MergeBooks(ctx context.Context, actor, sourceID, targetID uuid.UUID, now time.Time) (int, []model.ISBNRef, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Lock both rows in consistent order to prevent deadlocks.
+	first, second := sourceID, targetID
+	if first.String() > second.String() {
+		first, second = second, first
+	}
+	var sourceExists, targetExists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM books WHERE id=$1), EXISTS(SELECT 1 FROM books WHERE id=$2)`,
+		sourceID, targetID).Scan(&sourceExists, &targetExists); err != nil {
+		return 0, nil, fmt.Errorf("check books: %w", err)
+	}
+	if !sourceExists {
+		return 0, nil, model.New(model.CodeNotFound, "Source book not found.")
+	}
+	if !targetExists {
+		return 0, nil, model.New(model.CodeNotFound, "Target book not found.")
+	}
+	// Lock both.
+	if _, err := tx.Exec(ctx, `SELECT id FROM books WHERE id IN ($1,$2) ORDER BY id FOR UPDATE`, first, second); err != nil {
+		return 0, nil, fmt.Errorf("lock books: %w", err)
+	}
+
+	// Move book_copies and track how many.
+	var movedCopies int
+	err = tx.QueryRow(ctx,
+		`WITH moved AS (
+			UPDATE book_copies SET book_id = $2 WHERE book_id = $1 RETURNING id
+		) SELECT count(*) FROM moved`, sourceID, targetID).Scan(&movedCopies)
+	if err != nil {
+		return 0, nil, fmt.Errorf("move copies: %w", err)
+	}
+
+	// Move copy events — they reference copy_id, not book_id; nothing to do.
+
+	// Merge user_library: keep target row but take higher status/rating.
+	// On conflict: take the higher-priority status; OR the is_favorite flags; take the higher rating.
+	// Status priority (highest first): reading(4) > read(3) > want_to_read(2) > dropped(1) > other(0).
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO user_library (id, user_id, book_id, status, is_favorite, rating, progress_pct)
+		SELECT id, user_id, $2, status, is_favorite, rating, progress_pct
+		FROM user_library WHERE book_id = $1
+		ON CONFLICT (user_id, book_id) DO UPDATE
+		  SET status = CASE
+		        WHEN (CASE EXCLUDED.status WHEN 'reading' THEN 4 WHEN 'read' THEN 3 WHEN 'want_to_read' THEN 2 WHEN 'dropped' THEN 1 ELSE 0 END)
+		             > (CASE user_library.status WHEN 'reading' THEN 4 WHEN 'read' THEN 3 WHEN 'want_to_read' THEN 2 WHEN 'dropped' THEN 1 ELSE 0 END)
+		        THEN EXCLUDED.status
+		        ELSE user_library.status
+		      END,
+		      is_favorite = user_library.is_favorite OR EXCLUDED.is_favorite,
+		      rating      = GREATEST(user_library.rating, EXCLUDED.rating)`,
+		sourceID, targetID); err != nil {
+		return 0, nil, fmt.Errorf("merge library: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM user_library WHERE book_id = $1`, sourceID); err != nil {
+		return 0, nil, fmt.Errorf("delete source library: %w", err)
+	}
+
+	// Merge waitlist: move rows that don't conflict; drop source rows that do.
+	if _, err := tx.Exec(ctx, `
+		UPDATE waitlist SET book_id = $2
+		WHERE book_id = $1
+		  AND NOT EXISTS (
+		    SELECT 1 FROM waitlist w2 WHERE w2.book_id = $2 AND w2.user_id = waitlist.user_id
+		  )`, sourceID, targetID); err != nil {
+		return 0, nil, fmt.Errorf("merge waitlist: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM waitlist WHERE book_id = $1`, sourceID); err != nil {
+		return 0, nil, fmt.Errorf("delete source waitlist: %w", err)
+	}
+
+	// Move all source ISBNs as non-primary to target (primary stays unique on target).
+	if _, err := tx.Exec(ctx,
+		`UPDATE book_isbns SET book_id = $2, is_primary = false WHERE book_id = $1`,
+		sourceID, targetID); err != nil {
+		return 0, nil, fmt.Errorf("move isbns: %w", err)
+	}
+
+	// Delete source book.
+	if _, err := tx.Exec(ctx, `DELETE FROM books WHERE id = $1`, sourceID); err != nil {
+		return 0, nil, fmt.Errorf("delete source: %w", err)
+	}
+
+	// Mark target embedding_dirty.
+	if _, err := tx.Exec(ctx, `UPDATE books SET embedding_dirty = true WHERE id = $1`, targetID); err != nil {
+		return 0, nil, fmt.Errorf("mark dirty: %w", err)
+	}
+
+	// Audit row (copy_events style: we use an admin_patch merge source).
+	var actorID *uuid.UUID
+	if actor != uuid.Nil {
+		actorID = &actor
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO copy_events (copy_id, from_status, to_status, source, actor_id)
+		 SELECT id, status, status, 'admin_merge', $2 FROM book_copies WHERE book_id = $1`,
+		targetID, actorID); err != nil {
+		return 0, nil, fmt.Errorf("audit: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, nil, err
+	}
+
+	isbns, err := r.ISBNsForBook(ctx, targetID)
+	return movedCopies, isbns, err
 }
 
 // SectionByCode resolves a section code (codes are unique across the one v1 building).
@@ -194,6 +383,8 @@ func mapWriteErr(err error, what string) error {
 	if errors.As(err, &pgErr) {
 		switch {
 		case pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "books_isbn13_key":
+			return model.New(model.CodeISBNConflict, "A book with this ISBN already exists.")
+		case pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "book_isbns_pkey":
 			return model.New(model.CodeISBNConflict, "A book with this ISBN already exists.")
 		case pgErr.Code == pgUniqueViolation && strings.Contains(pgErr.ConstraintName, "barcode"):
 			return model.New(model.CodeConflict, "Barcode is already registered.")
@@ -236,6 +427,15 @@ func (r *AdminRepository) CreateBook(ctx context.Context, actor uuid.UUID, b mod
 		b.CoverURL, b.OpenLibraryKey, b.DeweyNum, b.LOCNum, b.SectionID); err != nil {
 		return uuid.Nil, mapWriteErr(err, "insert book")
 	}
+	// Keep book_isbns in sync: insert the primary ISBN row when isbn13 is provided.
+	if b.ISBN13 != nil && *b.ISBN13 != "" {
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO book_isbns (isbn13, book_id, is_primary) VALUES ($1, $2, true)
+			 ON CONFLICT (isbn13) DO NOTHING`,
+			*b.ISBN13, id); err != nil {
+			return uuid.Nil, mapWriteErr(err, "insert book_isbn")
+		}
+	}
 	if len(copies) > 0 {
 		if err := lockAccession(ctx, tx); err != nil {
 			return uuid.Nil, err
@@ -251,7 +451,14 @@ func (r *AdminRepository) CreateBook(ctx context.Context, actor uuid.UUID, b mod
 
 // PatchBook applies a partial update; NOT_FOUND for unknown ids. A patch touching a
 // RAG field (title/authors/description) marks the book for re-embedding (docs/06 §2).
+// When isbn13 changes the book_isbns primary row is kept in sync.
 func (r *AdminRepository) PatchBook(ctx context.Context, id uuid.UUID, p model.BookPatch) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	var sets []string
 	args := []any{id}
 	set := func(col string, v any) {
@@ -306,14 +513,32 @@ func (r *AdminRepository) PatchBook(ctx context.Context, id uuid.UUID, p model.B
 	if p.TouchesRAG() {
 		sets = append(sets, "embedding_dirty = true")
 	}
-	tag, err := r.pool.Exec(ctx, `UPDATE books SET `+strings.Join(sets, ", ")+` WHERE id = $1`, args...)
+	tag, err := tx.Exec(ctx, `UPDATE books SET `+strings.Join(sets, ", ")+` WHERE id = $1`, args...)
 	if err != nil {
 		return mapWriteErr(err, "patch book")
 	}
 	if tag.RowsAffected() == 0 {
 		return model.New(model.CodeNotFound, "Book not found.")
 	}
-	return nil
+
+	// Sync book_isbns primary row when isbn13 changes.
+	if p.ISBN13.Set {
+		// Remove the old primary isbn row for this book (there can be only one).
+		if _, err := tx.Exec(ctx,
+			`DELETE FROM book_isbns WHERE book_id = $1 AND is_primary`, id); err != nil {
+			return fmt.Errorf("remove old primary isbn: %w", err)
+		}
+		if !p.ISBN13.Null && p.ISBN13.Value != "" {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO book_isbns (isbn13, book_id, is_primary) VALUES ($1, $2, true)
+				 ON CONFLICT (isbn13) DO UPDATE SET book_id = $2, is_primary = true`,
+				p.ISBN13.Value, id); err != nil {
+				return mapWriteErr(err, "sync primary isbn")
+			}
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 // DeleteBook removes a book; copies, embeddings, library and waitlist rows cascade.

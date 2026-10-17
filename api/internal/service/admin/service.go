@@ -25,6 +25,10 @@ type Repository interface {
 	ListBooks(ctx context.Context, f model.AdminBookFilter, page, perPage int) ([]model.AdminBookRow, int, error)
 	BookMeta(ctx context.Context, id uuid.UUID) (model.BookMeta, error)
 	BookIDByISBN(ctx context.Context, isbn13 string) (uuid.UUID, bool, error)
+	ISBNsForBook(ctx context.Context, bookID uuid.UUID) ([]model.ISBNRef, error)
+	AttachISBN(ctx context.Context, bookID uuid.UUID, isbn13 string) ([]model.ISBNRef, error)
+	DetachISBN(ctx context.Context, bookID uuid.UUID, isbn13 string) error
+	MergeBooks(ctx context.Context, actor, sourceID, targetID uuid.UUID, now time.Time) (int, []model.ISBNRef, error)
 	SectionByCode(ctx context.Context, code string) (uuid.UUID, error)
 	CreateBook(ctx context.Context, actor uuid.UUID, b model.BookFields, copies []model.NewCopy) (uuid.UUID, error)
 	PatchBook(ctx context.Context, id uuid.UUID, p model.BookPatch) error
@@ -601,4 +605,66 @@ func (s *Service) SetRole(ctx context.Context, actor uuid.UUID, id, role string)
 		return model.User{}, invalid("You cannot demote yourself.")
 	}
 	return s.repo.SetRole(ctx, uid, role)
+}
+
+// ---- ISBN management (plan M21) ----------------------------------------------
+
+// ISBNResult is the response body of POST /api/admin/books/{id}/isbns.
+type ISBNResult struct {
+	BookID string          `json:"book_id"`
+	Isbns  []model.ISBNRef `json:"isbns"`
+}
+
+// AttachISBN adds an edition ISBN to a book. Validates the check digit; 409 if owned by any book.
+func (s *Service) AttachISBN(ctx context.Context, bookID, isbn13 string) (ISBNResult, error) {
+	bid, err := parseID(bookID, "Book")
+	if err != nil {
+		return ISBNResult{}, err
+	}
+	clean, err := catalog.ValidateISBN(isbn13)
+	if err != nil {
+		return ISBNResult{}, err
+	}
+	isbns, err := s.repo.AttachISBN(ctx, bid, clean)
+	if err != nil {
+		return ISBNResult{}, err
+	}
+	return ISBNResult{BookID: bid.String(), Isbns: isbns}, nil
+}
+
+// DetachISBN removes a non-primary ISBN from a book. 409 if primary, 400 if wrong book.
+func (s *Service) DetachISBN(ctx context.Context, bookID, isbn13 string) error {
+	bid, err := parseID(bookID, "Book")
+	if err != nil {
+		return err
+	}
+	return s.repo.DetachISBN(ctx, bid, isbn13)
+}
+
+// MergeResult is the response body of POST /api/admin/books/{id}/merge.
+type MergeResult struct {
+	BookID       string          `json:"book_id"`
+	MergedCopies int             `json:"merged_copies"`
+	Isbns        []model.ISBNRef `json:"isbns"`
+}
+
+// MergeBooks merges source book (id) into target (into). 400 if id==into, 404 if either missing.
+func (s *Service) MergeBooks(ctx context.Context, actor uuid.UUID, sourceID, intoID string) (MergeResult, error) {
+	sid, err := parseID(sourceID, "Book")
+	if err != nil {
+		return MergeResult{}, err
+	}
+	tid, err := parseID(intoID, "Book")
+	if err != nil {
+		return MergeResult{}, err
+	}
+	if sid == tid {
+		return MergeResult{}, invalid("source and target must be different books.")
+	}
+	n, isbns, err := s.repo.MergeBooks(ctx, actor, sid, tid, s.now())
+	if err != nil {
+		return MergeResult{}, err
+	}
+	s.notifyIndex()
+	return MergeResult{BookID: tid.String(), MergedCopies: n, Isbns: isbns}, nil
 }
