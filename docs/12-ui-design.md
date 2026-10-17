@@ -268,15 +268,21 @@ box browses, and an embedding outage silently degrades to keyword
 faceted wayfinding sidebar (section checkboxes w/ color dots, availability facet
 worded "In Building" per export, era sliders); 2:3 book-card grid with top-right
 availability beacons and a **rating average + count** (`★ 4.6 (12)`); call-number mono
-badges; ⌘K palette (export-verified).
+badges; ⌘K palette (export-verified). The search bar also carries a **scan icon button**
+(`data-testid="catalog-scan"`, `aria-label` = `catalog.search.scan`) on the right edge of
+the input (right of the clear ×, with adjusted padding so neither overlaps), opening the
+shared `BarcodeScannerDialog` in Patron Lookup mode — result flows through the standard
+Patron Lookup panel (found → View Full Record & Map; unknown → OL identification + not-registered
+warning — [07 §Scanner dialog](07-frontend.md#scanner-dialog--patron-lookup--staff-intake)).
 Empty/edge states: [07 §9](07-frontend.md#9-loading-empty--error-states).
 
 ### Screen 3 — `/books/[id]` Book Detail & Spatial Wayfinding
 Stitch: **Book Detail: Dune** (`7239…`). 40/60 two-column (jacket, CTA, Dewey/LOC/
 ISBN metadata · tri-state banner, ladder, manifest); turn-by-turn ladder (localized in zh-CN — [14 §6.1](14-localization.md#61-wayfinding-vocabulary)) from
 `book_locations` ([05 §3-4](05-building-layout.md#3-location-path-tokens)); copy
-manifest table of `book_copies` rows; archival affinity carousel (`neighbors` —
-[03 §5.2](03-api-spec.md#52-get-apibooksid)).
+manifest table of `book_copies` rows; an **Editions** list (from `isbns` in [03 §5.2](03-api-spec.md#52-get-apibooksid))
+showing alternate edition ISBNs alongside the primary (staff-visible context; patrons see the list
+but cannot edit); archival affinity carousel (`neighbors` — [03 §5.2](03-api-spec.md#52-get-apibooksid)).
 
 ### Screen 4 — `/library` Personal Library & Patron Dashboard
 Stitch: **My Library** (`9cee…`, PNG refreshed 2026-10-16). Header actions **Scan to Return**,
@@ -340,10 +346,10 @@ DB statuses: [02 §book_copies](02-data-model.md#book_copies).
 stateDiagram-v2
     [*] --> InCatalog: registered (seed or staff intake)
     InCatalog --> Available: assigned to shelf coordinate
-    Available --> CheckedOut: staff desk scan or patron self-service scan (loan created, 14d)
-    CheckedOut --> Available: Returned & Re-shelved (staff desk or patron self-service scan)
+    Available --> CheckedOut: staff desk scan or patron self-service scan (copy tag or book ISBN) — loan created, 14d
+    CheckedOut --> Available: Returned & Re-shelved (staff desk or patron self-service — copy tag or book ISBN)
     CheckedOut --> ReservedWaitlist: return with a waiting hold, or queued patron hold (48h)
-    ReservedWaitlist --> CheckedOut: hold owner picks up (self-service borrow)
+    ReservedWaitlist --> CheckedOut: hold owner picks up (self-service borrow — copy tag or book ISBN)
     ReservedWaitlist --> Available: expired or not picked up
     Available --> MissingLost: stack audit flags
     MissingLost --> Available: RestoredToAvailable via audit
@@ -352,9 +358,9 @@ stateDiagram-v2
 | Transition | Trigger | Source field |
 | --- | --- | --- |
 | `InCatalog → Available` | admin assigns shelf | `POST /api/admin/copies`, [03 §8.3](03-api-spec.md#83-admin-copies) |
-| `Available → CheckedOut` | staff desk scan **or patron self-service borrow** | staff: `PATCH /api/admin/copies/{id}`; patron: `POST /api/copies/{id}/borrow` (`copy_events.source='self_checkout'`, inserts a `loans` row with `due_at = now + 14d` — [03 §6.5](03-api-spec.md#65-post-apicopiesidborrow)) |
-| `ReservedWaitlist → CheckedOut` | hold owner picks up a ready copy | `POST /api/copies/{id}/borrow` (hold → `picked_up`) |
-| `CheckedOut → Available` ("Returned & Re-shelved") | staff desk return **or patron self-service return** | staff: `PATCH /api/admin/copies/{id}`; patron: `POST /api/copies/{id}/return` (`copy_events.source='self_return'`, closes the open `loans` row — [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn)) |
+| `Available → CheckedOut` | staff desk scan **or patron self-service borrow (copy tag or book ISBN)** | staff: `PATCH /api/admin/copies/{id}`; patron copy-tag: `POST /api/copies/{id}/borrow` [03 §6.5](03-api-spec.md#65-post-apicopiesidborrow); patron ISBN: `POST /api/books/{id}/borrow` [03 §6.8](03-api-spec.md#68-post-apibooksidborrow) — both insert a `loans` row (`due_at = now + 14d`, `copy_events.source='self_checkout'`) |
+| `ReservedWaitlist → CheckedOut` | hold owner picks up a ready copy | `POST /api/copies/{id}/borrow` or `POST /api/books/{id}/borrow` (hold → `picked_up`) |
+| `CheckedOut → Available` ("Returned & Re-shelved") | staff desk return **or patron self-service return (copy tag or book ISBN)** | staff: `PATCH /api/admin/copies/{id}`; patron copy-tag: `POST /api/copies/{id}/return` [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn); patron ISBN: `POST /api/books/{id}/return` [03 §6.9](03-api-spec.md#69-post-apibooksidreturn) — both close the open `loans` row (`copy_events.source='self_return'`) |
 | `CheckedOut → ReservedWaitlist` | waitlist turnover (48 h) on return | `PATCH` **or** `POST /api/copies/{id}/return` + `waitlist.ready_at` set — [03 §6.3](03-api-spec.md#63-waitlist) |
 | `MissingLost → Available` ("RestoredToAvailable") | audit restores | PATCH |
 
@@ -371,7 +377,7 @@ Every transition appends a `copy_events` row (`from_status`, `to_status`,
 | `LibraryRowItem` | `Table` row / `Card` + `Slider`-less progress + star `Rating` |
 | `BuildingTreeBrowser` | nested `Collapsible`/`Tree` list + `Badge` occupancy |
 | `RealTimeAuditStream` | `Table` + `Badge` + Toaster hooks |
-| `BarcodeScannerDialog` | `Dialog` + `Tabs` + `<video/>` + overlay frames — [11](11-barcode-scanning.md) |
+| `BarcodeScannerDialog` | `Dialog` + `Tabs` + `<video/>` + overlay frames; **not-in-catalog state** adds: persistent amber `Alert` (`scan-not-registered`) + `BookCover` thumbnail from OL `cover_url` (`scan-identified-cover`) + title/authors/publisher·year (`scan-identified`, `scan-identified-title`); `Skeleton` while identifying — [11](11-barcode-scanning.md) |
 | Availability banner | `Alert` variants (`success`/`warning`/`destructive`) |
 
 ## 12. Accessibility Requirements

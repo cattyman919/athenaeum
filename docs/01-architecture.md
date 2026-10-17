@@ -50,7 +50,8 @@ flowchart TB
     S --> AIS
     AIS --> OL
     AIS --> OR
-    S -- "POST /api/books/fetch-isbn" --> OL2
+    S -- "POST /api/books/fetch-isbn (admin intake)" --> OL2
+    S -- "POST /api/books/identify-isbn (patron scan miss)" --> OL2
 ```
 
 | Concern | Owning doc |
@@ -145,7 +146,7 @@ plain JSON.
 | OpenRouter | api → openrouter.ai | chat completions (stream) via custom Eino `ChatModel` ACL adapter | `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `OPENROUTER_MODEL` | 5s connect / 120s stream; outage → 502 `UPSTREAM_ERROR` |
 | Ollama | api → localhost:11434 | embeddings, batch mode for reindex | `OLLAMA_BASE_URL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_EMBED_DIM` | 10s per call; outage → 503 `EMBEDDING_UNAVAILABLE` |
 | Whisper | api → whisper:9000 (final) · whisper-fast:9000 (live partials) | speech-to-text for `/chat` voice input via `WhisperAdapter` (ACL) | `WHISPER_BASE_URL`, `WHISPER_MODEL`, `WHISPER_PARTIAL_BASE_URL`, `WHISPER_FAST_MODEL` | 30s timeout (15s for partials); outage → 503 `TRANSCRIPTION_UNAVAILABLE` ([15 §6](15-voice-input.md#6-limits-rate--errors)) |
-| Open Library | api → openlibrary.org | metadata enrichment for ISBN intake | `OPENLIBRARY_BASE_URL`, `OFFLINE_MODE` | 3s timeout; fallback to mock/seeded values ([08-seed-data.md](08-seed-data.md#6-open-library-fallback)); 502 when all fail |
+| Open Library | api → openlibrary.org | metadata enrichment for ISBN intake (`POST /api/books/fetch-isbn`, admin) **and** patron ISBN identification (`POST /api/books/identify-isbn` — called after a scan miss, [03 §5.5](03-api-spec.md#55-post-apibooksidentify-isbn)) | `OPENLIBRARY_BASE_URL`, `OFFLINE_MODE` | 3s timeout / 2 retries; Redis 24h cache; fallback to `offline_partial` warnings (patron endpoint never returns 5xx for OL issues — [08-seed-data.md](08-seed-data.md#6-open-library-fallback)); admin endpoint: 502 when all fail |
 | Google OAuth | browser → accounts.google.com | SSO redirect + code exchange | `GOOGLE_OAUTH_CLIENT_ID/SECRET` | invalid code/state → 401 ([04-auth.md](04-auth.md#3-google-sso)) |
 
 ## 6. Docker Compose Topology

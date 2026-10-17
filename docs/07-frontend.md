@@ -190,6 +190,12 @@ hidden when `rating_count` is null/0), `⌘K` `command-palette.tsx` calling the 
 endpoint. URL params drive state.
 The shell **Scan** button opens ISBN lookup from here (and everywhere else — see
 [Scanner dialog](#scanner-dialog--patron-lookup--staff-intake)).
+A second scan affordance lives **inside the search bar itself**: an icon button on the
+right side of the `CatalogSearchBar` input (inside `catalog-controls.tsx`, right of the
+clear ×; right-padding adjusted so neither overlaps), `data-testid="catalog-scan"`,
+`aria-label` = `catalog.search.scan`, calls `openScanner("patron")` to open the shared
+`BarcodeScannerDialog` in Patron Lookup mode. Result flows through the same Patron Lookup
+panel (found → View Full Record & Map; unknown → identified + not-registered warning).
 In `semantic`/`hybrid` mode, when `meta.index_pending > 0`
 ([03 §5.1](03-api-spec.md#51-get-apibookssearch)) a subtle non-blocking
 `role="status"` note (`catalog.indexingNote`, `components/catalog-indexing-note.tsx`) says
@@ -296,15 +302,41 @@ from `/admin` on the **Staff Intake** tab (admin only). Behaviour + error states
 [11 §7/§8](./11-barcode-scanning.md#7-uiux-specification).
 
 - **Patron Lookup** — each decode calls `POST /api/books/scan`
-  ([03 §5.4](03-api-spec.md#54-post-apibooksscan)). An ISBN result shows the record, shelf ladder
-  and other-copy availability with **View Full Record & Map** (→ `/books/{id}`) and the waitlist CTA
-  when `available_copies == 0`; a copy-tag result shows the copy and, when `borrowable`, a
+  ([03 §5.4](03-api-spec.md#54-post-apibooksscan)). An **ISBN book result** (`match:"book"`) shows
+  the record, shelf ladder and other-copy availability with **View Full Record & Map** (→ `/books/{id}`)
+  and the waitlist CTA when `available_copies == 0`; when `borrowable` also shows **Borrow this book**
+  (`data-testid="scan-borrow"`, calls `POST /api/books/{id}/borrow` [03 §6.8](03-api-spec.md#68-post-apibooksidborrow),
+  after which a `scan-borrow-copy` panel names the chosen copy tag + shelf and due date); when
+  `returnable` shows **Return this book** (`data-testid="scan-return"`,
+  `POST /api/books/{id}/return` [03 §6.9](03-api-spec.md#69-post-apibooksidreturn)).
+  A **copy-tag result** (`match:"copy"`) shows the copy and, when `borrowable`, a
   **Borrow this copy** action (`POST /api/copies/{id}/borrow`, [03 §6.5](03-api-spec.md#65-post-apicopiesidborrow),
   confirming the 14-day due date) or, when `returnable`, a **Return this copy** action
   (`POST /api/copies/{id}/return`, [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn)).
+  When `match:"none"` + `code_type:"isbn13"` (unknown ISBN), the panel shows the
+  **not-in-library** warning card immediately (`data-testid="scan-not-registered"`,
+  `scanner.notInCatalog.warning`) and then calls `POST /api/books/identify-isbn`
+  ([03 §5.5](03-api-spec.md#55-post-apibooksidentify-isbn)) once — aborted if the user scans
+  a new code before it resolves. States: loading skeleton → **identified** card
+  (`data-testid="scan-identified"`: cover via `BookCover` using OL `cover_url`
+  [`data-testid="scan-identified-cover"`], title [`data-testid="scan-identified-title"`],
+  authors, publisher · year) or **unidentified** generic text. The `scan-not-registered`
+  warning banner persists in both states. When `in_catalog:true` in the identification
+  response, the warning swaps to "View Full Record" (`scanner.notInCatalog.alreadyAdded`).
   Camera + manual code input.
 - **Staff Intake** — the Add-Book flow (Manual / ISBN / Scan tabs) driving
   `POST /api/books/fetch-isbn` → Add-Book form → `POST /api/admin/books` (+ `/api/admin/copies`).
+  When `fetch-isbn` returns a non-empty `similar` array ([03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn)),
+  a banner appears (`data-testid="intake-similar"`) reading "Looks like *{title}* is already in the
+  catalog." Two actions: **Add as another edition of this book** (`data-testid="intake-attach"` —
+  calls `POST /api/admin/books/{id}/isbns` to attach the scanned ISBN then adds copies to the
+  existing book on the chosen shelf) and **Create a separate book anyway**
+  (`data-testid="intake-create-new"` — proceeds with the normal `POST /api/admin/books` flow).
+  Section pre-fills from the matched book; shelf stays required. The **Admin** page also exposes
+  a **Merge** action on book rows (`data-testid="book-merge"`) opening a confirmation dialog
+  (`data-testid="merge-confirm"`) that calls `POST /api/admin/books/{id}/merge`
+  ([03 §8.6](03-api-spec.md#86-admin-isbn-management--merge)). Staff Intake and all admin ISBN/merge
+  flows are English-only ([14 §1](14-localization.md#1-scope)).
   RFID encode / label print / Edit-MARC are **not** implemented
   ([11 §11](./11-barcode-scanning.md#11-scope-impact)).
 

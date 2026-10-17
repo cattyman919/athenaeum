@@ -76,11 +76,28 @@ web/
 - **Keys are namespaced by area** (`shell.nav.catalog`, `catalog.filters.available`,
   `chat.composer.placeholder`, `scanner.patron.*`, …) so screens stay greppable.
 - `catalog.indexingNote` (ICU plural, en + zh-CN) is the patron note shown while books are still being indexed ([07](07-frontend.md)); the admin index badges/chip stay English like the rest of admin.
+- `catalog.search.scan` — `aria-label` for the scan icon button inside the catalog search bar (`data-testid="catalog-scan"`, [07](07-frontend.md#catalog--screen-2-stitch-e9f24637)).
+- Scanner identification keys (en + zh-CN, parity-tested — used in `PatronLookupPanel` for the not-in-library state after `POST /api/books/identify-isbn`, [03 §5.5](03-api-spec.md#55-post-apibooksidentify-isbn)):
+  - `scanner.notInCatalog.warning` — persistent amber banner: "Not registered in this library — this title isn't in the catalog." (`data-testid="scan-not-registered"`, `role="status"`).
+  - `scanner.notInCatalog.identifying` — label shown in the loading skeleton while OL lookup is in flight.
+  - `scanner.notInCatalog.identifiedBy` — attribution label ("Identified via Open Library") shown with the OL metadata card (`data-testid="scan-identified"`).
+  - `scanner.notInCatalog.unidentified` — generic text shown when OL has no record or is unreachable.
+  - `scanner.notInCatalog.alreadyAdded` — replaces the warning when `in_catalog:true` in the identification response; links to "View Full Record".
+- Scanner result keys for borrow/return by book (en + zh-CN parity, used in `PatronLookupPanel`
+  for `match:"book"` results — [03 §5.4](03-api-spec.md#54-post-apibooksscan)):
+  - `scanner.result.borrowBook` — label on the **Borrow this book** action button (`data-testid="scan-borrow"`).
+  - `scanner.result.returnBook` — label on the **Return this book** action button (`data-testid="scan-return"`).
+  - `scanner.result.borrowCopyPick` — copy/shelf announcement in the `scan-borrow-copy` panel after a
+    successful borrow-by-book ("Take copy {barcode} from Shelf {shelf} — due {date}").
+  - `scanner.result.returnedBook` — success message shown after a return-by-book completes.
+- **Admin and Staff Intake are English-only** ([§1](#1-scope)): the similar-book banner
+  (`intake-similar`, `intake-attach`, `intake-create-new`), the ISBN management actions (attach/delete
+  edition), and the merge flow (`book-merge`, `merge-confirm`) carry no zh-CN keys.
 - New patron keys for these features (en + zh-CN parity, §12): the `/library` header actions
   (`library.actions.{export,addIsbn,browse}`, `library.export.*` for the CSV columns), the toolbar
   (`library.search.saved`, `library.filter.inBuilding`, `library.sort.*`, `library.view.{list,grid}`),
   the **Loans** tab (`library.tabs.loans`, `library.loans.{due,dueSoon,overdue,renew,renewed,returned,receipt,empty}`),
-  the **Dropped** stage label (`library.stages.dropped`), and the scanner borrow/return actions
+  the **Dropped** stage label (`library.stages.dropped`), and the scanner copy borrow/return actions
   (`scanner.patron.{borrow,returned,dueOn,borrowed}`). The **Add ISBN Entry** action is staff-only so
   its label stays English like the rest of admin. Plus the rating average on cards/detail
   (`catalog.card.rating` = `★ {avg} ({count})`, `book.rating.none`) and the catalog **Advanced**

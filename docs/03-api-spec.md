@@ -67,6 +67,9 @@ else IP (hashed). Middleware: [01-architecture.md](01-architecture.md#3-request-
 | `POST /api/copies/{id}/return` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; patron self-service return — [11 §9](./11-barcode-scanning.md#9-endpoints--validation)) |
 | `POST /api/copies/{id}/borrow` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; patron self-service checkout — [11 §9](./11-barcode-scanning.md#9-endpoints--validation)) |
 | `POST /api/copies/{id}/renew` | 5 | 1 min | user_id | 429 (`RATE_LIMITED`; one renewal per loan) |
+| `POST /api/books/identify-isbn` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; patron OL identification — [§5.5](#55-post-apibooksidentify-isbn)) |
+| `POST /api/books/{id}/borrow` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; borrow-by-book shares the `copies/borrow` bucket — [§6.8](#68-post-apibooksidborrow)) |
+| `POST /api/books/{id}/return` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; return-by-book shares the `copies/return` bucket — [§6.9](#69-post-apibooksidreturn)) |
 
 Specific limits shadow the general one (most restrictive wins per endpoint).
 
@@ -119,6 +122,12 @@ Auth column: 🔓 public · 🔒 `user` · 👑 `admin`.
 | 41 | POST | `/api/copies/{id}/borrow` | 🔒 | self-service checkout (loan) | [§6.5](#65-post-apicopiesidborrow) |
 | 42 | POST | `/api/copies/{id}/renew` | 🔒 | renew an open loan | [§6.6](#66-post-apicopiesidrenew) |
 | 43 | GET | `/api/loans` | 🔒 | my loans (active + history) | [§6.7](#67-get-apiloans) |
+| 44 | POST | `/api/books/identify-isbn` | 🔒 | patron ISBN identification via Open Library | [§5.5](#55-post-apibooksidentify-isbn) |
+| 45 | POST | `/api/books/{id}/borrow` | 🔒 | borrow by book (server picks copy) | [§6.8](#68-post-apibooksidborrow) |
+| 46 | POST | `/api/books/{id}/return` | 🔒 | return by book (closes caller's oldest open loan) | [§6.9](#69-post-apibooksidreturn) |
+| 47 | POST | `/api/admin/books/{id}/isbns` | 👑 | attach an edition ISBN to a book | [§8.6](#86-admin-isbn-management--merge) |
+| 48 | DELETE | `/api/admin/books/{id}/isbns/{isbn13}` | 👑 | detach a non-primary edition ISBN | [§8.6](#86-admin-isbn-management--merge) |
+| 49 | POST | `/api/admin/books/{id}/merge` | 👑 | merge source book into target (one tx) | [§8.6](#86-admin-isbn-management--merge) |
 
 404 for unknown `id` values on every `/api/.../{id}` route.
 
@@ -269,6 +278,10 @@ Response 200:
   "cover_url": "…",
   "rating_avg": 4.6,
   "rating_count": 12,
+  "isbns": [
+    { "isbn13": "9780593135204", "is_primary": true },
+    { "isbn13": "9780593355275", "is_primary": false }
+  ],
   "section": { "code": "SF", "name": "Science Fiction & Speculative", "color": "#3B82F6" },
   "availability": { "total_copies": 3, "available_copies": 2, "state": "available" },
   "copies": [
@@ -330,20 +343,40 @@ rate limit 10/1min per user.
   "loc_num": "PS3553.I57 D8 1965",
   "open_library_key": "/works/OL45864W",
   "source": "openlibrary",     // "openlibrary" or "offline_mock"
-  "in_catalog": true           // false — safe to create; true → client opens existing book
+  "in_catalog": true,          // false — safe to create; true → client opens existing book
+  "similar": [
+    {
+      "id": "6bb2ef05…",
+      "title": "Project Hail Mary",
+      "authors": ["Andy Weir"],
+      "isbn13": "9780593135204",
+      "copies": 3,
+      "section": { "code": "SF", "name": "Science Fiction & Speculative", "color": "#3B82F6" }
+    }
+  ]
 }
 ```
 
 - Checksum validation with `github.com/osamingo/checkdigit` (EAN-13) — invalid →
   400 `INVALID_ISBN` (client-side pre-filter is best effort, [11 §error handling](./11-barcode-scanning.md#8-error-handling)).
-- Existing book → 409 `ISBN_CONFLICT` + `{"book_id":"…"}` so admin navigates.
+- Existing book (primary ISBN match) → 409 `ISBN_CONFLICT` + `{"book_id":"…"}` so admin navigates.
+- `similar` (array, possibly empty): books in the catalog whose normalized title equals the
+  looked-up title and share at least one author — direct string comparison in v1 (no trigram
+  threshold). When non-empty the intake UI shows a **"looks like this is already in the catalog"
+  banner** with `data-testid="intake-similar"`, offering **Add as another edition**
+  (`data-testid="intake-attach"`, calls `POST /api/admin/books/{id}/isbns` on the chosen book
+  then adds copies) or **Create a separate book anyway** (`data-testid="intake-create-new"`).
+  Section/shelf remain required; section pre-fills from the matched book. Staff Intake only
+  (English — [14 §1](14-localization.md#1-scope)).
 - Open Library unreachable → 200 with `source:"offline_mock"` (filled with nulls)
   **iff `OFFLINE_MODE=false`**? **No** — see [08-seed-data.md](08-seed-data.md#6-open-library-fallback):
   when the network fetch fails after 2 retries the endpoint **still returns the
   barcode-validated partial record**: `title:""`,`source:"offline_partial"`,
   `covers:[]`, `warnings:["upstream_unavailable"]` (never blocks intake).
 - **Admin-only (👑)**: this is the *intake* path (it may create a book). Patron barcode
-  scanning uses the local resolver [§5.4](#54-post-apibooksscan) instead and never hits Open Library.
+  scanning uses the local resolver [§5.4](#54-post-apibooksscan) for instant lookup; if that returns
+  `match:"none"` for an ISBN-13, the patron UI calls [§5.5](#55-post-apibooksidentify-isbn) to identify
+  the book via Open Library — the scanner never hits Open Library through this admin endpoint.
 
 ### 5.4 POST /api/books/scan
 
@@ -368,9 +401,11 @@ upstream call: an ISBN-13 looks up `books` (by `isbn13`), a copy tag looks up `b
   "copy": null,                      // populated only for a copy-tag match
   "availability": { "total_copies": 3, "available_copies": 2, "state": "available" },
   "wayfinding": { "path": "MAIN/3F/SF/A-1/S-2", "parts": { … }, "ladder_steps": [ … ] },
-  "returnable": false,               // copy-tag match, status "checked_out"
-  "borrowable": false,               // copy-tag match, status "available", caller under limit
-  "loan": null                       // the copy's open loan, when any
+  "returnable": false,               // copy-tag: status "checked_out"; ISBN: caller has open loan
+  "borrowable": false,               // copy-tag: status "available" + under limit; ISBN: ≥1 available copy or caller's own ready hold
+  "loan": null,                      // copy-tag match: the copy's open loan (mine + due_at); null otherwise
+  "borrow_copy": null,               // ISBN match only: {id, barcode, location:{path,parts}} — the copy that would be loaned
+  "my_loans": []                     // ISBN match only: [{id, copy_id, barcode, due_at}] — caller's open loans for this book
 }
 ```
 
@@ -381,15 +416,75 @@ upstream call: an ISBN-13 looks up `books` (by `isbn13`), a copy tag looks up `b
     [borrow limit](#65-post-apicopiesidborrow) → [§6.5 borrow](#65-post-apicopiesidborrow);
   - `loan` = `{id,user_id,due_at,renewals,mine}` for the copy's open loan, else `null`
     (`mine` = the caller is the borrower; `due_at` drives the "due in N days" copy).
-- `match:"book"` (ISBN): `copy:null`, `returnable:false`; `wayfinding`/`availability` follow the
+- `match:"book"` (ISBN): `copy:null`; `wayfinding`/`availability` follow the
   home-shelf + availability rules of [§5.2](#52-get-apibooksid), so the client reads *other copies
   left* and offers the waitlist CTA when `available_copies == 0`.
+  Additionally: `borrowable` = `available_copies > 0` **or** the caller has a `reserved_waitlist`
+  copy ready for pickup; `borrow_copy` = the copy the server would pick (caller's own
+  `reserved_waitlist` copy first, else the lowest available barcode) — `null` when not borrowable;
+  `returnable` = the caller has at least one open loan for this book; `my_loans` = the caller's
+  open loans for this book (empty array when none). These fields power the scanner's
+  **Borrow this book** / **Return this book** actions ([§6.8](#68-post-apibooksidborrow) /
+  [§6.9](#69-post-apibooksidreturn)).
 - `in_catalog:false`, `match:"none"`, `book:null` when the code validates but no local row matches
   (patron cannot create a book; staff use [§5.3](#53-post-apibooksfetch-isbn)).
 - Normalization: strip spaces/hyphens; `ATH-…` uppercased and matched against
   `^ATH-[0-9]{6}-C[0-9]{2}$`; an EAN-13 payload is re-validated with `checkdigit` → 400
   `INVALID_ISBN` on failure. The full `copies[]`/`neighbors` are **not** returned — the client
   deep-links to [§5.2](#52-get-apibooksid) for detail.
+
+### 5.5 POST /api/books/identify-isbn
+
+Patron **ISBN identification via Open Library** (🔒 any signed-in user); rate limit 10/1min per
+user (bucket `identify_isbn`). Called by the scanner **only after** `POST /api/books/scan`
+([§5.4](#54-post-apibooksscan)) returns `match:"none"` + `code_type:"isbn13"`. The "not in
+library" card renders instantly from §5.4; then the UI calls this endpoint to fill in the OL
+metadata. Traffic is throttled independently of the scan bucket ([11](./11-barcode-scanning.md#2-scan-flows)).
+
+```json
+// request
+{ "isbn": "9780593355275" }
+// response 200 — never 409, never 5xx for upstream trouble
+{
+  "isbn13": "9780593355275",
+  "in_catalog": false,
+  "book_id": null,
+  "identified": {
+    "title": "Project Hail Mary",
+    "authors": ["Andy Weir"],
+    "publisher": "Ballantine Books",
+    "published_year": 2021,
+    "cover_url": "https://covers.openlibrary.org/b/isbn/9780593355275-L.jpg"
+  },
+  "source": "openlibrary",
+  "warnings": []
+}
+```
+
+- `source` is one of:
+  - `"openlibrary"` — Open Library returned metadata; `identified` is populated.
+  - `"local"` — the ISBN is already in the catalog (`in_catalog:true`, `book_id` set, `identified:null`);
+    no upstream call is made; the client should offer "View Full Record" instead of identification.
+  - `"offline_partial"` — OL was not reachable or had no record; `identified:null`,
+    `warnings` contains `"not_found"` (OL found but no data) or `"upstream_unavailable"` (OL down /
+    `OFFLINE_MODE=true`).
+- `identified` fields: `title` (string), `authors` (string array), `publisher` (string or null),
+  `published_year` (int or null), `cover_url` (string — `https://covers.openlibrary.org/b/isbn/{isbn13}-L.jpg`
+  when OL has a cover, else null). Classification fields (`dewey_num`, `loc_num`, `description`,
+  `open_library_key`) are omitted — patron-facing only; admin intake uses [§5.3](#53-post-apibooksfetch-isbn).
+- Checksum validation with `pkg/checkdigit` EAN-13 — invalid → 400 `INVALID_ISBN`.
+- Uses the **same Redis ISBN cache** (24 h, [08-seed-data.md](./08-seed-data.md#6-open-library-fallback)) and
+  `olbooks` client (3 s / 2 retries) as `fetch-isbn` and `cmd/seed`.
+- The ISBN may have been cataloged between the §5.4 scan and this call — the service re-checks
+  `books` for a concurrent add; if found, returns `in_catalog:true` + `source:"local"`.
+
+| Scenario | `in_catalog` | `book_id` | `identified` | `source` | `warnings` |
+| --- | --- | --- | --- | --- | --- |
+| ISBN in catalog | true | set | null | local | [] |
+| OL found | false | null | populated | openlibrary | [] |
+| OL has no record | false | null | null | offline_partial | ["not_found"] |
+| OL down / `OFFLINE_MODE` | false | null | null | offline_partial | ["upstream_unavailable"] |
+| Bad checksum | — | — | — | — | 400 `INVALID_ISBN` |
 
 ## 6. Personal Library, Waitlist & Loans
 
@@ -545,6 +640,58 @@ The caller's loans (🔒). Active loans first (soonest `due_at`), then history (
 
 - `overdue` = `now() > due_at` on an open loan; `renewable` mirrors [§6.6](#66-post-apicopiesidrenew).
   No fines and no email reminders (deferred — [10 §2](10-roadmap.md#2-out-of-scope--deferred)).
+
+### 6.8 POST /api/books/{id}/borrow
+
+Patron **borrow by book** (🔒 any signed-in user); the server picks which copy to loan.
+Rate limit 10/1min per user (shared bucket with `POST /api/copies/{id}/borrow`). Body is
+empty. The copy is selected as: caller's own `reserved_waitlist` copy first (ready hold
+being picked up), else the copy with the lowest available barcode (`FOR UPDATE SKIP LOCKED`
+to handle concurrency).
+
+```json
+// response 201
+{
+  "loan": { "id": "…", "copy_id": "b1e3…", "user_id": "…", "borrowed_at": "2026-10-16T09:00:00Z",
+            "due_at": "2026-10-30T09:00:00Z", "returned_at": null, "renewals": 0, "renewable": true },
+  "copy": { "id": "b1e3…", "barcode": "ATH-002948-C02", "status": "checked_out", "condition": "good",
+            "location": { "path": "MAIN/3F/SF/A-3/S-1", "parts": { … }, "ladder_steps": [ … ] } },
+  "availability": { "total_copies": 3, "available_copies": 2, "state": "available" }
+}
+```
+
+- Same rules as [§6.5](#65-post-apicopiesidborrow): `LOAN_PERIOD = 14d`, max 5 open loans
+  per user. The scanner UI tells the patron **which copy tag** to take and **which shelf** it is on.
+  Test id `scan-borrow` on the action button; `scan-borrow-copy` on the chosen barcode + shelf display.
+- Errors: 404 `NOT_FOUND` (unknown book); 409 `CONFLICT`
+  (`{"error":"CONFLICT","message":"No available copy to borrow"}`) when all copies are
+  checked out / `reserved_waitlist` by others; 409 `BORROW_LIMIT` when the caller already
+  has 5 loans.
+
+### 6.9 POST /api/books/{id}/return
+
+Patron **return by book** (🔒); closes the caller's **oldest open loan** for the specified
+book. Rate limit 10/1min per user (shared bucket with `POST /api/copies/{id}/return`). Body
+is empty.
+
+```json
+// response 200
+{
+  "loan": { "id": "…", "copy_id": "b1e3…", "returned_at": "2026-10-16T14:00:00Z" },
+  "copy": { "id": "b1e3…", "barcode": "ATH-002948-C02", "status": "available", "condition": "good",
+            "location": { "path": "MAIN/3F/SF/A-3/S-1", "parts": { … }, "ladder_steps": [ … ] } },
+  "availability": { "total_copies": 3, "available_copies": 3, "state": "available" },
+  "hold": null,
+  "closed_loan": { "id": "…", "returned_at": "2026-10-16T14:00:00Z" }
+}
+```
+
+- Effect mirrors [§6.4](#64-post-apicopiesidreturn): `checked_out → available` (or
+  `reserved_waitlist` on hold turnover), open loan closed (`returned_at = now()`), `copy_events`
+  appended (`source:"self_return"`). Test id `scan-return` on the action button.
+- Errors: 404 `NOT_FOUND` (unknown book); 409 `CONFLICT`
+  (`{"error":"CONFLICT","message":"No open loan found for this book"}`) when the caller has no
+  open loan for the book.
 
 ## 7. Chat (SSE)
 
@@ -713,6 +860,43 @@ Barcode state machine semantics: [12-ui-design.md](./12-ui-design.md#10-copy-sta
 library item counts, waitlist counts, last login from `refresh_tokens.created_at`).
 `PATCH /api/admin/users/{id}` body `{"role":"admin"|"user"}` → 200 user; can't
 demote yourself (`409 FORBIDDEN`? — client-guarded, server 400 `VALIDATION_FAILED`).
+
+### 8.6 Admin ISBN management & merge
+
+#### POST /api/admin/books/{id}/isbns
+
+Attach an additional edition ISBN to an existing book. Body: `{ "isbn13": "9780593355275" }`.
+Response **201**:
+
+```json
+{ "book_id": "6bb2ef05…", "isbns": [{ "isbn13": "9780593135204", "is_primary": true }, { "isbn13": "9780593355275", "is_primary": false }] }
+```
+
+- Checksum-validated. If the ISBN already belongs to **another** book → 409 `ISBN_CONFLICT`
+  + `{"book_id":"…"}`. If the ISBN is already attached to this book → 200 (idempotent). The
+  first ISBN attached this way becomes a non-primary alias; `books.isbn13` (the primary) is
+  unchanged. Test id `book-merge` on the admin merge action button.
+
+#### DELETE /api/admin/books/{id}/isbns/{isbn13}
+
+Detach a non-primary edition ISBN. Response **204**.
+
+- Attempting to delete the primary ISBN → 409 `CONFLICT`
+  (`{"error":"CONFLICT","message":"Cannot remove the primary ISBN"}`). To change the primary,
+  first attach a replacement and update `books.isbn13` via `PATCH /api/admin/books/{id}`.
+
+#### POST /api/admin/books/{id}/merge
+
+Merge the **source** book (`{id}` in the path) into the **target** book. Body:
+`{ "into": "<target_book_id>" }`. Response **200**:
+
+```json
+{ "book_id": "<target_id>", "merged_copies": 3, "isbns": [{ "isbn13": "9780593135204", "is_primary": true }, { "isbn13": "9780593355275", "is_primary": false }] }
+```
+
+One transaction — full semantics in [02 §book_isbns merge](02-data-model.md#admin-merge-post-apiadminbooksidmerge).
+Test id `merge-confirm` on the confirmation dialog confirm button. Errors: 404 for unknown
+source or target; 400 `VALIDATION_FAILED` if source == target.
 
 ## 9. Error Catalog
 

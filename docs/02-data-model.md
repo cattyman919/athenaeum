@@ -29,6 +29,7 @@
 | `conversations` `messages` | AI chat sessions | chat service | `/chat` page ([06](./06-ai-rag.md#7-conversation-persistence)) |
 | `copy_events` | Admin audit-stream rows | copy + return mutations | admin audit stream |
 | `loans` | Active + past borrowings (borrower, due date) | self-service checkout/return, admin | `/library` loans, detail |
+| `book_isbns` | All ISBN-13s for a book (primary + alternate editions) | admin ISBN attach/merge, intake dedupe | scan, search, detail, identify-isbn |
 | `book_locations` | **VIEW** — denormalized copy→building path | — | detail, wayfinding, export |
 | `book_ratings` | **VIEW** — per-book average + count of `user_library.rating` | — | search, detail, `/catalog` |
 
@@ -70,7 +71,14 @@ erDiagram
     book_copies ||--o{ copy_events : "transitioned by"
     book_copies ||--o{ loans : "lent as"
     users ||--o{ loans : "borrows"
+    books ||--o{ book_isbns : "identified by"
 
+    book_isbns {
+        text isbn13 PK
+        uuid book_id FK
+        bool is_primary
+        timestamptz created_at
+    }
     users {
         uuid id PK
         citext email
@@ -458,6 +466,49 @@ CREATE INDEX loans_copy_idx ON loans (copy_id, borrowed_at DESC);
   who/when/until record. Both change in one transaction, and every transition appends a
   `copy_events` row (`source` = `self_checkout` / `self_return`).
 
+### book_isbns
+
+One row per ISBN-13 that is associated with a book (primary + all alternate edition ISBNs).
+`books.isbn13` stays the **primary ISBN** for display and back-compat; `book_isbns` is the
+lookup table that every ISBN lookup goes through (scan, identify-isbn, fetch-isbn conflict
+check, keyword search of an alt ISBN). A partial unique index enforces at most one primary
+ISBN per book.
+
+```sql
+CREATE TABLE book_isbns (
+  isbn13      TEXT PRIMARY KEY,                               -- checksum-validated EAN-13
+  book_id     UUID NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+  is_primary  BOOL NOT NULL DEFAULT false,                    -- exactly one per book (enforced below)
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX book_isbns_primary_key ON book_isbns (book_id) WHERE is_primary;
+CREATE INDEX book_isbns_book_idx ON book_isbns (book_id);
+```
+
+Migration backfill inserts one primary row per existing book using `books.isbn13` as the
+ISBN and marks it `is_primary = true`.
+
+#### Admin merge (`POST /api/admin/books/{id}/merge`)
+
+When two book rows represent the same title (e.g. two editions of *Project Hail Mary*),
+an admin merge combines them in one transaction:
+
+1. All `book_copies` rows of the **source** are re-pointed to the **target**.
+2. `user_library` rows: if a user has entries for both books, the surviving row keeps the
+   higher `status` (order: `dropped < want_to_read < reading < read`) and the higher
+   `rating`; the duplicate is deleted.
+3. `waitlist` rows of the source are moved to the target (no dedup needed).
+4. All `book_isbns` rows of the source are moved to the target as non-primary ISBNs
+   (`is_primary = false`).
+5. A `copy_events` row is appended for each moved copy (`source = 'merge'`, `actor_id` =
+   admin).
+6. The source book row is hard-deleted (cascades its embeddings, no remaining FKs).
+7. `books.embedding_dirty = true` is set on the target so the auto-index worker
+   re-embeds it with combined content.
+
+Response: `200 { book_id, merged_copies, isbns }` where `isbns` is the full updated
+array of `[{isbn13, is_primary}]` for the target book.
+
 ## 5. Indexes
 
 Beyond all inline indexes above, the full-text + vector layer:
@@ -480,6 +531,8 @@ CREATE INDEX users_role_idx ON users (role);
 | `loans_open_copy_key` | Partial unique | one open loan per copy |
 | `loans_user_open_idx` | Partial BTree | my loans + borrow-limit check |
 | `waitlist_book_active_idx` | Partial BTree | queue position calc |
+| `book_isbns_primary_key` | Partial unique | one primary ISBN per book |
+| `book_isbns_book_idx` | BTree | ISBN list on book detail |
 
 ## 6. Views
 

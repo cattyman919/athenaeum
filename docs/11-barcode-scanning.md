@@ -22,10 +22,15 @@ One **Universal Barcode & ISBN Scanner** dialog serves both audiences (Stitch ar
 `.artifacts/stitch/barcode_isbn_scanner_athenaeum_library/`, refreshed 2026-10-16 — a bento modal;
 the two-tab **Patron Lookup / Staff Intake** model is kept, decided 2026-10-16):
 
-- **Patron Lookup** (default; every signed-in user):
+ - **Patron Lookup** (default; every signed-in user):
   - scan an **ISBN-13/EAN-13** → the matching catalog record, its home shelf, and **how many
     other copies are left**; CTA "View Full Record & Map", or the waitlist CTA when zero copies
-    are available.
+    are available. When the book has `borrowable:true`, a **Borrow this book** button
+    (`data-testid="scan-borrow"`) lets the patron check out immediately — the server picks
+    the best available copy and the UI reveals the chosen copy tag + shelf (`scan-borrow-copy`)
+    so the patron knows which item to take. When the patron already has an open loan for this
+    book, **Return this book** (`data-testid="scan-return"`) closes it without needing the
+    copy tag — [03 §6.8/§6.9](03-api-spec.md#68-post-apibooksidborrow).
   - scan an **Athenaeum copy tag** (`ATH-XXXXXX-CYY`) → that specific copy, with a
     **Borrow this copy** action when it is `available` (self-service checkout → a 14-day loan)
     or a **Return this copy** action when it is `checked_out` (self-service return) —
@@ -54,7 +59,7 @@ Accepted codes and their symbols:
 
 ## 2. Scan Flows
 
-### 2a. Patron lookup (ISBN → record + other copies)
+### 2a. Patron lookup (ISBN → record + other copies; unknown ISBN → OL identification)
 
 ```mermaid
 sequenceDiagram
@@ -63,6 +68,8 @@ sequenceDiagram
     participant S as Scanner client comp
     participant D as BarcodeDetector polyfill
     participant A as api POST /api/books/scan
+    participant I as api POST /api/books/identify-isbn
+    participant OL as Open Library (olbooks client)
     participant PG as Postgres (books + copies)
 
     S->>C: request stream: facingMode environment
@@ -75,6 +82,17 @@ sequenceDiagram
     A-->>S: 200 match=book, availability, wayfinding
     S->>S: haptics vibrate(50) + confirmation beep
     S-->>Dialog: show record; "View Full Record & Map" / waitlist CTA when 0 available
+
+    note over S,PG: Unknown ISBN path (match=none, code_type=isbn13)
+    A-->>S: 200 match=none, in_catalog=false
+    S-->>Dialog: "Not registered in this library" warning (scan-not-registered); skeleton
+    S->>I: POST isbn (10 per min per user; identify_isbn bucket)
+    I->>PG: re-check books by isbn13 (concurrent-add guard)
+    I->>OL: GET /api/books?bibkeys=ISBN:{isbn} (3s / 2 retries; Redis 24h cache)
+    OL-->>I: metadata or empty/error
+    I-->>S: 200 {identified:{title,authors,cover_url,…}, source, warnings}
+    S-->>Dialog: identified card (scan-identified): cover + title + authors + publisher·year
+    note over S,Dialog: warning banner persists regardless — "Not registered in this library"
 ```
 
 ### 2b. Patron self-service return (copy tag → return)
@@ -119,6 +137,40 @@ sequenceDiagram
 
 `reserved_waitlist` owned by the caller behaves like `available` (a ready hold being picked
 up → the hold becomes `picked_up`). Rate 10/1min; max 5 open loans per user.
+
+### 2b-iii. Patron borrow / return by ISBN (book-level, no copy tag needed)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant S as Scanner client comp
+    participant A as api POST /api/books/scan
+    participant B as api POST /api/books/{id}/borrow
+    participant R as api POST /api/books/{id}/return
+    participant PG as Postgres (copies + loans + copy_events)
+
+    S->>A: POST code "9780593135204"
+    A-->>S: 200 match=book, borrowable=true, borrow_copy={barcode,location}, my_loans=[]
+    S-->>Dialog: show book + "Borrow this book" (scan-borrow)
+    S->>B: POST borrow (10 per min per user; shared copy-borrow bucket)
+    B->>PG: SELECT FOR UPDATE SKIP LOCKED — lowest available copy (or caller's reserved_waitlist)
+    B->>PG: status available -> checked_out; INSERT loans (due_at = now + 14d)
+    B->>PG: append copy_events (source=self_checkout, actor=patron)
+    B-->>S: 201 loan (due_at) + copy {barcode, location}
+    S-->>Dialog: scan-borrow-copy panel: "Take copy ATH-002948-C02 from Shelf S-1 — due Oct 30"; "Scan Next"
+
+    note over S,PG: Return path — caller already has a loan
+    A-->>S: 200 match=book, returnable=true, my_loans=[{id, copy_id, barcode, due_at}]
+    S-->>Dialog: show book + "Return this book" (scan-return)
+    S->>R: POST return (10 per min per user; shared copy-return bucket)
+    R->>PG: closes caller's oldest open loan for this book
+    R->>PG: checked_out -> available; append copy_events (source=self_return)
+    R-->>S: 200 closed_loan + availability
+    S-->>Dialog: success toast "Returned — thanks!"; "Scan Next"
+```
+
+Rate 10/1min (shared with copy-level borrow/return buckets — [03 §2](03-api-spec.md#2-rate-limiting)).
+Same 14-day loan, max 5 open loans, one renewal — all copy-tag paths remain unchanged.
 
 ### 2c. Staff intake (ISBN → add book)
 
@@ -257,10 +309,13 @@ truth for layout; this table fixes behaviour.
 | Feedback | `navigator.vibrate(50)` (haptics), WebAudio 880 Hz 40 ms beep, green focus ring |
 | Cooldown | 1.5 s lockout after a detection to prevent duplicate lookups |
 | Manual fallback | text input accepting an ISBN-13 or `ATH-…` tag, with a client check-digit hint ([§8](#8-error-handling)) |
-| Result — book | cover (2:3), title/author, ISBN, call numbers; availability chip (`N Copies on Shelf`); shelf coordinates block |
+| Result — book | cover (2:3), title/author, ISBN, call numbers; availability chip (`N Copies on Shelf`); shelf coordinates block; **Borrow this book** (`data-testid="scan-borrow"`) when `borrowable:true` — after success, `scan-borrow-copy` panel names the chosen copy barcode + shelf + due date; **Return this book** (`data-testid="scan-return"`) when `returnable:true` (patron has an open loan for this book). When not borrowable and `available_copies==0`: waitlist CTA. |
 | Result — copy | copy `barcode`, status, condition, shelf coordinates, and the open loan's due date when borrowed by the caller; **Borrow this copy** when `borrowable`, **Return this copy** when `returnable` |
-| Patron actions | `View Full Record & Map` → `/books/{id}`; `Borrow this copy` → loan with due date; `Return this copy` → [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn); `Scan Next` (clears result, keeps camera) |
+| Result — not in library | Persistent amber/destructive `role="status"` warning banner: "Not registered in this library — this title isn't in the catalog." (`data-testid="scan-not-registered"`, key `scanner.notInCatalog.warning`). While OL identification is in flight: loading skeleton (`scanner.notInCatalog.identifying`). When identified: cover image via `BookCover` using OL `cover_url` (`data-testid="scan-identified-cover"`), title (`data-testid="scan-identified-title"`), authors, publisher · year — wrapper `data-testid="scan-identified"` — attributed as `scanner.notInCatalog.identifiedBy`. When OL has no record or is offline: generic unidentified text (`scanner.notInCatalog.unidentified`). If the ISBN was added to the catalog between the scan and the identification response: warning swaps to "View Full Record" (`scanner.notInCatalog.alreadyAdded`). Staff sees the existing "Add this book (Staff Intake)" CTA regardless. |
+| Patron actions — ISBN book match | `View Full Record & Map` → `/books/{id}`; **Borrow this book** (`scan-borrow`, when `borrowable`) → loan created via [03 §6.8](03-api-spec.md#68-post-apibooksidborrow); `scan-borrow-copy` panel shows the chosen copy tag + shelf + due date; **Return this book** (`scan-return`, when `returnable`) → [03 §6.9](03-api-spec.md#69-post-apibooksidreturn); `Scan Next` (clears result, keeps camera) |
+| Patron actions — copy-tag match | `Borrow this copy` → loan with due date ([03 §6.5](03-api-spec.md#65-post-apicopiesidborrow)); `Return this copy` → [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn); `Scan Next` |
 | Staff module | next inventory copy tag (`ATH-…-CY`), commit intake → Add-Book form |
+| Staff intake form | after ISBN lookup the form shows a live **cover preview** (`intake-cover-preview`, from the editable `cover_url`) beside title/authors/publisher/year; a **Shelving** group makes **Section** and **Shelf** required (inline errors `err-section`/`err-shelf`; shelf list is filtered by the chosen section; copies 1–20); catalog numbers/description sit in a collapsible. No "prefilled" banner — only an Open-Library-had-no-record notice when the lookup is partial. |
 
 ## 8. Error Handling
 
@@ -274,10 +329,13 @@ truth for layout; this table fixes behaviour.
 | ISBN-10 scanned | non-EAN-13 ISBN | hint: ISBN-10 is unsupported — scan the ISBN-13/EAN-13 barcode |
 | UPC (12-digit) scanned | wrong barcode format | hint: that is the store barcode — scan the ISBN/EAN-13 (publisher libraries may need barcode labels) |
 | `400 INVALID_ISBN` from API | server re-validation ([§9](#9-endpoints--validation)) | toast + manual-input hint |
-| `200 in_catalog:false` | ISBN validates but no local row | "Not in this building's catalog" card; staff → "Add this book" (Staff Intake) |
-| `409 CONFLICT` on return | copy is not `checked_out` | toast showing `current_status`; result refreshes to the copy's real state |
-| `404 NOT_FOUND` on return | copy removed between scan and return | toast + "Scan Next" |
-| `429 RATE_LIMITED` | scan/return throttle | toast with reset seconds |
+| `200 in_catalog:false, match:none, code_type:isbn13` | ISBN validates but no local row | Renders the "not in library" warning card immediately (`scan-not-registered`); then calls `POST /api/books/identify-isbn` ([03 §5.5](03-api-spec.md#55-post-apibooksidentify-isbn)) once to fill in the OL metadata (cover/title/authors/publisher·year via `scan-identified`). While identifying: loading skeleton. If OL is down or has no record: generic unidentified text (`scan-not-registered` persists). Staff Intake CTA stays visible regardless. |
+| `409 CONFLICT` on return (copy tag) | copy is not `checked_out` | toast showing `current_status`; result refreshes to the copy's real state |
+| `409 CONFLICT` on borrow-by-book | no available copy | toast "No available copy to borrow right now"; scanner stays on the book card |
+| `409 CONFLICT` on return-by-book | caller has no open loan for this book | toast "No open loan found"; result updates to show current `my_loans` state |
+| `409 BORROW_LIMIT` | caller already has 5 loans | toast "Loan limit reached (5)" |
+| `404 NOT_FOUND` on return | copy/book removed between scan and return | toast + "Scan Next" |
+| `429 RATE_LIMITED` | scan/return/borrow throttle | toast with reset seconds |
 | `409 ISBN_CONFLICT` (staff) | ISBN already in catalog | toast + "Open in catalog" deep link ([03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn)) |
 
 ## 9. Endpoints & Validation
@@ -288,7 +346,13 @@ truth for layout; this table fixes behaviour.
 | `POST /api/copies/{id}/borrow` | 🔒 user | self-service checkout (available/reserved→own → checked_out + loan) — [03 §6.5](03-api-spec.md#65-post-apicopiesidborrow) |
 | `POST /api/copies/{id}/return` | 🔒 user | self-service return (checked_out → available / reserved_waitlist) — [03 §6.4](03-api-spec.md#64-post-apicopiesidreturn) |
 | `POST /api/copies/{id}/renew` | 🔒 user | renew an open loan once (+14d) — [03 §6.6](03-api-spec.md#66-post-apicopiesidrenew) |
+| `POST /api/books/identify-isbn` | 🔒 user | identify an unknown ISBN via Open Library (patron, called after scan `match:none`) — [03 §5.5](03-api-spec.md#55-post-apibooksidentify-isbn) |
+| `POST /api/books/{id}/borrow` | 🔒 user | borrow by book — server picks copy (lowest available barcode, or caller's own `reserved_waitlist` first) — [03 §6.8](03-api-spec.md#68-post-apibooksidborrow) |
+| `POST /api/books/{id}/return` | 🔒 user | return by book — closes caller's oldest open loan for the book — [03 §6.9](03-api-spec.md#69-post-apibooksidreturn) |
 | `POST /api/books/fetch-isbn` | 👑 admin | metadata intake for a **new** book — [03 §5.3](03-api-spec.md#53-post-apibooksfetch-isbn) |
+| `POST /api/admin/books/{id}/isbns` | 👑 admin | attach edition ISBN to book — [03 §8.6](03-api-spec.md#86-admin-isbn-management--merge) |
+| `DELETE /api/admin/books/{id}/isbns/{isbn13}` | 👑 admin | detach non-primary edition ISBN — [03 §8.6](03-api-spec.md#86-admin-isbn-management--merge) |
+| `POST /api/admin/books/{id}/merge` | 👑 admin | merge source into target book — [03 §8.6](03-api-spec.md#86-admin-isbn-management--merge) |
 | `POST /api/admin/books` · `/api/admin/copies` | 👑 admin | staff create book / copy (auto copy tag) — [03 §8](03-api-spec.md#8-admin) |
 
 Checksum validation is shared: EAN-13 via `github.com/osamingo/checkdigit` and the copy tag by
@@ -325,12 +389,20 @@ if ok, _ := v.Verify([]byte(strings.TrimSpace(code))); !ok {
   `POST /api/copies/{id}/borrow`, `POST /api/copies/{id}/return` and
   `POST /api/copies/{id}/renew`, plus `GET /api/loans` and a patron-facing read of
   `book_locations` ([10 §1](10-roadmap.md#1-in-scope-v1--checklist) items 16-17).
+  `POST /api/books/identify-isbn` ([03 §5.5](03-api-spec.md#55-post-apibooksidentify-isbn)) is
+  the patron Open Library lookup — called **only** after a scan miss for an ISBN-13; it is
+  separate from the scan bucket and never blocks the not-in-catalog card render.
+  `POST /api/books/{id}/borrow` and `POST /api/books/{id}/return` ([03 §6.8/§6.9](03-api-spec.md#68-post-apibooksidborrow))
+  extend borrowing and return to the **ISBN scan path** — no copy tag required;
+  the server picks the best copy. Admin ISBN attachment and book merge use
+  [03 §8.6](03-api-spec.md#86-admin-isbn-management--merge).
   `fetch-isbn` stays the admin intake path.
-- **Self-service borrow and return are trust-based circulation:** scanning a copy tag borrows
-  an `available` copy (14-day loan, max 5, one renewal) or returns any `checked_out` copy —
-  no borrower card scan ([01 §8](01-architecture.md#8-cross-cutting-rules)). The borrower and
-  `due_at` live in [`loans`](02-data-model.md#loans). Overdue **fines**, reminders and
-  multi-copy hold requests remain deferred ([10 §2](10-roadmap.md#2-out-of-scope--deferred)).
+- **Self-service borrow and return are trust-based circulation:** scanning an ISBN or a copy
+  tag borrows an `available` copy (14-day loan, max 5, one renewal) or returns a `checked_out`
+  copy — no borrower card scan ([01 §8](01-architecture.md#8-cross-cutting-rules)). Copy-tag
+  paths target a specific copy; book-level paths let the server pick. The borrower and `due_at`
+  live in [`loans`](02-data-model.md#loans). Overdue **fines**, reminders and multi-copy hold
+  requests remain deferred ([10 §2](10-roadmap.md#2-out-of-scope--deferred)).
 - Frontend: one dialog folder (`web/components/barcode-scanner/`), one hook
   (`use-barcode-scanner.ts`), one nav entry — reused by `/catalog`, `/library`, and `/admin`;
   the `/library` **Loans** tab lists active loans with due dates.

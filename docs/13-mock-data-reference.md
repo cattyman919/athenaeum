@@ -77,6 +77,15 @@ book unless noted in [§3](#3-copy-status-ledger).
 
 Notes:
 
+- **Book #8 (Project Hail Mary)** carries a second edition ISBN `9780593355275` as a
+  non-primary `book_isbns` entry (decided Phase 21 / plan `1792200000000`). The seeded book
+  `9780593355275` that previously existed as a separate catalog row was merged into book #8
+  (`6bb2ef05…`) via `POST /api/admin/books/{source}/merge` — the source's copy (`ATH-002948-C03`,
+  added during the merge demo) moved to book #8, giving it 3 copies total. The alternate ISBN
+  is stored in `book_isbns`; scanning `9780593355275` now resolves to the same catalog record.
+  Fixture count changes: book #8 now has 3 copies (was 2); total copies remain 60 (merged copy
+  replaced what would have been a separate seeded copy). Stub ISBN `9780593355275` used in
+  identify-isbn E2E specs still returns no OL data (unknown to the stub).
 - Archive items **#38–40 intentionally have no Open Library records** — they
   demonstrate the metadata fallback ([08 §6](./08-seed-data.md#6-open-library-fallback)) and
   frontend empty-cover states.

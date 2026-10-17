@@ -32,6 +32,8 @@
 | 16 | Barcode scanner for patrons + staff: ISBN lookup ("other copies left"), self-service return, staff intake | [11](./11-barcode-scanning.md), [03 §5.4/§6.4](03-api-spec.md#54-post-apibooksscan) | ✅ |
 | 17 | Self-service **borrowing** (checkout) + loans (due dates, one renewal) via scanning a copy tag | [11](./11-barcode-scanning.md), [03 §6.5-6.7](03-api-spec.md#65-post-apicopiesidborrow) | ✅ planned |
 | 18 | Hybrid search by default (mode switcher behind "Advanced"); per-book **rating average** + count | [03 §5.1](03-api-spec.md#51-get-apibookssearch), [02 §6.2](02-data-model.md#62-book_ratings) | ✅ planned |
+| 19 | Patron **ISBN identification** via Open Library after a scan miss (`POST /api/books/identify-isbn`) + **scan button** in the catalog search bar (`catalog-scan`) | [03 §5.5](03-api-spec.md#55-post-apibooksidentify-isbn), [11](./11-barcode-scanning.md#2-scan-flows), [07](./07-frontend.md#scanner-dialog--patron-lookup--staff-intake) | ✅ planned |
+| 20 | **Editions & ISBN management**: `book_isbns` table (one primary + alt ISBNs per book); admin attach/detach/merge; intake dedupe similar-banner; `isbns` on detail; **borrow/return by ISBN** (`POST /api/books/{id}/borrow|return`) so patrons can borrow without scanning a copy tag | [02 §book_isbns](02-data-model.md#book_isbns), [03 §6.8-§6.9/§8.6](03-api-spec.md#68-post-apibooksidborrow), [11](./11-barcode-scanning.md#2-scan-flows) | ✅ planned |
 
 ## 2. Out of Scope — Deferred
 

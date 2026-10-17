@@ -225,6 +225,11 @@ spec uses `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`. T
 specs drive the dialog's **manual code input** (deterministic in CI): a patron ISBN lookup and a
 self-service return against a seeded `checked_out` copy; the camera decode loop stays unit-tested
 ([11 §9](11-barcode-scanning.md#9-endpoints--validation)).
+The `identify-isbn` Playwright specs reuse the existing Open Library stub in `api/cmd/e2e-stubs`
+(`StubISBN=9780553293357`, which the stub returns as Foundation metadata); `9780593355275` is a
+checksum-valid ISBN-13 that the stub does **not** know (returns no data → `source:"offline_partial"`,
+`warnings:["not_found"]`). These two ISBNs cover the identified and unidentified branches without
+needing live OL access. `resetRateLimits()` in `beforeAll` of affected specs clears `rl:identify_isbn:*`.
 
 CI runs on every push/PR via GitHub Actions (`.github/workflows/ci.yml`): `gofmt` + vet +
 golangci-lint + `go test`, web lint + unit + build, and the Playwright E2E job (compose
