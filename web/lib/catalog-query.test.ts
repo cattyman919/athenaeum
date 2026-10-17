@@ -16,7 +16,7 @@ describe("catalog URL state (docs/07 §5)", () => {
   it("parses every facet", () => {
     const q = parseCatalogQuery({
       q: " dune ",
-      mode: "hybrid",
+      mode: "keyword",
       section: ["SF", "REF"],
       availability: "available",
       era: ["2000_n"],
@@ -25,7 +25,7 @@ describe("catalog URL state (docs/07 §5)", () => {
     });
     expect(q).toEqual({
       q: "dune",
-      mode: "hybrid",
+      mode: "keyword",
       sections: ["SF", "REF"],
       availableOnly: true,
       eras: ["2000_n"],
@@ -69,15 +69,16 @@ describe("catalog URL state (docs/07 §5)", () => {
 
   it("API params always carry mode and per_page", () => {
     const p = toApiParams({ ...DEFAULT_QUERY, q: "x" }, 12);
-    expect(p.get("mode")).toBe("keyword");
+    expect(p.get("mode")).toBe("hybrid");
     expect(p.get("per_page")).toBe("12");
     expect(p.get("q")).toBe("x");
+    expect(toApiParams(DEFAULT_QUERY).get("mode")).toBe("keyword");
   });
 
-  it("requiresQuery gates semantic/hybrid but not keyword (docs/03 §5.1)", () => {
+  it("requiresQuery gates only explicit semantic; hybrid/keyword browse", () => {
     expect(requiresQuery("keyword")).toBe(false);
     expect(requiresQuery("semantic")).toBe(true);
-    expect(requiresQuery("hybrid")).toBe(true);
+    expect(requiresQuery("hybrid")).toBe(false);
   });
 
   it("toggleFacet adds/removes and resets paging", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, createApiClient } from "./api-client";
 import { EMPTY_FORM, buildCreateBody, describeIntakeError, metadataToForm } from "./intake";
-import type { IsbnMetadata } from "./intake-types";
+import type { IsbnMetadata, SimilarBook } from "./intake-types";
 
 const foundation: IsbnMetadata = {
   isbn13: "9780553293357",
@@ -68,10 +68,11 @@ describe("buildCreateBody (docs/03 §8.2)", () => {
     });
   });
 
-  it("omits section and shelf when unset", () => {
+  it("requires a section and a shelf", () => {
     const r = buildCreateBody(metadataToForm(foundation), 1, "");
-    expect(r.ok && r.body.section).toBeFalsy();
-    expect(r.ok && r.body.copies).toEqual([{}]);
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(Object.keys(r.errors).sort()).toEqual(["section", "shelf"]);
   });
 
   it("reports field errors", () => {
@@ -83,7 +84,7 @@ describe("buildCreateBody (docs/03 §8.2)", () => {
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(Object.keys(r.errors).sort()).toEqual(
-      ["authors", "copies", "isbn13", "published_year", "title"].sort(),
+      ["authors", "copies", "isbn13", "published_year", "section", "shelf", "title"].sort(),
     );
     expect(r.errors.isbn13).toMatch(/UPC/);
   });
@@ -118,6 +119,34 @@ describe("describeIntakeError (docs/11 §8)", () => {
 
   it("non-API failures are network errors", () => {
     expect(describeIntakeError(new TypeError("fetch failed")).message).toMatch(/Network/);
+  });
+});
+
+describe("IsbnMetadata similar field (plan §3)", () => {
+  const withSimilar: IsbnMetadata = {
+    ...foundation,
+    similar: [
+      {
+        id: "b6b2ef05-0000-0000-0000-000000000001",
+        title: "Project Hail Mary",
+        authors: ["Andy Weir"],
+        isbn13: "9780593135204",
+        copies: 2,
+        section: { code: "SF", name: "Science Fiction & Speculative", color: "#3B82F6" },
+      } satisfies SimilarBook,
+    ],
+  };
+
+  it("similar is optional and carries a list of similar catalog books", () => {
+    expect(foundation.similar).toBeUndefined();
+    expect(withSimilar.similar).toHaveLength(1);
+    expect(withSimilar.similar![0].section?.code).toBe("SF");
+  });
+
+  it("metadataToForm ignores similar (no form field for it)", () => {
+    const f = metadataToForm(withSimilar);
+    // The form should still fill title/authors normally.
+    expect(f.title).toBe("Foundation");
   });
 });
 

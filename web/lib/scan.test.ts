@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, createApiClient } from "./api-client";
-import { applyConflict, applyReturn, needsWaitlist, scanErrorView } from "./scan";
-import type { ReturnResponse, ScanResponse } from "./types";
+import {
+  applyBookBorrow,
+  applyBookReturn,
+  applyConflict,
+  applyReturn,
+  identifyView,
+  needsWaitlist,
+  scanErrorView,
+  shouldIdentify,
+} from "./scan";
+import type { BorrowBookResponse, ReturnBookResponse, ReturnResponse, ScanResponse } from "./types";
 
 const parts = {
   building_code: "MAIN",
@@ -139,5 +148,123 @@ describe("api client scanner calls (docs/03 §5.4, §6.4)", () => {
     expect(calls[1][0]).toBe("/api/copies/c%201/return");
     expect(calls[1][1]?.method).toBe("POST");
     expect(calls[1][1]?.body).toBeUndefined();
+  });
+});
+
+const bookScan: ScanResponse = {
+  code: "9780553380958",
+  code_type: "isbn13",
+  in_catalog: true,
+  match: "book",
+  book: {
+    id: "b6",
+    title: "Snow Crash",
+    authors: ["Neal Stephenson"],
+    isbn13: "9780553380958",
+    cover_url: null,
+    section: null,
+  },
+  copy: null,
+  availability: { total_copies: 3, available_copies: 3, state: "available" },
+  wayfinding: location,
+  returnable: false,
+  borrowable: true,
+  borrow_copy: { id: "c-sc1", barcode: "ATH-002946-C01", location },
+  my_loans: [],
+};
+
+describe("book-level borrow/return helpers (docs/03 §6.5)", () => {
+  it("applyBookBorrow clears borrowable, adds the loan to my_loans", () => {
+    const res: BorrowBookResponse = {
+      loan: {
+        id: "loan-1",
+        copy_id: "c-sc1",
+        user_id: "u1",
+        borrowed_at: "2026-10-17T06:00:00Z",
+        due_at: "2026-10-31T06:00:00Z",
+        returned_at: null,
+        renewals: 0,
+        renewable: true,
+      },
+      copy: {
+        id: "c-sc1",
+        barcode: "ATH-002946-C01",
+        status: "checked_out",
+        condition: "good",
+        location,
+      },
+      availability: { total_copies: 3, available_copies: 2, state: "available" },
+    };
+    const next = applyBookBorrow(bookScan, res);
+    expect(next.borrowable).toBe(false);
+    expect(next.returnable).toBe(true);
+    expect(next.my_loans).toHaveLength(1);
+    expect(next.my_loans![0].barcode).toBe("ATH-002946-C01");
+    expect(next.availability?.available_copies).toBe(2);
+  });
+
+  it("applyBookReturn removes the oldest loan and refreshes availability", () => {
+    const withLoan: ScanResponse = {
+      ...bookScan,
+      returnable: true,
+      borrowable: false,
+      my_loans: [
+        {
+          id: "loan-1",
+          copy_id: "c-sc1",
+          barcode: "ATH-002946-C01",
+          due_at: "2026-10-31T06:00:00Z",
+        },
+      ],
+    };
+    const res: ReturnBookResponse = {
+      copy: {
+        id: "c-sc1",
+        barcode: "ATH-002946-C01",
+        status: "available",
+        condition: "good",
+        location,
+      },
+      availability: { total_copies: 3, available_copies: 3, state: "available" },
+      hold: null,
+      closed_loan: { id: "loan-1" },
+    };
+    const next = applyBookReturn(withLoan, res);
+    expect(next.returnable).toBe(false);
+    expect(next.my_loans).toHaveLength(0);
+    expect(next.availability?.available_copies).toBe(3);
+  });
+});
+
+describe("identify helpers", () => {
+  it("shouldIdentify only for unknown ISBN-13s", () => {
+    expect(shouldIdentify({ ...copyScan, code_type: "isbn13", match: "none" })).toBe(true);
+    expect(shouldIdentify({ ...copyScan, code_type: "isbn13", match: "book" })).toBe(false);
+    expect(shouldIdentify({ ...copyScan, code_type: "copy_barcode", match: "none" })).toBe(false);
+  });
+
+  it("identifyView maps responses", () => {
+    const base = { isbn13: "9780553293357", source: "openlibrary" as const, warnings: [] };
+    expect(identifyView(null).kind).toBe("unidentified");
+    expect(
+      identifyView({
+        ...base,
+        in_catalog: false,
+        book_id: null,
+        identified: {
+          title: "Foundation",
+          authors: [],
+          publisher: null,
+          published_year: null,
+          cover_url: null,
+        },
+      }).kind,
+    ).toBe("identified");
+    expect(identifyView({ ...base, in_catalog: true, book_id: "b1", identified: null }).kind).toBe(
+      "in_catalog",
+    );
+    expect(identifyView({ ...base, in_catalog: false, book_id: null, identified: null }).kind).toBe(
+      "unidentified",
+    );
   });
 });

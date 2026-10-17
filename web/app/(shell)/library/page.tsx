@@ -10,13 +10,15 @@ import { RetryButton } from "@/components/retry-button";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoansList } from "@/components/loans-list";
 import { apiServer } from "@/lib/api-server";
 import { enumLabel } from "@/lib/enum-labels";
-import type { LibraryResponse, WaitlistItem } from "@/lib/types";
+import { sortLoans } from "@/lib/loans";
+import type { LibraryResponse, LoansResponse, WaitlistItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { shelfLine } from "@/lib/wayfinding";
 
-const STAGES = ["all", "reading", "read", "want_to_read", "favorites", "holds"] as const;
+const STAGES = ["all", "reading", "read", "want_to_read", "favorites", "holds", "loans"] as const;
 type Stage = (typeof STAGES)[number];
 
 async function getJson<T>(path: string): Promise<T | null> {
@@ -102,12 +104,13 @@ async function LibraryContent({ stage }: { stage: Stage }) {
   ]);
 
   const query = new URLSearchParams({ per_page: "50" });
-  if (stage !== "all" && stage !== "holds") query.set("status", stage);
-  const [lib, holds] = await Promise.all([
+  if (stage !== "all" && stage !== "holds" && stage !== "loans") query.set("status", stage);
+  const [lib, holds, loansData] = await Promise.all([
     getJson<LibraryResponse>(`/api/library?${query}`),
     getJson<{ items: WaitlistItem[] }>("/api/waitlist"),
+    getJson<LoansResponse>("/api/loans"),
   ]);
-  if (!lib || (stage === "holds" && !holds)) {
+  if (!lib || (stage === "holds" && !holds) || (stage === "loans" && !loansData)) {
     return (
       <div
         role="alert"
@@ -122,6 +125,8 @@ async function LibraryContent({ stage }: { stage: Stage }) {
   }
   const counts = lib.counts ?? { total: 0, reading: 0, read: 0, want_to_read: 0, favorites: 0 };
   const holdItems = holds?.items ?? [];
+  const loanItems = loansData?.items ?? [];
+  const activeLoansCount = loanItems.filter((l) => l.kind === "active").length;
 
   const kpis: Array<[string, number, string]> = [
     ["total", counts.total, t("kpi.total")],
@@ -136,6 +141,7 @@ async function LibraryContent({ stage }: { stage: Stage }) {
     want_to_read: counts.want_to_read,
     favorites: counts.favorites,
     holds: holdItems.length,
+    loans: activeLoansCount,
   };
 
   return (
@@ -176,7 +182,13 @@ async function LibraryContent({ stage }: { stage: Stage }) {
         ))}
       </nav>
 
-      {stage === "holds" ? (
+      {stage === "loans" ? (
+        loanItems.length === 0 ? (
+          <Empty title={t("loans.empty")} body={t("loans.scanHint")} />
+        ) : (
+          <LoansList loans={sortLoans(loanItems)} />
+        )
+      ) : stage === "holds" ? (
         holdItems.length === 0 ? (
           <Empty title={t("empty.holds")} body={t("empty.holdsBody")} cta={t("empty.browse")} />
         ) : (
@@ -281,7 +293,7 @@ async function LibraryContent({ stage }: { stage: Stage }) {
   );
 }
 
-function Empty({ title, body, cta }: { title: string; body: string; cta: string }) {
+function Empty({ title, body, cta }: { title: string; body: string; cta?: string }) {
   return (
     <div
       data-testid="library-empty"
@@ -290,9 +302,11 @@ function Empty({ title, body, cta }: { title: string; body: string; cta: string 
       <BookOpen className="h-6 w-6 text-outline" aria-hidden />
       <p className="font-semibold">{title}</p>
       <p className="max-w-sm text-sm text-muted-foreground">{body}</p>
-      <Link href="/catalog" className={buttonVariants({ size: "sm" })}>
-        {cta}
-      </Link>
+      {cta && (
+        <Link href="/catalog" className={buttonVariants({ size: "sm" })}>
+          {cta}
+        </Link>
+      )}
     </div>
   );
 }

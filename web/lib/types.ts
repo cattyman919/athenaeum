@@ -24,6 +24,8 @@ export interface BookSummary {
   availability: Availability;
   published_year: number | null;
   score: number;
+  rating_avg?: number | null;
+  rating_count?: number | null;
 }
 
 export interface PageMeta {
@@ -36,6 +38,8 @@ export interface PageMeta {
 /** GET /api/books/search meta: paging plus the auto-index backlog size (docs/03 §5.1). */
 export interface SearchMeta extends PageMeta {
   index_pending: number;
+  mode_used?: "keyword" | "semantic" | "hybrid";
+  degraded?: boolean;
 }
 
 export interface SearchResponse {
@@ -73,6 +77,11 @@ export interface Neighbor {
   cover_url: string | null;
 }
 
+export interface IsbnEntry {
+  isbn13: string;
+  is_primary: boolean;
+}
+
 export interface BookDetail {
   id: string;
   title: string;
@@ -91,6 +100,9 @@ export interface BookDetail {
   copies: CopyDetail[];
   wayfinding: { path: string; parts: LocationParts; ladder_steps: string[] } | null;
   neighbors: Neighbor[];
+  rating_avg?: number | null;
+  rating_count?: number | null;
+  isbns?: IsbnEntry[];
   my_library_entry: {
     status: "want_to_read" | "reading" | "read";
     is_favorite: boolean;
@@ -225,6 +237,54 @@ export interface ScanCopy {
   location: ScanLocation | null;
 }
 
+export interface ScanLoan {
+  id: string;
+  user_id: string;
+  due_at: string;
+  renewals: number;
+  mine: boolean;
+}
+
+export interface Loan {
+  kind: "active" | "past";
+  id: string;
+  copy_id: string;
+  barcode: string;
+  book: { id: string; title: string; cover_url: string | null; authors: string[] };
+  borrowed_at: string;
+  due_at: string;
+  returned_at: string | null;
+  renewals: number;
+  overdue: boolean;
+  renewable: boolean;
+}
+
+export interface LoansResponse {
+  items: Loan[];
+}
+
+export interface BorrowResponse {
+  copy: ScanCopy;
+  loan: ScanLoan;
+}
+
+export interface RenewResponse {
+  loan: ScanLoan;
+}
+
+export interface BookLoan {
+  id: string;
+  copy_id: string;
+  barcode: string;
+  due_at: string;
+}
+
+export interface BorrowCopy {
+  id: string;
+  barcode: string;
+  location: ScanLocation | null;
+}
+
 export interface ScanResponse {
   code: string;
   code_type: "isbn13" | "copy_barcode";
@@ -242,10 +302,73 @@ export interface ScanResponse {
   availability: Pick<Availability, "total_copies" | "available_copies" | "state"> | null;
   wayfinding: ScanLocation | null;
   returnable: boolean;
+  borrowable?: boolean;
+  loan?: ScanLoan | null;
+  /** Book-level borrow: the specific copy that would be loaned (lowest available tag). */
+  borrow_copy?: BorrowCopy | null;
+  /** Book-level return: the caller's open loans for this book. */
+  my_loans?: BookLoan[];
+}
+
+/** POST /api/books/{id}/borrow 201 body (docs/03 §6.5). */
+export interface BorrowBookLoan {
+  id: string;
+  copy_id: string;
+  user_id: string;
+  borrowed_at: string;
+  due_at: string;
+  returned_at: string | null;
+  renewals: number;
+  renewable: boolean;
+}
+
+export interface BorrowBookResponse {
+  loan: BorrowBookLoan;
+  copy: ScanCopy;
+  availability: Pick<Availability, "total_copies" | "available_copies" | "state">;
+}
+
+/** POST /api/books/{id}/return 200 body (docs/03 §6.5). */
+export interface ReturnBookResponse {
+  copy: ScanCopy;
+  availability: Pick<Availability, "total_copies" | "available_copies" | "state">;
+  hold: { id: string; status: "ready"; expires_at: string } | null;
+  closed_loan: { id: string } | null;
+}
+
+/** POST /api/admin/books/{id}/isbns 201 body. */
+export interface IsbnAttachResponse {
+  book_id: string;
+  isbns: IsbnEntry[];
+}
+
+/** POST /api/admin/books/{id}/merge 200 body. */
+export interface MergeBooksResponse {
+  book_id: string;
+  merged_copies: number;
+  isbns: IsbnEntry[];
 }
 
 export interface ReturnResponse {
   copy: ScanCopy;
   availability: Pick<Availability, "total_copies" | "available_copies" | "state">;
   hold: { id: string; status: "ready"; expires_at: string } | null;
+}
+
+/** POST /api/books/identify-isbn (docs/03 §5.5): patron-safe Open Library identification. */
+export interface IdentifiedBook {
+  title: string;
+  authors: string[];
+  publisher: string | null;
+  published_year: number | null;
+  cover_url: string | null;
+}
+
+export interface IdentifyResponse {
+  isbn13: string;
+  in_catalog: boolean;
+  book_id: string | null;
+  identified: IdentifiedBook | null;
+  source: "openlibrary" | "local" | "offline_partial";
+  warnings: string[];
 }

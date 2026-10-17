@@ -62,11 +62,11 @@ export function metadataToForm(md: IsbnMetadata, prev: BookForm = EMPTY_FORM): B
 
 const orNull = (s: string) => (s.trim() === "" ? null : s.trim());
 
-export type FieldErrors = Partial<Record<keyof BookForm | "copies", string>>;
+export type FieldErrors = Partial<Record<keyof BookForm | "copies" | "shelf", string>>;
 
 export type BuildResult = { ok: true; body: AdminBookCreate } | { ok: false; errors: FieldErrors };
 
-/** Validates the form and builds the admin create body (copies share one shelf). */
+/** Validates the form and builds the admin create body (section + shelf required; copies share one shelf). */
 export function buildCreateBody(form: BookForm, copies: number, shelfPath: string): BuildResult {
   const errors: FieldErrors = {};
   const verdict = classifyBarcode(form.isbn13);
@@ -84,11 +84,13 @@ export function buildCreateBody(form: BookForm, copies: number, shelfPath: strin
       errors.published_year = "Year must be a whole number.";
     }
   }
-  if (!Number.isInteger(copies) || copies < 0 || copies > 20) {
-    errors.copies = "Copies must be between 0 and 20.";
+  if (!form.section) errors.section = "Choose a section.";
+  if (!shelfPath) errors.shelf = "Choose the shelf these copies live on.";
+  if (!Number.isInteger(copies) || copies < 1 || copies > 20) {
+    errors.copies = "Copies must be between 1 and 20.";
   }
   if (Object.keys(errors).length > 0 || verdict.kind !== "isbn") return { ok: false, errors };
-  const copy = shelfPath ? { status: "available" as const, shelf_path: shelfPath } : {};
+  const copy = { status: "available" as const, shelf_path: shelfPath };
   return {
     ok: true,
     body: {
@@ -102,7 +104,7 @@ export function buildCreateBody(form: BookForm, copies: number, shelfPath: strin
       dewey_num: orNull(form.dewey_num),
       loc_num: orNull(form.loc_num),
       open_library_key: orNull(form.open_library_key),
-      ...(form.section ? { section: form.section } : {}),
+      section: form.section as SectionCode,
       copies: Array.from({ length: copies }, () => ({ ...copy })),
     },
   };

@@ -9,7 +9,17 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Keyboard, Loader2, ScanLine, Search } from "lucide-react";
+import {
+  BookCopy,
+  ChevronDown,
+  Keyboard,
+  Loader2,
+  MapPin,
+  ScanLine,
+  Search,
+  X,
+} from "lucide-react";
+import { BookCover } from "@/components/book-cover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +38,7 @@ import {
   type BookForm,
   type FieldErrors,
 } from "@/lib/intake";
-import type { AdminTreeShelf } from "@/lib/intake-types";
+import type { AdminTreeShelf, SimilarBook } from "@/lib/intake-types";
 
 // Camera + WASM are browser-only (docs/11 §5).
 const ISBNScanner = dynamic(() => import("./isbn-scanner").then((m) => m.ISBNScanner), {
@@ -40,6 +50,7 @@ type Tab = "manual" | "isbn" | "scan";
 
 interface ShelfOption extends AdminTreeShelf {
   group: string;
+  sectionCode: string;
 }
 
 const textareaClass =
@@ -62,6 +73,9 @@ export function AddBookFlow({ onClose, initialIsbn }: AddBookFlowProps) {
   const [isbnError, setIsbnError] = React.useState<string | null>(null);
   const [lookupPending, setLookupPending] = React.useState(false);
   const [note, setNote] = React.useState<string | null>(null);
+  const [similar, setSimilar] = React.useState<SimilarBook[] | null>(null);
+  const [similarDismissed, setSimilarDismissed] = React.useState(false);
+  const [attachingEdition, setAttachingEdition] = React.useState(false);
   const [copies, setCopies] = React.useState(1);
   const [shelfPath, setShelfPath] = React.useState("");
   const [shelves, setShelves] = React.useState<ShelfOption[] | null>(null);
@@ -81,7 +95,11 @@ export function AddBookFlow({ onClose, initialIsbn }: AddBookFlowProps) {
           for (const s of f.sections)
             for (const a of s.aisles)
               for (const sh of a.shelves)
-                opts.push({ ...sh, group: `Floor ${f.floor_number} · ${s.code} ${s.name}` });
+                opts.push({
+                  ...sh,
+                  sectionCode: s.code,
+                  group: `Floor ${f.floor_number} · ${s.code} ${s.name}`,
+                });
         setShelves(opts);
       })
       .catch(() => !cancelled && setShelves([]));
@@ -103,9 +121,17 @@ export function AddBookFlow({ onClose, initialIsbn }: AddBookFlowProps) {
         const md = await api.fetchIsbn(verdict.isbn);
         setForm((prev) => metadataToForm(md, prev));
         setErrors({});
+        setSimilar(md.similar && md.similar.length > 0 ? md.similar : null);
+        setSimilarDismissed(false);
+        // Pre-fill section from the first similar book if available.
+        if (md.similar && md.similar.length > 0 && md.similar[0].section) {
+          const sec = md.similar[0].section.code;
+          setForm((prev) => ({ ...prev, section: sec }));
+          setShelfPath("");
+        }
         setNote(
           md.source === "openlibrary"
-            ? "Prefilled from Open Library — review and confirm."
+            ? null
             : "Open Library had no usable record — fill in the details manually.",
         );
         setTab("manual");
@@ -182,20 +208,64 @@ export function AddBookFlow({ onClose, initialIsbn }: AddBookFlowProps) {
     }
   }
 
+  async function attachEdition() {
+    if (!similar || similar.length === 0) return;
+    const target = similar[0];
+    if (!shelfPath) {
+      setErrors((e) => ({ ...e, shelf: "Choose the shelf these copies live on." }));
+      return;
+    }
+    if (!form.section) {
+      setErrors((e) => ({ ...e, section: "Choose a section." }));
+      return;
+    }
+    setAttachingEdition(true);
+    try {
+      await api.attachIsbn(target.id, form.isbn13);
+      // Create the requested number of copies on the chosen shelf.
+      await Promise.all(
+        Array.from({ length: copies }, () =>
+          api.createAdminCopy({ book_id: target.id, status: "available", shelf_path: shelfPath }),
+        ),
+      );
+      toast.success(
+        `Added ${copies} ${copies === 1 ? "copy" : "copies"} of "${target.title}" — edition attached.`,
+        {
+          action: { label: "View", onClick: () => router.push(`/books/${target.id}`) },
+        },
+      );
+      onClose();
+      router.refresh();
+    } catch (err) {
+      const view = describeIntakeError(err);
+      toast.error(view.message);
+    } finally {
+      setAttachingEdition(false);
+    }
+  }
+
   const set =
     (k: keyof BookForm) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const field = (k: keyof BookForm, label: string, opts: { mono?: boolean } = {}) => (
+  const field = (
+    k: keyof BookForm,
+    label: string,
+    opts: { mono?: boolean; required?: boolean } = {},
+  ) => (
     <div className="space-y-1.5">
-      <Label htmlFor={`ab-${k}`}>{label}</Label>
+      <Label htmlFor={`ab-${k}`}>
+        {label}
+        {opts.required && <span className="text-destructive"> *</span>}
+      </Label>
       <Input
         id={`ab-${k}`}
         value={form[k]}
         onChange={set(k)}
         className={opts.mono ? "font-mono" : undefined}
         aria-invalid={Boolean(errors[k])}
+        aria-required={opts.required || undefined}
       />
       {errors[k] && <p className="text-xs text-destructive">{errors[k]}</p>}
     </div>
@@ -203,9 +273,14 @@ export function AddBookFlow({ onClose, initialIsbn }: AddBookFlowProps) {
 
   const groups = React.useMemo(() => {
     const m = new Map<string, ShelfOption[]>();
-    for (const s of shelves ?? []) m.set(s.group, [...(m.get(s.group) ?? []), s]);
+    for (const s of shelves ?? []) {
+      if (form.section && s.sectionCode !== form.section) continue;
+      m.set(s.group, [...(m.get(s.group) ?? []), s]);
+    }
     return [...m];
-  }, [shelves]);
+  }, [shelves, form.section]);
+
+  const coverSrc = form.cover_url.trim() || null;
 
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
@@ -277,77 +352,135 @@ export function AddBookFlow({ onClose, initialIsbn }: AddBookFlowProps) {
       </TabsContent>
 
       <TabsContent value="manual">
-        <form className="space-y-4" onSubmit={submit} data-testid="add-book-form">
+        <form className="space-y-5" onSubmit={submit} data-testid="add-book-form" noValidate>
+          {similar && !similarDismissed && (
+            <div
+              className="space-y-3 rounded-lg border border-border bg-surface-container p-4"
+              data-testid="intake-similar"
+            >
+              <div className="flex items-start gap-3">
+                <BookCopy className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">
+                    Looks like <em>{similar[0].title}</em> is already in the catalog
+                  </p>
+                  <p className="mt-0.5 text-xs text-on-surface-variant">
+                    {similar[0].authors.join(", ")} · {similar[0].copies}{" "}
+                    {similar[0].copies === 1 ? "copy" : "copies"} held
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void attachEdition()}
+                  disabled={attachingEdition}
+                  data-testid="intake-attach"
+                >
+                  {attachingEdition && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />}
+                  Add as another edition of this book
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSimilarDismissed(true)}
+                  data-testid="intake-create-new"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden />
+                  Create a separate book anyway
+                </Button>
+              </div>
+            </div>
+          )}
+
           {note && (
             <p className="rounded-md bg-surface-container px-3 py-2 text-sm" role="status">
               {note}
             </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-2">
-            {field("isbn13", "ISBN-13", { mono: true })}
-            {field("title", "Title")}
-            {field("authors", "Authors (comma-separated)")}
-            {field("publisher", "Publisher")}
-            {field("published_year", "Published year", { mono: true })}
-            <div className="space-y-1.5">
-              <Label htmlFor="ab-section">Section</Label>
-              <select
-                id="ab-section"
-                className={selectClass}
-                value={form.section}
-                onChange={set("section")}
-              >
-                <option value="">Unassigned</option>
-                {SECTIONS.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.code} — {s.name}
-                  </option>
-                ))}
-              </select>
+
+          <div className="grid gap-5 md:grid-cols-[10rem_1fr]">
+            <div className="space-y-2">
+              <div className="mx-auto w-32 shadow-md md:w-full" data-testid="intake-cover-preview">
+                <BookCover
+                  key={coverSrc ?? "none"}
+                  src={coverSrc}
+                  alt={form.title ? `Cover of ${form.title}` : "Cover preview"}
+                  title={form.title || "No cover yet"}
+                />
+              </div>
+              <p className="text-center text-[11px] text-on-surface-variant">
+                {coverSrc ? "Cover preview" : "No cover — add a URL under Catalog numbers"}
+              </p>
             </div>
-            {field("dewey_num", "Dewey", { mono: true })}
-            {field("loc_num", "LOC call number", { mono: true })}
-            {field("cover_url", "Cover URL")}
-            {field("open_library_key", "Open Library key", { mono: true })}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ab-description">Description</Label>
-            <textarea
-              id="ab-description"
-              className={textareaClass}
-              value={form.description}
-              onChange={set("description")}
-            />
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {field("isbn13", "ISBN-13", { mono: true })}
+              {field("title", "Title", { required: true })}
+              <div className="sm:col-span-2">
+                {field("authors", "Authors (comma-separated)", { required: true })}
+              </div>
+              {field("publisher", "Publisher")}
+              {field("published_year", "Published year", { mono: true })}
+            </div>
           </div>
 
           <fieldset className="space-y-3 rounded-lg border border-border p-4">
-            <legend className="px-1 text-sm font-medium">Copies</legend>
-            <p className="text-xs text-on-surface-variant">
-              Barcodes (ATH-XXXXXX-CY) are assigned automatically.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-[8rem_1fr]">
+            <legend className="flex items-center gap-1.5 px-1 text-sm font-medium">
+              <MapPin className="h-4 w-4 text-primary" aria-hidden />
+              Shelving
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="ab-copies">Count</Label>
-                <Input
-                  id="ab-copies"
-                  type="number"
-                  min={0}
-                  max={20}
-                  value={copies}
-                  onChange={(e) => setCopies(Number(e.target.value))}
-                  aria-invalid={Boolean(errors.copies)}
-                />
+                <Label htmlFor="ab-section">
+                  Section <span className="text-destructive">*</span>
+                </Label>
+                <select
+                  id="ab-section"
+                  className={selectClass}
+                  value={form.section}
+                  onChange={(e) => {
+                    set("section")(e);
+                    setShelfPath("");
+                  }}
+                  aria-invalid={Boolean(errors.section)}
+                  aria-required
+                >
+                  <option value="">Choose a section…</option>
+                  {SECTIONS.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.code} — {s.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.section && (
+                  <p className="text-xs text-destructive" data-testid="err-section">
+                    {errors.section}
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="ab-shelf">Shelf</Label>
+                <Label htmlFor="ab-shelf">
+                  Shelf <span className="text-destructive">*</span>
+                </Label>
                 <select
                   id="ab-shelf"
                   className={selectClass}
                   value={shelfPath}
                   onChange={(e) => setShelfPath(e.target.value)}
-                  disabled={shelves === null}
+                  disabled={shelves === null || !form.section}
+                  aria-invalid={Boolean(errors.shelf)}
+                  aria-required
                 >
-                  <option value="">{shelves === null ? "Loading shelves…" : "No shelf yet"}</option>
+                  <option value="">
+                    {shelves === null
+                      ? "Loading shelves…"
+                      : form.section
+                        ? "Choose a shelf…"
+                        : "Choose a section first"}
+                  </option>
                   {groups.map(([group, opts]) => (
                     <optgroup key={group} label={group}>
                       {opts.map((s) => (
@@ -358,10 +491,59 @@ export function AddBookFlow({ onClose, initialIsbn }: AddBookFlowProps) {
                     </optgroup>
                   ))}
                 </select>
+                {errors.shelf && (
+                  <p className="text-xs text-destructive" data-testid="err-shelf">
+                    {errors.shelf}
+                  </p>
+                )}
               </div>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[8rem_1fr] sm:items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor="ab-copies">Copies</Label>
+                <Input
+                  id="ab-copies"
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={copies}
+                  onChange={(e) => setCopies(Number(e.target.value))}
+                  aria-invalid={Boolean(errors.copies)}
+                />
+              </div>
+              <p className="text-xs text-on-surface-variant">
+                Barcodes (ATH-XXXXXX-CY) are assigned automatically.
+              </p>
             </div>
             {errors.copies && <p className="text-xs text-destructive">{errors.copies}</p>}
           </fieldset>
+
+          <details className="group rounded-lg border border-border">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium">
+              Catalog numbers &amp; description
+              <ChevronDown
+                className="h-4 w-4 transition-transform group-open:rotate-180"
+                aria-hidden
+              />
+            </summary>
+            <div className="space-y-3 border-t border-border p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {field("dewey_num", "Dewey", { mono: true })}
+                {field("loc_num", "LOC call number", { mono: true })}
+                {field("cover_url", "Cover URL")}
+                {field("open_library_key", "Open Library key", { mono: true })}
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ab-description">Description</Label>
+                <textarea
+                  id="ab-description"
+                  className={textareaClass}
+                  value={form.description}
+                  onChange={set("description")}
+                />
+              </div>
+            </div>
+          </details>
 
           <div className="flex justify-end gap-2">
             <Button type="submit" disabled={submitting} data-testid="add-book-submit">

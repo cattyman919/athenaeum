@@ -2,6 +2,15 @@
 
 export type SectionCode = "SF" | "SCI" | "HVA" | "REF" | "PER";
 
+export interface SimilarBook {
+  id: string;
+  title: string;
+  authors: string[];
+  isbn13: string;
+  copies: number;
+  section: { code: SectionCode; name: string; color: string } | null;
+}
+
 /** POST /api/books/fetch-isbn 200 body. Partial records have source "offline_partial". */
 export interface IsbnMetadata {
   isbn13: string;
@@ -18,6 +27,8 @@ export interface IsbnMetadata {
   in_catalog: boolean;
   covers?: string[];
   warnings?: string[];
+  /** Books with the same (normalized) title + overlapping authors already in the catalog. */
+  similar?: SimilarBook[];
 }
 
 export interface AdminCopyInput {

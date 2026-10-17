@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Search, X } from "lucide-react";
+import { ChevronDown, ScanLine, Search, X } from "lucide-react";
+import { openScanner } from "@/components/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,12 +35,16 @@ function useNavigate() {
   return { go, pending };
 }
 
-/** Search box + tri-modal switcher + sort (URL is the state). */
+/** Search box + Advanced mode disclosure + sort (URL is the state). */
 export function CatalogSearchBar({ query }: { query: CatalogQuery }) {
   const t = useTranslations("catalog");
   const { go, pending } = useNavigate();
   const [text, setText] = React.useState(query.q);
   React.useEffect(() => setText(query.q), [query.q]);
+  const [advanced, setAdvanced] = React.useState(query.mode !== "hybrid");
+  React.useEffect(() => {
+    if (query.mode !== "hybrid") setAdvanced(true);
+  }, [query.mode]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -63,23 +68,35 @@ export function CatalogSearchBar({ query }: { query: CatalogQuery }) {
             data-testid="catalog-search-input"
             aria-label={t("search.label")}
             placeholder={t("search.placeholder")}
-            className="pl-10 pr-10"
+            className="pl-10 pr-20"
             value={text}
             onChange={(e) => setText(e.target.value)}
           />
-          {text && (
+          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+            {text && (
+              <button
+                type="button"
+                aria-label={t("search.clear")}
+                onClick={() => {
+                  setText("");
+                  go({ ...query, q: "", page: 1 });
+                }}
+                className="rounded p-1 text-outline hover:text-on-surface"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
-              aria-label={t("search.clear")}
-              onClick={() => {
-                setText("");
-                go({ ...query, q: "", page: 1 });
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-outline hover:text-on-surface"
+              data-testid="catalog-scan"
+              aria-label={t("search.scan")}
+              title={t("search.scan")}
+              onClick={() => openScanner("patron")}
+              className="rounded p-1 text-outline hover:text-on-surface"
             >
-              <X className="h-4 w-4" />
+              <ScanLine className="h-4 w-4" />
             </button>
-          )}
+          </div>
         </div>
         <Button type="submit" size="lg" disabled={pending} data-testid="catalog-search-submit">
           {t("search.submit")}
@@ -87,18 +104,38 @@ export function CatalogSearchBar({ query }: { query: CatalogQuery }) {
       </form>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          value={query.mode}
-          onValueChange={(v) => go({ ...query, q: text.trim(), mode: v as Mode, page: 1 })}
-        >
-          <TabsList aria-label={t("modes.label")} className="w-auto">
-            {MODES.map((m) => (
-              <TabsTrigger key={m} value={m} data-testid={`mode-${m}`}>
-                {t(`modes.${m}`)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            data-testid="catalog-advanced"
+            aria-expanded={advanced}
+            aria-controls="catalog-advanced-panel"
+            onClick={() => setAdvanced((v) => !v)}
+            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+          >
+            {t("search.advanced")}
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${advanced ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+          {advanced && (
+            <div id="catalog-advanced-panel" data-testid="catalog-advanced-panel">
+              <Tabs
+                value={query.mode}
+                onValueChange={(v) => go({ ...query, q: text.trim(), mode: v as Mode, page: 1 })}
+              >
+                <TabsList aria-label={t("modes.label")} className="w-auto">
+                  {MODES.map((m) => (
+                    <TabsTrigger key={m} value={m} data-testid={`mode-${m}`}>
+                      {t(`modes.${m}`)}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
+        </div>
         <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           {t("sort.label")}
           <select

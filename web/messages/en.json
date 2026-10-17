@@ -145,7 +145,9 @@
       "label": "Search the catalog",
       "placeholder": "Title, author, topic, or a question…",
       "submit": "Search",
-      "clear": "Clear search"
+      "clear": "Clear search",
+      "advanced": "Advanced",
+      "scan": "Scan a barcode"
     },
     "modes": {
       "label": "Search mode",
@@ -187,7 +189,8 @@
       "copies": "{available} of {total} copies",
       "noCopies": "No copies",
       "openBook": "Open {title}",
-      "coverAlt": "Cover of {title}"
+      "coverAlt": "Cover of {title}",
+      "rating": "★ {avg} ({count})"
     },
     "empty": {
       "title": "No volumes matched",
@@ -206,7 +209,8 @@
       "generic": "We couldn't load the catalog.",
       "retry": "Try again",
       "rateLimited": "Too many searches — wait a minute and try again."
-    }
+    },
+    "degradedNote": "Showing keyword matches — meaning search is temporarily unavailable."
   },
   "palette": {
     "title": "Quick search",
@@ -304,6 +308,13 @@
       "title": "Not in this building's catalog",
       "body": "We couldn't find that volume. It may have been withdrawn or the link may be wrong.",
       "back": "Back to the catalog"
+    },
+    "rating": {
+      "none": "No ratings yet"
+    },
+    "editions": {
+      "title": "Editions & ISBNs",
+      "primary": "Primary"
     }
   },
   "library": {
@@ -322,7 +333,8 @@
       "read": "Read",
       "want_to_read": "Want to Read",
       "favorites": "Favorites",
-      "holds": "Holds & Waitlists"
+      "holds": "Holds & Waitlists",
+      "loans": "Loans"
     },
     "empty": {
       "title": "Nothing here yet",
@@ -368,6 +380,20 @@
     "error": {
       "title": "We couldn't load your library",
       "body": "The library service did not respond. Your books are safe — try again."
+    },
+    "loans": {
+      "empty": "No loans yet",
+      "scanHint": "Scan a copy tag to borrow a book and it will appear here.",
+      "due": "Due {date}",
+      "dueSoon": "Due soon",
+      "overdue": "Overdue",
+      "renew": "Renew (once)",
+      "renewed": "Renewed — now due {date}",
+      "returned": "Returned {date}",
+      "borrowed": "Borrowed {date}",
+      "returnedToast": "Returned — thank you!",
+      "return": "Return",
+      "barcode": "Copy {barcode}"
     }
   },
   "bookActions": {
@@ -417,6 +443,11 @@
       "title": "Leave the waitlist?",
       "description": "You will lose your place in the queue for this book.",
       "action": "Leave waitlist"
+    },
+    "loanReturn": {
+      "title": "Return this book?",
+      "description": "The loan will be closed and the copy made available again.",
+      "action": "Return"
     }
   },
   "voice": {
@@ -617,12 +648,27 @@
       "condition": "Condition",
       "returnCopy": "Return this copy",
       "returning": "Returning…",
-      "notReturnable": "This copy is not checked out — there is nothing to return."
+      "notReturnable": "This copy is not checked out — there is nothing to return.",
+      "borrowCopy": "Borrow this copy",
+      "borrowing": "Borrowing…",
+      "dueMine": "Due {date}",
+      "onLoan": "This copy is on loan to another patron.",
+      "borrowHint": "To borrow, scan the copy tag (ATH-…) on the physical book. To return, scan its tag too.",
+      "borrowBook": "Borrow this book",
+      "borrowingBook": "Borrowing…",
+      "returnBook": "Return this book",
+      "returnedBook": "Returned — thank you!",
+      "borrowCopyPick": "Take copy {barcode} — {path}"
     },
     "notInCatalog": {
       "title": "Not in this building's catalog",
       "body": "{code} is a valid code, but no matching book or copy is held here.",
-      "staffCta": "Add this book (Staff Intake)"
+      "staffCta": "Add this book (Staff Intake)",
+      "warning": "Not registered in this library — this title isn’t in the catalog.",
+      "identifying": "Looking up this book…",
+      "identifiedBy": "Identified via Open Library",
+      "alreadyAdded": "This book was just added to the library.",
+      "identifyFailed": "We couldn’t identify this book."
     },
     "return": {
       "success": "Returned {barcode} — thank you!",
@@ -634,6 +680,13 @@
     "errors": {
       "invalidIsbn": "The library could not validate that ISBN — check the digits and try again.",
       "lookup": "The lookup failed. Please try again."
+    },
+    "borrow": {
+      "success": "Borrowed {barcode} — due {date}",
+      "successBook": "Borrowed — due {date}. Take copy {barcode} from {path}.",
+      "limit": "You already have 5 loans. Return one first.",
+      "conflict": "This copy is {status}, so it cannot be borrowed.",
+      "error": "We couldn't borrow this copy. Please try again."
     }
   }
 }

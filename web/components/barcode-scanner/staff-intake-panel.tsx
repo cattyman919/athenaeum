@@ -18,8 +18,7 @@ export function StaffIntakePanel({
     <div className="space-y-4 bg-surface-low p-6" data-testid="staff-intake-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-primary/5 p-3">
         <p className="text-sm text-on-surface-variant">
-          Scan or type the ISBN to prefill from Open Library, then confirm the record and its
-          copies.
+          Scan or type an ISBN to fetch the book, check the cover, then pick its section and shelf.
         </p>
         <span className="flex items-center gap-1.5 rounded bg-card px-2 py-1 font-mono text-xs text-primary shadow-sm">
           <Tag className="h-3.5 w-3.5" aria-hidden />

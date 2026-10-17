@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { AvailabilityBadge } from "@/components/availability-badge";
 import { BookCover } from "@/components/book-cover";
+import { RatingSummary } from "@/components/rating-summary";
 import type { BookSummary } from "@/lib/types";
 
 /** 2:3 grid card with a top-right availability beacon and a mono call-number chip (docs/12 §9). */
@@ -35,6 +36,7 @@ export function BookCard({ book }: { book: BookSummary }) {
         <p className="line-clamp-1 text-xs font-medium text-muted-foreground">
           {book.authors.join(", ")}
         </p>
+        <RatingSummary book={book} />
         <div className="mt-1 flex flex-wrap items-center gap-2">
           {book.location && (
             <span

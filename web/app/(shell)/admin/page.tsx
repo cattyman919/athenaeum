@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Map } from "lucide-react";
+import { AdminBooksTable } from "@/components/admin/admin-books-table";
 import { AdminForbidden } from "@/components/admin/admin-forbidden";
 import {
   IndexStatusProvider,
@@ -97,6 +98,8 @@ export default async function AdminPage() {
             </Card>
           </div>
         </div>
+
+        <AdminBooksTable />
 
         {users ? (
           <UsersTable initial={users.items} currentUserId={user.id} />

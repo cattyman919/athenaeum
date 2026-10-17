@@ -29,14 +29,21 @@ test.describe("admin add book via ISBN (docs/11)", () => {
       "data-state",
       "active",
     );
-    await expect(dialog.getByText("Prefilled from Open Library")).toBeVisible();
+    await expect(dialog.getByTestId("intake-cover-preview")).toBeVisible();
     await expect(dialog.getByLabel("ISBN-13")).toHaveValue(STUB_ISBN);
     await expect(dialog.getByLabel("Title")).toHaveValue("Foundation");
     await expect(dialog.getByLabel("Authors (comma-separated)")).toHaveValue("Isaac Asimov");
     await expect(dialog.getByLabel("Publisher")).toHaveValue("Bantam Spectra");
     await expect(dialog.getByLabel("Published year")).toHaveValue("1991");
+    await dialog.getByText("Catalog numbers").click();
     await expect(dialog.getByLabel("Dewey")).toHaveValue("813.54");
+
+    // Section and shelf are required: submitting without them shows inline errors.
+    await dialog.getByTestId("add-book-submit").click();
+    await expect(dialog.getByTestId("err-section")).toBeVisible();
+    await expect(dialog.getByTestId("err-shelf")).toBeVisible();
     await dialog.getByLabel("Section").selectOption("SF");
+    await dialog.getByLabel("Shelf").selectOption({ index: 1 });
 
     const created = page.waitForResponse(
       (r) => r.url().endsWith("/api/admin/books") && r.request().method() === "POST",

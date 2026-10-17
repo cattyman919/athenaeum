@@ -42,9 +42,43 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await expect(cards(page).first()).toHaveAttribute("data-title", "Dune");
   });
 
+  // NEW: Verify the default state hides mode tabs and still returns results.
+  test("default mode is hybrid: mode tabs are hidden until Advanced is opened", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/catalog");
+    // Advanced panel is closed by default — mode tabs live inside it.
+    await expect(page.getByTestId("catalog-advanced-panel")).not.toBeVisible();
+    // Typing a query and submitting uses the default hybrid mode without needing the tabs.
+    await page.getByTestId("catalog-search-input").fill("space opera");
+    await page.getByTestId("catalog-search-submit").click();
+    await expect(cards(page).first()).toBeVisible();
+    // Panel still closed after a hybrid search.
+    await expect(page.getByTestId("catalog-advanced-panel")).not.toBeVisible();
+  });
+
+  // NEW: Advanced toggle reveals mode tab panel.
+  test("catalog-scan opens the shared scanner dialog", async ({ page }) => {
+    await gotoReady(page, "/catalog");
+    await page.getByTestId("catalog-scan").click();
+    await expect(page.getByTestId("scanner-dialog")).toBeVisible();
+    await expect(page.getByTestId("scanner-manual-input")).toBeVisible();
+  });
+
+  test("Advanced toggle reveals mode tabs inside the panel", async ({ page }) => {
+    await gotoReady(page, "/catalog");
+    await expect(page.getByTestId("catalog-advanced-panel")).not.toBeVisible();
+    await page.getByTestId("catalog-advanced").click();
+    await expect(page.getByTestId("catalog-advanced-panel")).toBeVisible();
+    await expect(page.getByTestId("mode-keyword")).toBeVisible();
+    await expect(page.getByTestId("mode-semantic")).toBeVisible();
+    await expect(page.getByTestId("mode-hybrid")).toBeVisible();
+  });
+
   test("semantic search uses real embeddings (Foundation for a galactic-empire question)", async ({
     page,
   }) => {
+    // mode=semantic in URL → Advanced panel auto-opens (mode != hybrid).
     await gotoReady(
       page,
       "/catalog?mode=semantic&q=the+fall+of+a+galactic+empire+and+psychohistory",
@@ -56,6 +90,7 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
   });
 
   test("hybrid search fuses keyword and semantic rankings", async ({ page }) => {
+    // mode=hybrid in URL → Advanced panel auto-opens; hybrid tab is active.
     await gotoReady(page, "/catalog?mode=hybrid&q=dune+desert+planet");
     await expect(cards(page).first()).toHaveAttribute("data-title", "Dune");
   });
@@ -121,23 +156,59 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await expect(page.getByTestId("command-palette")).toBeHidden();
   });
 
-  test("semantic/hybrid with an empty query prompts instead of erroring", async ({ page }) => {
+  // UPDATED: hybrid + empty now browses; only semantic + empty shows the prompt.
+  test("semantic with empty query prompts; hybrid and keyword with empty box browse", async ({
+    page,
+  }) => {
+    // mode=semantic → Advanced panel auto-opens (mode != hybrid).
     await gotoReady(page, "/catalog?mode=semantic");
     await expect(page.getByTestId("catalog-query-required")).toBeVisible();
     await expect(page.getByTestId("catalog-error")).toHaveCount(0);
-    // Switching mode with an empty box stays on the prompt (docs/03 §5.1).
+
+    // Switching to hybrid with an empty box browses instead of prompting (docs/03 §5.1).
+    // The panel stays open after auto-open, so we can click the tab directly.
     await page.getByTestId("mode-hybrid").click();
-    await expect(page).toHaveURL(/mode=hybrid/);
-    await expect(page.getByTestId("catalog-query-required")).toContainText("keyword and meaning");
-    // Keyword browsing with an empty query still lists volumes.
+    await expect(page.getByTestId("catalog-query-required")).toHaveCount(0);
+    await expect(cards(page).first()).toBeVisible();
+
+    // Keyword browsing with an empty query also lists volumes.
     await page.getByTestId("mode-keyword").click();
+    await expect(page).toHaveURL(/mode=keyword/);
     await expect(cards(page).first()).toBeVisible();
   });
 
+  // NEW: Seeded reviewer accounts give rated books; at least one card on page 1 shows the badge.
+  test("at least one book card on the first page shows a rating (seeded reviewers)", async ({
+    page,
+  }) => {
+    await gotoReady(page, "/catalog");
+    // The 20 reviewer accounts deterministically rate most books (docs/13 §6).
+    // At least one of the 12 browse cards on p.1 must carry a book-rating badge.
+    const firstRating = page.getByTestId("book-rating").first();
+    await expect(firstRating).toBeVisible();
+    // Text format: ★ x.y (n)  — data-avg and data-count are also set.
+    await expect(firstRating).toContainText("★");
+  });
+
+  // NEW: Degraded note must not appear on a normal (non-degraded) search.
+  test("catalog-degraded-note is not shown on a normal search", async ({ page }) => {
+    await gotoReady(page, "/catalog");
+    await expect(page.getByTestId("catalog-degraded-note")).toHaveCount(0);
+    await page.getByTestId("catalog-search-input").fill("dune");
+    await page.getByTestId("catalog-search-submit").click();
+    await expect(cards(page).first()).toBeVisible();
+    await expect(page.getByTestId("catalog-degraded-note")).toHaveCount(0);
+  });
+
+  // UPDATED: open Advanced panel before asserting the zh-CN mode label (panel is closed by
+  // default on /catalog; switchLang hard-reloads back to the default hybrid state).
   test("mode labels and section facets are localized in zh-CN", async ({ page }) => {
     await gotoReady(page, "/catalog");
     await switchLang(page, "zh-CN");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("馆藏目录");
+    // Open Advanced to reveal the mode tabs, then check the zh-CN label.
+    await page.getByTestId("catalog-advanced").click();
+    await expect(page.getByTestId("catalog-advanced-panel")).toBeVisible();
     await expect(page.getByTestId("mode-semantic")).toHaveText("语义");
     await expect(page.getByTestId("result-count")).toHaveText("共 40 册");
     // Section names come from wayfinding.section.<code> (docs/14 §6.1).

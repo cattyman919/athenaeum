@@ -29,7 +29,7 @@ export interface CatalogQuery {
 
 export const DEFAULT_QUERY: CatalogQuery = {
   q: "",
-  mode: "keyword",
+  mode: "hybrid",
   sections: [],
   availableOnly: false,
   eras: [],
@@ -62,7 +62,7 @@ export function parseCatalogQuery(raw: Raw): CatalogQuery {
   const sectionCodes: readonly string[] = SECTIONS.map((s) => s.code);
   return {
     q: (Array.isArray(raw.q) ? raw.q[0] : raw.q)?.trim() ?? "",
-    mode: pick(raw.mode, MODES, "keyword"),
+    mode: pick(raw.mode, MODES, "hybrid"),
     sections: list(raw.section).filter((s) => sectionCodes.includes(s)),
     availableOnly:
       (Array.isArray(raw.availability) ? raw.availability[0] : raw.availability) === "available",
@@ -76,7 +76,7 @@ export function parseCatalogQuery(raw: Raw): CatalogQuery {
 export function toSearchParams(q: Partial<CatalogQuery>): URLSearchParams {
   const p = new URLSearchParams();
   if (q.q) p.set("q", q.q);
-  if (q.mode && q.mode !== "keyword") p.set("mode", q.mode);
+  if (q.mode && q.mode !== "hybrid") p.set("mode", q.mode);
   for (const s of q.sections ?? []) p.append("section", s);
   if (q.availableOnly) p.set("availability", "available");
   for (const e of q.eras ?? []) p.append("era", e);
@@ -88,14 +88,14 @@ export function toSearchParams(q: Partial<CatalogQuery>): URLSearchParams {
 /** Query string for the API call (same params + explicit mode/per_page). */
 export function toApiParams(q: CatalogQuery, perPage = 20): URLSearchParams {
   const p = toSearchParams({ ...q });
-  p.set("mode", q.mode);
+  p.set("mode", q.q === "" ? "keyword" : q.mode);
   p.set("per_page", String(perPage));
   return p;
 }
 
-/** Semantic and hybrid search require a non-empty query (docs/03 §5.1); keyword browses. */
+/** Only an explicit semantic search needs a query; hybrid/keyword with an empty box browse. */
 export function requiresQuery(mode: Mode): boolean {
-  return mode !== "keyword";
+  return mode === "semantic";
 }
 
 /** Toggles a value inside a multi-value facet and resets paging. */ export function toggleFacet(

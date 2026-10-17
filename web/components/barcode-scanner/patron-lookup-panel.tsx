@@ -8,7 +8,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   ArrowRight,
@@ -18,9 +18,11 @@ import {
   Loader2,
   MapPin,
   RotateCcw,
-  SearchX,
+  TriangleAlert,
   ShieldCheck,
   Undo2,
+  BookMarked,
+  Tag,
 } from "lucide-react";
 import { AvailabilityBadge } from "@/components/availability-badge";
 import { BookCover } from "@/components/book-cover";
@@ -32,7 +34,17 @@ import { api } from "@/lib/api-client";
 import { apiErrorText } from "@/lib/api-errors";
 import { acceptedCode, classifyScanCode, type RejectedScan } from "@/lib/barcode";
 import { enumLabel } from "@/lib/enum-labels";
-import { applyConflict, applyReturn, needsWaitlist, scanErrorView } from "@/lib/scan";
+import {
+  applyBookBorrow,
+  applyBookReturn,
+  applyConflict,
+  applyReturn,
+  identifyView,
+  needsWaitlist,
+  scanErrorView,
+  shouldIdentify,
+  type IdentifyView,
+} from "@/lib/scan";
 import type { ScanLocation, ScanResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ladderSteps, sectionLabel } from "@/lib/wayfinding";
@@ -66,6 +78,10 @@ export function PatronLookupPanel({ active, onNavigate, onStaffIntake }: PatronL
   const [pendingCode, setPendingCode] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<ScanResponse | null>(null);
   const [returning, setReturning] = React.useState(false);
+  const [borrowing, setBorrowing] = React.useState(false);
+  const [borrowingBook, setBorrowingBook] = React.useState(false);
+  const [returningBook, setReturningBook] = React.useState(false);
+  const format = useFormatter();
   const [flash, setFlash] = React.useState<ViewfinderFlash>(null);
 
   // Guards against duplicate lookups while a request is in flight or the same code is shown.
@@ -162,11 +178,102 @@ export function PatronLookupPanel({ active, onNavigate, onStaffIntake }: PatronL
     }
   }
 
+  async function borrowBook() {
+    if (!result?.book) return;
+    const book = result.book;
+    const bc = result.borrow_copy;
+    setBorrowingBook(true);
+    try {
+      const res = await api.borrowBook(book.id);
+      setResult((r) => (r ? applyBookBorrow(r, res) : r));
+      const barcode = bc?.barcode ?? res.copy.barcode;
+      const path = bc?.location?.path ?? res.copy.location?.path ?? "";
+      toast.success(
+        t("borrow.successBook", {
+          date: format.dateTime(new Date(res.loan.due_at), { dateStyle: "medium" }),
+          barcode,
+          path,
+        }),
+      );
+      router.refresh();
+    } catch (err) {
+      const view = scanErrorView(err);
+      if (view.kind === "borrow_limit") {
+        toast.error(t("borrow.limit"));
+      } else {
+        toast.error(apiErrorText(tCommon, err, t("borrow.error")));
+      }
+    } finally {
+      setBorrowingBook(false);
+    }
+  }
+
+  async function returnBook() {
+    if (!result?.book) return;
+    setBorrowingBook(false);
+    setReturningBook(true);
+    try {
+      const res = await api.returnBook(result.book.id);
+      setResult((r) => (r ? applyBookReturn(r, res) : r));
+      toast.success(t("result.returnedBook"));
+      router.refresh();
+    } catch (err) {
+      const view = scanErrorView(err);
+      if (view.kind === "conflict") {
+        toast.error(t("return.conflict", { status: "—" }));
+      } else {
+        toast.error(apiErrorText(tCommon, err, t("return.error")));
+      }
+    } finally {
+      setReturningBook(false);
+    }
+  }
+
+  async function borrowCopy() {
+    if (!result?.copy) return;
+    const copy = result.copy;
+    setBorrowing(true);
+    try {
+      const res = await api.borrowCopy(copy.id);
+      const fresh = await api.scanCode(result.code).catch(() => null);
+      setResult(
+        (r) =>
+          fresh ??
+          (r ? { ...r, copy: res.copy, loan: res.loan, borrowable: false, returnable: true } : r),
+      );
+      toast.success(
+        t("borrow.success", {
+          barcode: copy.barcode,
+          date: format.dateTime(new Date(res.loan.due_at), { dateStyle: "medium" }),
+        }),
+      );
+      router.refresh();
+    } catch (err) {
+      const view = scanErrorView(err);
+      if (view.kind === "borrow_limit") {
+        toast.error(t("borrow.limit"));
+      } else if (view.kind === "conflict") {
+        const status = view.currentStatus
+          ? enumLabel(tEnums, "copyStatus", view.currentStatus)
+          : "—";
+        toast.error(t("borrow.conflict", { status }));
+        setResult((r) => (r ? applyConflict(r, view.currentStatus) : r));
+      } else if (view.kind === "not_found") {
+        toast.error(t("return.notFound"));
+        scanNext();
+      } else {
+        toast.error(apiErrorText(tCommon, err, t("borrow.error")));
+      }
+    } finally {
+      setBorrowing(false);
+    }
+  }
+
   return (
     <div className="grid min-h-[540px] grid-cols-1 bg-surface-low lg:grid-cols-12">
       <div className="flex flex-col justify-between gap-4 bg-card p-4 sm:p-6 lg:col-span-7">
         <CameraViewfinder
-          active={active && !returning}
+          active={active && !returning && !borrowing && !borrowingBook && !returningBook}
           onDetected={(code) => void lookup(code, "camera")}
           onRejected={reject}
           onUseManual={() => inputRef.current?.focus()}
@@ -240,7 +347,13 @@ export function PatronLookupPanel({ active, onNavigate, onStaffIntake }: PatronL
             <ResultCard
               result={result}
               returning={returning}
+              borrowing={borrowing}
+              borrowingBook={borrowingBook}
+              returningBook={returningBook}
               onReturn={() => void returnCopy()}
+              onBorrow={() => void borrowCopy()}
+              onBorrowBook={() => void borrowBook()}
+              onReturnBook={() => void returnBook()}
               onStaffIntake={onStaffIntake}
             />
           )}
@@ -272,43 +385,33 @@ export function PatronLookupPanel({ active, onNavigate, onStaffIntake }: PatronL
 function ResultCard({
   result,
   returning,
+  borrowing,
+  borrowingBook,
+  returningBook,
   onReturn,
+  onBorrow,
+  onBorrowBook,
+  onReturnBook,
   onStaffIntake,
 }: {
   result: ScanResponse;
   returning: boolean;
+  borrowing: boolean;
+  borrowingBook: boolean;
+  returningBook: boolean;
   onReturn: () => void;
+  onBorrow: () => void;
+  onBorrowBook: () => void;
+  onReturnBook: () => void;
   onStaffIntake?: (isbn: string) => void;
 }) {
   const t = useTranslations("scanner");
   const tEnums = useTranslations("enums");
   const tWay = useTranslations("wayfinding");
+  const format = useFormatter();
 
   if (!result.in_catalog || result.match === "none" || !result.book) {
-    return (
-      <div
-        className="flex flex-col items-start gap-3 rounded-lg bg-card p-4 shadow-sm"
-        data-testid="scan-not-in-catalog"
-      >
-        <span className="flex items-center gap-2 font-semibold">
-          <SearchX className="h-4 w-4 text-outline" aria-hidden />
-          {t("notInCatalog.title")}
-        </span>
-        <p className="text-sm text-on-surface-variant">
-          {t("notInCatalog.body", { code: result.code })}
-        </p>
-        {onStaffIntake && result.code_type === "isbn13" && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onStaffIntake(result.code)}
-            data-testid="scan-staff-intake"
-          >
-            {t("notInCatalog.staffCta")}
-          </Button>
-        )}
-      </div>
-    );
+    return <NotInCatalogCard result={result} onStaffIntake={onStaffIntake} />;
   }
 
   const { book, copy, availability } = result;
@@ -403,6 +506,27 @@ function ResultCard({
 
       <Ladder location={result.wayfinding} />
 
+      {isCopy && result.loan && (
+        <p className="text-xs text-on-surface-variant" data-testid="scan-due">
+          {result.loan.mine
+            ? t("result.dueMine", {
+                date: format.dateTime(new Date(result.loan.due_at), { dateStyle: "medium" }),
+              })
+            : t("result.onLoan")}
+        </p>
+      )}
+
+      {isCopy && result.borrowable && (
+        <Button onClick={onBorrow} disabled={borrowing} data-testid="scan-borrow">
+          {borrowing ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <BookMarked className="h-4 w-4" aria-hidden />
+          )}
+          {borrowing ? t("result.borrowing") : t("result.borrowCopy")}
+        </Button>
+      )}
+
       {isCopy &&
         (result.returnable ? (
           <Button onClick={onReturn} disabled={returning} data-testid="scan-return">
@@ -414,10 +538,70 @@ function ResultCard({
             {returning ? t("result.returning") : t("result.returnCopy")}
           </Button>
         ) : (
-          <p className="text-xs text-on-surface-variant" data-testid="scan-not-returnable">
-            {t("result.notReturnable")}
-          </p>
+          !result.borrowable && (
+            <p className="text-xs text-on-surface-variant" data-testid="scan-not-returnable">
+              {t("result.notReturnable")}
+            </p>
+          )
         ))}
+
+      {/* Book-level borrow/return (ISBN scan → match:"book") */}
+      {!isCopy && result.my_loans && result.my_loans.length > 0 && (
+        <p className="text-xs text-on-surface-variant" data-testid="scan-due">
+          {t("result.dueMine", {
+            date: format.dateTime(new Date(result.my_loans[0].due_at), { dateStyle: "medium" }),
+          })}
+        </p>
+      )}
+
+      {!isCopy && result.borrowable && result.borrow_copy && (
+        <div className="flex flex-col gap-1.5">
+          <p
+            className="flex items-center gap-1.5 font-mono text-xs text-on-surface-variant"
+            data-testid="scan-borrow-copy"
+          >
+            <Tag className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {t("result.borrowCopyPick", {
+              barcode: result.borrow_copy.barcode,
+              path: result.borrow_copy.location?.path ?? "",
+            })}
+          </p>
+          <Button onClick={onBorrowBook} disabled={borrowingBook} data-testid="scan-borrow">
+            {borrowingBook ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <BookMarked className="h-4 w-4" aria-hidden />
+            )}
+            {borrowingBook ? t("result.borrowingBook") : t("result.borrowBook")}
+          </Button>
+        </div>
+      )}
+
+      {!isCopy && result.returnable && (result.my_loans ?? []).length > 0 && (
+        <Button
+          onClick={onReturnBook}
+          disabled={returningBook}
+          variant="secondary"
+          data-testid="scan-return"
+        >
+          {returningBook ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Undo2 className="h-4 w-4" aria-hidden />
+          )}
+          {returningBook ? t("result.returning") : t("result.returnBook")}
+        </Button>
+      )}
+
+      {!isCopy && !result.borrowable && !result.returnable && !needsWaitlist(result) && (
+        <p
+          className="flex items-start gap-2 rounded bg-surface-low p-3 text-xs text-on-surface-variant"
+          data-testid="scan-borrow-hint"
+        >
+          <Tag className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          {t("result.borrowHint")}
+        </p>
+      )}
 
       {!isCopy && needsWaitlist(result) && (
         <div
@@ -427,6 +611,127 @@ function ResultCard({
           <p className="text-sm font-medium">{t("result.waitlistTitle")}</p>
           <WaitlistCta bookId={book.id} hold={null} />
         </div>
+      )}
+    </div>
+  );
+}
+
+function NotInCatalogCard({
+  result,
+  onStaffIntake,
+}: {
+  result: ScanResponse;
+  onStaffIntake?: (isbn: string) => void;
+}) {
+  const t = useTranslations("scanner");
+  const tCommon = useTranslations("common");
+  const wantsIdentify = shouldIdentify(result);
+  const [pending, setPending] = React.useState(wantsIdentify);
+  const [view, setView] = React.useState<IdentifyView>({ kind: "unidentified" });
+  const code = result.code;
+
+  React.useEffect(() => {
+    if (!wantsIdentify) return;
+    let live = true;
+    setPending(true);
+    setView({ kind: "unidentified" });
+    api
+      .identifyIsbn(code)
+      .then((res) => live && setView(identifyView(res)))
+      .catch((err) => {
+        if (live) {
+          setView({ kind: "unidentified" });
+          toast.error(apiErrorText(tCommon, err, t("notInCatalog.identifyFailed")));
+        }
+      })
+      .finally(() => live && setPending(false));
+    return () => {
+      live = false;
+    };
+  }, [code, wantsIdentify, t, tCommon]);
+
+  return (
+    <div
+      className="flex flex-col items-start gap-3 rounded-lg bg-card p-4 shadow-sm"
+      data-testid="scan-not-in-catalog"
+    >
+      {view.kind === "in_catalog" ? (
+        <p
+          role="status"
+          data-testid="scan-already-added"
+          className="flex items-center gap-2 rounded-md bg-status-available-bg px-3 py-2 text-sm font-medium text-status-available-fg"
+        >
+          <BookOpen className="h-4 w-4" aria-hidden />
+          {t("notInCatalog.alreadyAdded")}
+        </p>
+      ) : (
+        <p
+          role="status"
+          data-testid="scan-not-registered"
+          className="flex items-center gap-2 rounded-md bg-status-out-bg px-3 py-2 text-sm font-medium text-status-out-fg"
+        >
+          <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden />
+          {t("notInCatalog.warning")}
+        </p>
+      )}
+
+      {pending ? (
+        <p
+          className="flex items-center gap-2 text-sm text-on-surface-variant"
+          data-testid="scan-identifying"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          {t("notInCatalog.identifying")}
+        </p>
+      ) : view.kind === "identified" ? (
+        <div className="flex items-center gap-4" data-testid="scan-identified">
+          <div className="w-24 shrink-0 shadow-md" data-testid="scan-identified-cover">
+            <BookCover src={view.book.cover_url} alt={view.book.title} title={view.book.title} />
+          </div>
+          <div className="flex h-full min-w-0 flex-col justify-between gap-0.5">
+            <h3 className="text-lg font-semibold leading-snug" data-testid="scan-identified-title">
+              {view.book.title}
+            </h3>
+            {view.book.authors.length > 0 && (
+              <p className="text-sm font-medium">{view.book.authors.join(", ")}</p>
+            )}
+            {(view.book.publisher || view.book.published_year) && (
+              <p className="text-xs text-on-surface-variant">
+                {[view.book.publisher, view.book.published_year].filter(Boolean).join(" · ")}
+              </p>
+            )}
+            <p className="font-mono text-xs text-outline">
+              {t("result.isbn", { isbn: result.code })}
+            </p>
+          </div>
+        </div>
+      ) : view.kind === "in_catalog" ? null : (
+        <div className="flex flex-col gap-1" data-testid="scan-unidentified">
+          <span className="font-semibold">{t("notInCatalog.title")}</span>
+          <p className="text-sm text-on-surface-variant">
+            {t("notInCatalog.body", { code: result.code })}
+          </p>
+        </div>
+      )}
+
+      {view.kind === "in_catalog" && (
+        <Link
+          href={`/books/${view.bookId}`}
+          data-testid="scan-view-added"
+          className={buttonVariants({ size: "sm" })}
+        >
+          {t("result.viewRecord")}
+        </Link>
+      )}
+      {onStaffIntake && result.code_type === "isbn13" && view.kind !== "in_catalog" && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onStaffIntake(result.code)}
+          data-testid="scan-staff-intake"
+        >
+          {t("notInCatalog.staffCta")}
+        </Button>
       )}
     </div>
   );

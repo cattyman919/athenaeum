@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { BookOpen, ChevronRight, Sparkles } from "lucide-react";
 import { AvailabilityBanner } from "@/components/availability-banner";
 import { BookCover } from "@/components/book-cover";
+import { RatingSummary } from "@/components/rating-summary";
 import { BookLibraryActions } from "@/components/book-library-actions";
 import { WaitlistCta, type HoldState } from "@/components/waitlist-cta";
 import { BookLocationCard } from "@/components/book-location-card";
@@ -149,6 +150,7 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
             <p className="text-sm text-muted-foreground">
               {t("by", { authors: book.authors.join(", ") })}
             </p>
+            <RatingSummary book={book} showNone className="text-sm" />
           </header>
 
           <BookLibraryActions bookId={book.id} entry={book.my_library_entry} />
@@ -175,6 +177,31 @@ export default async function BookPage({ params }: { params: Promise<{ id: strin
           )}
 
           <CopyManifest copies={book.copies} />
+
+          {book.isbns && book.isbns.length > 1 && (
+            <section aria-labelledby="editions-title" data-testid="book-editions">
+              <h2 id="editions-title" className="mb-2 text-lg font-semibold">
+                {t("editions.title")}
+              </h2>
+              <ul className="flex flex-col gap-1">
+                {book.isbns.map((entry) => (
+                  <li
+                    key={entry.isbn13}
+                    className="flex items-center gap-2 font-mono text-sm"
+                    data-testid="edition-entry"
+                  >
+                    <BookOpen className="h-3.5 w-3.5 shrink-0 text-outline" aria-hidden />
+                    <span>{entry.isbn13}</span>
+                    {entry.is_primary && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 font-sans text-xs font-medium text-primary">
+                        {t("editions.primary")}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </div>
       </div>
 

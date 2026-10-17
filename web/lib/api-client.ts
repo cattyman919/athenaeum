@@ -16,9 +16,17 @@ import type {
   UserRole,
 } from "./admin-types";
 import type {
+  BorrowBookResponse,
+  BorrowResponse,
   ConversationDetail,
   ConversationPage,
   ConversationSummary,
+  IdentifyResponse,
+  IsbnAttachResponse,
+  LoansResponse,
+  MergeBooksResponse,
+  RenewResponse,
+  ReturnBookResponse,
   ReturnResponse,
   ScanResponse,
   SearchResponse,
@@ -153,8 +161,32 @@ export function createApiClient(opts: ClientOptions = {}) {
     // self-service return of a checked_out copy.
     scanCode: (code: string) =>
       json<ScanResponse>("/api/books/scan", { method: "POST", body: JSON.stringify({ code }) }),
+    identifyIsbn: (isbn: string) =>
+      json<IdentifyResponse>("/api/books/identify-isbn", {
+        method: "POST",
+        body: JSON.stringify({ isbn }),
+      }),
+    borrowCopy: (copyId: string) =>
+      json<BorrowResponse>(`/api/copies/${encodeURIComponent(copyId)}/borrow`, {
+        method: "POST",
+      }),
+    renewCopy: (copyId: string) =>
+      json<RenewResponse>(`/api/copies/${encodeURIComponent(copyId)}/renew`, {
+        method: "POST",
+      }),
+    listLoans: () => json<LoansResponse>("/api/loans"),
     returnCopy: (copyId: string) =>
       json<ReturnResponse>(`/api/copies/${encodeURIComponent(copyId)}/return`, {
+        method: "POST",
+      }),
+
+    // Book-level borrow/return (docs/03 §6.5): server picks the copy for the patron.
+    borrowBook: (bookId: string) =>
+      json<BorrowBookResponse>(`/api/books/${encodeURIComponent(bookId)}/borrow`, {
+        method: "POST",
+      }),
+    returnBook: (bookId: string) =>
+      json<ReturnBookResponse>(`/api/books/${encodeURIComponent(bookId)}/return`, {
         method: "POST",
       }),
 
@@ -167,6 +199,23 @@ export function createApiClient(opts: ClientOptions = {}) {
     createAdminBook: (body: AdminBookCreate) =>
       json<AdminBookCreated>("/api/admin/books", { method: "POST", body: JSON.stringify(body) }),
     adminTree: () => json<AdminTree>("/api/admin/tree"),
+
+    // Admin ISBN editions (docs/03 §8.6).
+    attachIsbn: (bookId: string, isbn13: string) =>
+      json<IsbnAttachResponse>(`/api/admin/books/${encodeURIComponent(bookId)}/isbns`, {
+        method: "POST",
+        body: JSON.stringify({ isbn13 }),
+      }),
+    detachIsbn: (bookId: string, isbn13: string) =>
+      json<void>(
+        `/api/admin/books/${encodeURIComponent(bookId)}/isbns/${encodeURIComponent(isbn13)}`,
+        { method: "DELETE" },
+      ),
+    mergeBooks: (sourceId: string, intoId: string) =>
+      json<MergeBooksResponse>(`/api/admin/books/${encodeURIComponent(sourceId)}/merge`, {
+        method: "POST",
+        body: JSON.stringify({ into: intoId }),
+      }),
 
     // Admin portal (docs/03 §8.1, §8.3–8.5).
     adminData: () => json<AdminKpis>("/api/admin/data"),

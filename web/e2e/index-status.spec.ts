@@ -87,6 +87,8 @@ test.describe("admin indexing badges (docs/07 screens 6a/6b)", () => {
     await dialog.getByTestId("isbn-input").fill("9780553293357"); // e2e-stubs Foundation
     await dialog.getByTestId("isbn-lookup").click();
     await expect(dialog.getByLabel("Title")).toHaveValue("Foundation");
+    await dialog.getByLabel("Section").selectOption("SF");
+    await dialog.getByLabel("Shelf").selectOption({ index: 1 });
     await dialog.getByTestId("add-book-submit").click();
     await expect(dialog).toBeHidden();
 

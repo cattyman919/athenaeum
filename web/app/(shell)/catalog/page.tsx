@@ -27,7 +27,18 @@ async function search(query: CatalogQuery): Promise<Result> {
     const res = await apiServer(`/api/books/search?${toApiParams(query, PER_PAGE)}`);
     if (res.ok) return { ok: true, data: (await res.json()) as SearchResponse };
     const body = (await res.json().catch(() => ({}))) as { error?: string };
-    return { ok: false, code: body.error ?? "UNEXPECTED" };
+    const code = body.error ?? "UNEXPECTED";
+    if (code === "EMBEDDING_UNAVAILABLE" && query.mode !== "semantic") {
+      const fb = await apiServer(
+        `/api/books/search?${toApiParams({ ...query, mode: "keyword" }, PER_PAGE)}`,
+      );
+      if (fb.ok) {
+        const data = (await fb.json()) as SearchResponse;
+        data.meta = { ...data.meta, mode_used: "keyword", degraded: true };
+        return { ok: true, data };
+      }
+    }
+    return { ok: false, code };
   } catch {
     return { ok: false, code: "UNEXPECTED" };
   }
@@ -67,6 +78,15 @@ async function Results({ query }: { query: CatalogQuery }) {
   }
   return (
     <>
+      {result.ok && result.data.meta.degraded && query.q !== "" && (
+        <p
+          role="status"
+          data-testid="catalog-degraded-note"
+          className="rounded-md bg-surface-low px-3 py-2 text-xs text-muted-foreground"
+        >
+          {t("degradedNote")}
+        </p>
+      )}
       {result.ok && query.mode !== "keyword" && (
         <CatalogIndexingNote initial={result.data.meta.index_pending ?? 0} />
       )}
