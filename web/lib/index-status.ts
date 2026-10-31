@@ -9,6 +9,7 @@ export const INDEX_POLL_MS = 4000;
 
 /** Window event the Add Book flow fires after POST /api/admin/books succeeds. */
 export const BOOK_CREATED_EVENT = "athenaeum:book-created";
+export const BOOKS_REMOVED_EVENT = "athenaeum:books-removed";
 
 export interface BookCreatedDetail {
   id: string;

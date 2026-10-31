@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api-client";
 import {
   BOOK_CREATED_EVENT,
+  BOOKS_REMOVED_EVENT,
   createPendingWatcher,
   indexingLabel,
   pendingSet,
@@ -67,10 +68,18 @@ export function IndexStatusProvider({ children }: { children: React.ReactNode })
       );
       watcher.refresh();
     };
+    const onRemoved = (e: Event) => {
+      const ids = (e as CustomEvent<string[]>).detail;
+      if (!Array.isArray(ids)) return;
+      setRecent((cur) => cur.filter((book) => !ids.includes(book.id)));
+      watcher.refresh();
+    };
     window.addEventListener(BOOK_CREATED_EVENT, onCreated);
+    window.addEventListener(BOOKS_REMOVED_EVENT, onRemoved);
     watcher.refresh();
     return () => {
       window.removeEventListener(BOOK_CREATED_EVENT, onCreated);
+      window.removeEventListener(BOOKS_REMOVED_EVENT, onRemoved);
       watcher.stop();
     };
   }, []);

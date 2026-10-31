@@ -93,12 +93,21 @@ type AdminBook struct {
 	Copies         []CopyDetail       `json:"copies"`
 	Wayfinding     *Wayfinding        `json:"wayfinding"`
 	UpdatedAt      time.Time          `json:"updated_at"`
+	ActiveLoans    int                `json:"active_loans"`
+	Removable      bool               `json:"removable"`
 }
 
 // AdminBookFromDetail projects a detail onto the admin schema.
 func AdminBookFromDetail(d BookDetail, olKey *string, updatedAt time.Time) AdminBook {
+	removable := true
+	for _, copy := range d.Copies {
+		if copy.Status == CopyCheckedOut || copy.Status == CopyReservedWaitlist {
+			removable = false
+		}
+	}
 	return AdminBook{
-		ID: d.ID, Title: d.Title, Subtitle: d.Subtitle, Authors: d.Authors, ISBN13: d.ISBN13, ISBN10: d.ISBN10,
+		Removable: removable,
+		ID:        d.ID, Title: d.Title, Subtitle: d.Subtitle, Authors: d.Authors, ISBN13: d.ISBN13, ISBN10: d.ISBN10,
 		Publisher: d.Publisher, PublishedYear: d.PublishedYear, Description: d.Description, DeweyNum: d.DeweyNum,
 		LOCNum: d.LOCNum, CoverURL: d.CoverURL, OpenLibraryKey: olKey, Section: d.Section,
 		Availability: d.Availability, Copies: d.Copies, Wayfinding: d.Wayfinding, UpdatedAt: updatedAt,
@@ -109,12 +118,14 @@ func AdminBookFromDetail(d BookDetail, olKey *string, updatedAt time.Time) Admin
 type BookMeta struct {
 	OpenLibraryKey *string
 	UpdatedAt      time.Time
+	ActiveLoans    int
 }
 
 // AdminBookRow is one admin list hit; the service hydrates the detail.
 type AdminBookRow struct {
-	ID   uuid.UUID
-	Meta BookMeta
+	ID          uuid.UUID
+	Meta        BookMeta
+	ActiveLoans int
 }
 
 // AdminBookFilter filters GET /api/admin/books.

@@ -113,14 +113,14 @@ func (r *AdminRepository) ListBooks(ctx context.Context, f model.AdminBookFilter
 	if f.Desc {
 		dir = "DESC"
 	}
-	where := `($1 = '' OR b.title ILIKE '%' || $1 || '%' OR b.authors::text ILIKE '%' || $1 || '%' OR b.isbn13 LIKE $1 || '%')
+	where := `($1 = '' OR b.title ILIKE '%' || $1 || '%' OR b.authors::text ILIKE '%' || $1 || '%' OR b.isbn13 LIKE '%' || $1 || '%' OR EXISTS (SELECT 1 FROM book_isbns i WHERE i.book_id = b.id AND i.isbn13 LIKE '%' || $1 || '%'))
 		AND ($2::uuid IS NULL OR EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b.id AND c.shelf_id = $2))`
 	search := likeEscaper.Replace(strings.TrimSpace(f.Search))
 	var total int
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM books b WHERE `+where, search, f.ShelfID).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count admin books: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `SELECT b.id, b.open_library_key, b.updated_at FROM books b WHERE `+where+
+	rows, err := r.pool.Query(ctx, `SELECT b.id, b.open_library_key, b.updated_at, (SELECT count(*) FROM loans l JOIN book_copies c ON c.id = l.copy_id WHERE c.book_id = b.id AND l.returned_at IS NULL) FROM books b WHERE `+where+
 		` ORDER BY `+col+` `+dir+` NULLS LAST, b.id LIMIT $3 OFFSET $4`,
 		search, f.ShelfID, perPage, (page-1)*perPage)
 	if err != nil {
@@ -130,7 +130,7 @@ func (r *AdminRepository) ListBooks(ctx context.Context, f model.AdminBookFilter
 	out := []model.AdminBookRow{}
 	for rows.Next() {
 		var b model.AdminBookRow
-		if err := rows.Scan(&b.ID, &b.Meta.OpenLibraryKey, &b.Meta.UpdatedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.Meta.OpenLibraryKey, &b.Meta.UpdatedAt, &b.ActiveLoans); err != nil {
 			return nil, 0, err
 		}
 		out = append(out, b)
@@ -141,8 +141,10 @@ func (r *AdminRepository) ListBooks(ctx context.Context, f model.AdminBookFilter
 // BookMeta loads admin-only book metadata; NOT_FOUND when absent.
 func (r *AdminRepository) BookMeta(ctx context.Context, id uuid.UUID) (model.BookMeta, error) {
 	var m model.BookMeta
-	err := r.pool.QueryRow(ctx, `SELECT open_library_key, updated_at FROM books WHERE id = $1`, id).
-		Scan(&m.OpenLibraryKey, &m.UpdatedAt)
+	err := r.pool.QueryRow(ctx, `SELECT b.open_library_key, b.updated_at,
+		(SELECT count(*) FROM loans l JOIN book_copies c ON c.id = l.copy_id WHERE c.book_id = b.id AND l.returned_at IS NULL)
+		FROM books b WHERE b.id = $1`, id).
+		Scan(&m.OpenLibraryKey, &m.UpdatedAt, &m.ActiveLoans)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.BookMeta{}, model.New(model.CodeNotFound, "Book not found.")
 	}
@@ -543,14 +545,99 @@ func (r *AdminRepository) PatchBook(ctx context.Context, id uuid.UUID, p model.B
 
 // DeleteBook removes a book; copies, embeddings, library and waitlist rows cascade.
 func (r *AdminRepository) DeleteBook(ctx context.Context, id uuid.UUID) error {
-	tag, err := r.pool.Exec(ctx, `DELETE FROM books WHERE id = $1`, id)
+	return r.DeleteBooks(ctx, []uuid.UUID{id})
+}
+
+type blockedBook struct {
+	ID          uuid.UUID `json:"id"`
+	Title       string    `json:"title"`
+	ActiveLoans int       `json:"active_loans"`
+}
+
+func (r *AdminRepository) DeleteBooks(ctx context.Context, ids []uuid.UUID) error {
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("delete book: %w", err)
+		return err
 	}
-	if tag.RowsAffected() == 0 {
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	rows, err := tx.Query(ctx, `SELECT id, title FROM books WHERE id = ANY($1) ORDER BY id FOR UPDATE`, ids)
+	if err != nil {
+		return fmt.Errorf("lock books: %w", err)
+	}
+	books := make(map[uuid.UUID]blockedBook, len(ids))
+	for rows.Next() {
+		var b blockedBook
+		if err := rows.Scan(&b.ID, &b.Title); err != nil {
+			rows.Close()
+			return err
+		}
+		books[b.ID] = b
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	if len(books) != len(ids) {
 		return model.New(model.CodeNotFound, "Book not found.")
 	}
-	return nil
+
+	rows, err = tx.Query(ctx, `SELECT book_id, status FROM book_copies WHERE book_id = ANY($1) ORDER BY book_id, id FOR UPDATE`, ids)
+	if err != nil {
+		return fmt.Errorf("lock copies: %w", err)
+	}
+	blockedIDs := make(map[uuid.UUID]bool)
+	for rows.Next() {
+		var id uuid.UUID
+		var status string
+		if err := rows.Scan(&id, &status); err != nil {
+			rows.Close()
+			return err
+		}
+		if status == model.CopyCheckedOut || status == model.CopyReservedWaitlist {
+			blockedIDs[id] = true
+		}
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	rows, err = tx.Query(ctx, `SELECT c.book_id, count(*) FROM loans l JOIN book_copies c ON c.id = l.copy_id WHERE c.book_id = ANY($1) AND l.returned_at IS NULL GROUP BY c.book_id`, ids)
+	if err != nil {
+		return fmt.Errorf("count open loans: %w", err)
+	}
+	for rows.Next() {
+		var id uuid.UUID
+		var count int
+		if err := rows.Scan(&id, &count); err != nil {
+			rows.Close()
+			return err
+		}
+		b := books[id]
+		b.ActiveLoans = count
+		books[id] = b
+		blockedIDs[id] = true
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return err
+	}
+	blocked := make([]blockedBook, 0, len(blockedIDs))
+	for _, id := range ids {
+		if blockedIDs[id] {
+			blocked = append(blocked, books[id])
+		}
+	}
+	if len(blocked) > 0 {
+		return model.New(model.CodeConflict, "Books have active loans, checked-out copies, or reserved copies.").WithExtra(map[string]any{"blocked": blocked})
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM books WHERE id = ANY($1)`, ids); err != nil {
+		return fmt.Errorf("delete books: %w", err)
+	}
+	return tx.Commit(ctx)
 }
 
 // ---- copies ----------------------------------------------------------------

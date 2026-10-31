@@ -197,6 +197,7 @@ func NewRouter(d Deps) *gin.Engine {
 		ad.GET("/copy-events", adm.CopyEvents)
 		ad.GET("/books", adm.ListBooks)
 		ad.POST("/books", adm.CreateBook)
+		ad.POST("/books/bulk-delete", adm.BulkDeleteBooks)
 		ad.PATCH("/books/:id", adm.PatchBook)
 		ad.DELETE("/books/:id", adm.DeleteBook)
 		ad.POST("/books/:id/isbns", adm.AttachISBN)

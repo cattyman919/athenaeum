@@ -228,6 +228,17 @@ func (h *AdminHandler) DeleteBook(c *gin.Context) {
 	noContent(c, h.svc.DeleteBook(c.Request.Context(), c.Param("id")))
 }
 
+func (h *AdminHandler) BulkDeleteBooks(c *gin.Context) {
+	var body struct {
+		IDs []string `json:"ids"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		RespondError(c, badBody())
+		return
+	}
+	noContent(c, h.svc.DeleteBooks(c.Request.Context(), body.IDs))
+}
+
 // AddCopy handles POST /api/admin/copies.
 func (h *AdminHandler) AddCopy(c *gin.Context) {
 	var body struct {

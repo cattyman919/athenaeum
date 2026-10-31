@@ -29,6 +29,7 @@
 22. [Phase 19 — Library Artifact Extras](#22-phase-19--library-artifact-extras)
 23. [Phase 20 — ISBN Identification & Catalog Scan Button](#23-phase-20--isbn-identification--catalog-scan-button)
 24. [Phase 21 — Editions & Borrow/Return by ISBN](#24-phase-21--editions--borrowreturn-by-isbn)
+   - [Phase 22 — Admin Book Management](#phase-22--admin-book-management)
 25. [Open TODO Registry (from docs)](#25-open-todo-registry-from-docs)
 26. [Session Log](#26-session-log)
 
@@ -60,7 +61,14 @@ Rules for any AI session (or human) continuing this project:
 **Source of truth for order of work:** `.kilo/plans/1791614343948-athenaeum-v1-implementation-plan.md` (milestones M0–M14).
 Docs in `docs/` are the contract; deviations were edited into the owning doc in the same commit.
 
-**State at last session (2026-10-17):** M0–M14 code complete. Phase 20 (ISBN identification + catalog scan button,
+**Current handoff (2026-10-31):** Admin book management (Phase 22 below) is
+implemented. Migrations 0007 and 0008 were applied to the current development
+database; admin search for `hail` returned 200. Deletion blocks checked-out and
+reserved copies and open loans. Lint, unit tests, focused backend tests and targeted
+Playwright tests passed; the full `make e2e` preparation stopped when Ollama timed
+out generating embeddings.
+
+**Prior handoff (2026-10-17; historical checklist):** M0–M14 code complete. Phase 20 (ISBN identification + catalog scan button,
 plan M19) and Phase 21 (editions + borrow/return by ISBN, plan M20) are **docs-only** — Step 1 of both plans complete;
 implementation Steps 2-6 of Phase 21 are pending (the next build). Phase 21 scope: `book_isbns` table, admin
 ISBN attach/delete/merge, `similar` on fetch-isbn, borrow/return by book endpoints, intake similar banner, scanner
@@ -400,6 +408,19 @@ Implementation plan M20 (`1792200000000-editions-and-isbn-borrow-plan.md`). Deci
 - [ ] **Step 5 — Web scanner** (`feat(web): scanner borrow/return by ISBN`): `match:"book"` result card shows **Borrow this book** (`scan-borrow`) when `borrowable` and **Return this book** (`scan-return`) when `returnable`; after borrow success: `scan-borrow-copy` panel with chosen barcode + shelf + due date; i18n `scanner.result.{borrowBook,returnBook,borrowCopyPick,returnedBook}` (en + zh-CN)
 - [ ] **Step 6 — Tests** (`test: editions + borrow by ISBN`): Go tests (Step 2+3 listed above); Vitest scan view-state helpers; Playwright: scan alt ISBN resolves same book, borrow by ISBN → due date + chosen tag → return by ISBN, intake similar banner → attach edition (cleanup deletes ISBN); gates: `make lint`, `make test`, `pnpm -C web build`, `make e2e`
 
+### Phase 22 — Admin Book Management
+
+Refs: [docs/03 §8.2](docs/03-api-spec.md#82-admin-books),
+[docs/07 §/admin](docs/07-frontend.md#admin--screen-6a-stitch-3177da52),
+[docs/12 Screen 6](docs/12-ui-design.md#screen-6--admin-and-adminlayout-staff-admin--stacks-manager).
+
+- [x] Apply migrations 0007 and 0008 to the current dev DB; verify admin `hail` search returns 200 (two rows).
+- [x] Document the approved API and admin Books UI contract (docs/03, docs/07, docs/12).
+- [x] Backend: search title, author and all ISBN editions; expose `active_loans` and `removable`; guard single deletion and implement atomic bulk deletion (1–50 distinct UUIDs), including conflict details.
+- [x] Frontend: position Books under the header; initial paginated listing and search, selection, single/bulk confirmations and visible retryable errors.
+- [x] Integrate and verify API/UI behavior, guard concurrency and error envelopes; run backend, frontend and targeted Playwright tests plus lint/typecheck/build gates.
+- [ ] Re-run the full `make e2e` suite when Ollama can complete embedding requests; preparation timed out during reindex.
+
 ## 25. Open TODO Registry (from docs)
 
 Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after changes: `grep -n "> ⚠️ TODO" docs/*.md`):
@@ -426,6 +447,7 @@ Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
+| 2026-10-31 | Kilo (kilo-auto/frontier), parallel agents | Admin book search, guarded single/bulk removal and confirmations implemented; dev DB migrated 0006 → 0008; lint, unit tests and targeted Playwright passed | Re-run full `make e2e` | E2E preparation timed out waiting for Ollama embeddings |
 | 2026-10-17 | Kilo (kilo/claude-sonnet-4.6) | **Docs-only — Phase 21 / plan M20 Step 1:** editions + borrow/return by ISBN; `book_isbns` table DDL + ER + indexes + merge semantics (docs/02); endpoint index rows 45-49 + rate table rows + §5.2 `isbns` + §5.3 `similar` + §5.4 book-match `borrowable`/`borrow_copy`/`returnable`/`my_loans` + §6.8/§6.9 borrow/return-by-book + §8.6 admin ISBN/merge (docs/03); intake similar banner + scanner borrow/return by book (docs/07); §1 overview + §2b-iii borrow/return by ISBN + §7/§8/§9 + fixed copy-tag-only claim (docs/11); editions list + copy state machine (docs/12); PHM alt ISBN `9780593355275` note (docs/13); `scanner.result.*` keys + intake English-only (docs/14); item 20 (docs/10); Phase 21 (TODO.md) | Implement Step 2 (DB+API editions), Step 3 (borrow/return by book API), Step 4 (web intake), Step 5 (scanner), Step 6 (tests) | None (docs-only) |
 | 2026-10-16 | Kilo (kilo/claude-sonnet-4.6) | **Docs-only — Phase 20 / plan M19 Step 1:** `POST /api/books/identify-isbn` (🔒 user, 10/1min `identify_isbn`, Open Library patron identification after scan miss); endpoint table row 44; §5.3 note; §2 rate table; docs/11 §2a sequence + §7 not-in-library result row + §8 in_catalog:false rewrite + §9 endpoint + §11 scope; docs/07 scanner identify flow + catalog search bar scan button (`catalog-scan`); docs/12 Screen 2 scan affordance + not-registered state; docs/14 `scanner.notInCatalog.*` + `catalog.search.scan` keys; docs/01 OL integration row (patron + admin); docs/09 §8.1 stub ISBNs 9780553293357 / 9780593355275; docs/10 item 19; TODO Phase 20 | Implement Step 2 (API), 3 (web scanner), 4 (catalog scan), 5 (tests) | None (docs-only) |
 | 2026-10-16 | Kilo (kilo-auto/efficient) | **Bug fix:** semantic/hybrid search with an empty query showed the generic catalog error (API 400 `VALIDATION_FAILED`, docs/03 §5.1 requires `q`); `/catalog` now renders an idle `catalog-query-required` prompt (`requiresQuery()`, en/zh-CN `catalog.queryRequired.*`) and maps stray `VALIDATION_FAILED` to it; e2e 81 green; docs/07 updated | Manual checks (§2a item 2) | — |

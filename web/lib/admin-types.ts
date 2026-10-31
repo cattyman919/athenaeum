@@ -116,6 +116,8 @@ export interface AdminBookItem {
   section: SectionRef | null;
   availability: { total_copies: number; available_copies: number; state: string };
   updated_at: string;
+  active_loans: number;
+  removable: boolean;
 }
 
 /** GET /api/admin/index-status — the auto-index worker backlog (docs/03 §8.1, docs/06 §2). */

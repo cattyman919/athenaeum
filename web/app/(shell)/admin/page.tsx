@@ -57,6 +57,8 @@ export default async function AdminPage() {
           </div>
         </header>
 
+        <AdminBooksTable />
+
         {kpis ? (
           <KpiGrid data={kpis} />
         ) : (
@@ -98,8 +100,6 @@ export default async function AdminPage() {
             </Card>
           </div>
         </div>
-
-        <AdminBooksTable />
 
         {users ? (
           <UsersTable initial={users.items} currentUserId={user.id} />

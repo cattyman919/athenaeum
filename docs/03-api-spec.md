@@ -128,6 +128,7 @@ Auth column: 🔓 public · 🔒 `user` · 👑 `admin`.
 | 47 | POST | `/api/admin/books/{id}/isbns` | 👑 | attach an edition ISBN to a book | [§8.6](#86-admin-isbn-management--merge) |
 | 48 | DELETE | `/api/admin/books/{id}/isbns/{isbn13}` | 👑 | detach a non-primary edition ISBN | [§8.6](#86-admin-isbn-management--merge) |
 | 49 | POST | `/api/admin/books/{id}/merge` | 👑 | merge source book into target (one tx) | [§8.6](#86-admin-isbn-management--merge) |
+| 50 | POST | `/api/admin/books/bulk-delete` | 👑 | atomically remove selected books | [§8.2](#82-admin-books) |
 
 404 for unknown `id` values on every `/api/.../{id}` route.
 
@@ -810,16 +811,40 @@ with a non-blank `description` and zero `book_embeddings` rows
 
 ### 8.2 Admin books
 
-`GET /api/admin/books?search=&shelf=&page=&per_page=&sort=updated_at:desc` (list per
-[§1 pagination](#1-conventions), same item schema as detail minus `neighbors`,
-plus `updated_at`).
+`GET /api/admin/books?search=&shelf=&page=&per_page=&sort=updated_at:desc` returns a
+list per [§1 pagination](#1-conventions). An empty search browses the list; `search`
+matching covers title, authors, the primary ISBN and every edition ISBN. Each item
+includes `updated_at`, integer `active_loans` (the count of open loans, where
+`returned_at IS NULL`) and boolean `removable`. `removable` is false if any copy
+is `checked_out` or `reserved_waitlist`, or if any open loan exists. A book can have
+`active_loans: 0` and still be blocked.
 
 - `POST /api/admin/books` body `{book fields}+"copies":[{"barcode?","status?","shelf_path?":…}]`
   → 201 full book (barcodes auto-generated `ATH-XXXXXX-CY` server-side when omitted —
   available/reserve paths the accession counter; [13](08-seed-data.md#5-barcode-allocation)).
 - `PATCH /api/admin/books/{id}` (partial; e.g. cover_url, section, description).
-- `DELETE /api/admin/books/{id}` — cascades copies/embeddings/user_library rows
-  ([02 FKs](02-data-model.md#4-table-ddl-canonical-sql)); waitlist rows cascade too.
+- `DELETE /api/admin/books/{id}` → 204 when removable, 404 if missing, or 409
+  `CONFLICT` if any copy is `checked_out` or `reserved_waitlist`, or has an open loan.
+- `POST /api/admin/books/bulk-delete` body `{ "ids": ["<uuid>", "<uuid>"] }`
+  → 204. The list must contain 1–50 distinct valid UUIDs; invalid input or duplicate
+  IDs → 400 `VALIDATION_FAILED`, a missing book → 404 `NOT_FOUND`, and any blocked
+  book → 409 `CONFLICT`. The operation is atomic: any failure leaves every requested
+  book intact.
+
+Both deletion endpoints return the blocked books in the 409 error envelope:
+
+```json
+{
+  "error": "CONFLICT",
+  "message": "Books have active loans, checked-out copies, or reserved copies.",
+  "blocked": [{ "id": "<uuid>", "title": "Dune", "active_loans": 0 }]
+}
+```
+
+Successful book removal cascades copies, their copy events and past loan history,
+edition ISBNs, embeddings, personal-library and waitlist rows
+([02 FKs](02-data-model.md#4-table-ddl-canonical-sql)). A `missing_lost` copy alone
+does not block removal; use merge to consolidate duplicates.
 
 ### 8.3 Admin copies
 

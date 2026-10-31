@@ -20,6 +20,10 @@ export function ConfirmDialog({
   confirmLabel,
   onConfirm,
   destructive = true,
+  confirmDisabled = false,
+  details,
+  onCloseAutoFocus,
+  testId = "confirm-dialog",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,7 +32,13 @@ export function ConfirmDialog({
   confirmLabel: string;
   onConfirm: () => void | Promise<void>;
   destructive?: boolean;
+  confirmDisabled?: boolean;
+  details?: React.ReactNode;
+  onCloseAutoFocus?: (event: Event) => void;
+  testId?: string;
 }) {
+  const descriptionId = React.useId();
+  const detailsId = React.useId();
   const t = useTranslations("confirm");
   const [busy, setBusy] = React.useState(false);
 
@@ -46,13 +56,22 @@ export function ConfirmDialog({
     <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
       <DialogContent
         role="alertdialog"
-        data-testid="confirm-dialog"
-        className="top-[30%] max-w-md p-6"
+        data-testid={testId}
+        aria-describedby={details ? `${descriptionId} ${detailsId}` : descriptionId}
+        onCloseAutoFocus={onCloseAutoFocus}
+        className={
+          details ? "top-[10%] max-h-[80vh] max-w-md overflow-y-auto p-6" : "top-[30%] max-w-md p-6"
+        }
       >
         <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
-        <DialogDescription className="mt-2 text-sm text-muted-foreground">
+        <DialogDescription id={descriptionId} className="mt-2 text-sm text-muted-foreground">
           {description}
         </DialogDescription>
+        {details && (
+          <div id={detailsId} className="mt-3 text-sm">
+            {details}
+          </div>
+        )}
         <div className="mt-6 flex justify-end gap-2">
           <Button
             variant="outline"
@@ -66,7 +85,7 @@ export function ConfirmDialog({
           <Button
             size="sm"
             variant={destructive ? "destructive" : "default"}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             onClick={() => void accept()}
             data-testid="confirm-accept"
           >

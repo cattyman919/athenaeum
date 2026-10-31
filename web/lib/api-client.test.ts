@@ -99,6 +99,33 @@ describe("api client refresh retry (docs/07 §4)", () => {
 });
 
 describe("admin client (docs/03 §8)", () => {
+  it("sends single and bulk removal requests and preserves conflict details", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("bulk-delete")
+        ? ok(
+            {
+              error: "CONFLICT",
+              message: "Blocked",
+              blocked: [{ id: "b", title: "Book", active_loans: 1 }],
+            },
+            409,
+          )
+        : new Response(null, { status: 204 }),
+    );
+    const c = createApiClient({ fetcher: fetcher as unknown as typeof fetch });
+    await expect(c.deleteAdminBook("a/b")).resolves.toBeUndefined();
+    await expect(c.bulkDeleteAdminBooks(["a", "b"])).rejects.toMatchObject({
+      status: 409,
+      body: { blocked: [{ id: "b", title: "Book", active_loans: 1 }] },
+    });
+    const calls = fetcher.mock.calls as unknown as [string, RequestInit][];
+    expect(calls[0][0]).toBe("/api/admin/books/a%2Fb");
+    expect(calls[0][1].method).toBe("DELETE");
+    expect(calls[1][0]).toBe("/api/admin/books/bulk-delete");
+    expect(calls[1][1].method).toBe("POST");
+    expect(JSON.parse(String(calls[1][1].body))).toEqual({ ids: ["a", "b"] });
+  });
+
   it("builds the copy-events cursor query and unwraps items", async () => {
     const urls: string[] = [];
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {

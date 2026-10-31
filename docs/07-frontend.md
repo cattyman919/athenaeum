@@ -269,6 +269,22 @@ label if the device id rotates) with a live input-level meter while recording
 
 ### /admin — screen 6a (Stitch `3177da52…`)
 
+The **Books** management panel sits directly below the header, above the executive
+KPI grid. It initially loads a paginated list (20 per page) and provides a
+250 ms-debounced search across title, author and all edition ISBNs. Loading,
+empty results and request errors are distinct states; errors are displayed with
+Retry rather than presented as an empty list.
+
+Each row has a native selection checkbox and **Remove** alongside **Merge into…**;
+a select-all checkbox reflects partial selection with an indeterminate state.
+The bulk action bar supports up to 50 selected books. Single and bulk removal
+require confirmation; the single-book dialog shows title, authors, ISBN, copy
+count, active loans and a cascade warning, and disables confirmation when the
+book is not removable. Checked-out and reserved-waitlist copies block removal;
+server conflicts and other errors are displayed, including blocked-book details
+when supplied. Successful removal refreshes the list. API contract:
+[03 §8.2](03-api-spec.md#82-admin-books).
+
 Executive KPI grid (`GET /api/admin/data`), recent `copy_events` via
 `RealTimeAuditStream` (3 s poll), quick nav to layout manager and the shared
 Barcode Scanner dialog opened on its **Staff Intake** tab

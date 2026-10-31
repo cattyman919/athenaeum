@@ -15,6 +15,7 @@ import {
   statusTone,
 } from "@/lib/admin";
 import type { CopyEvent } from "@/lib/admin-types";
+import { BOOKS_REMOVED_EVENT } from "@/lib/index-status";
 import { cn } from "@/lib/utils";
 
 const timeFmt = (iso: string) =>
@@ -37,10 +38,14 @@ export function RealTimeAuditStream({ initial }: { initial: CopyEvent[] }) {
   const sinceRef = React.useRef<string | null>(nextSince(initial, null));
 
   React.useEffect(() => {
+    let generation = 0;
+    let resetting = false;
     const poller = createPoller(
       async () => {
+        if (resetting) return;
+        const current = generation;
         const batch = await api.adminCopyEvents(sinceRef.current, AUDIT_MAX_ROWS);
-        if (batch.length === 0) return;
+        if (current !== generation || batch.length === 0) return;
         sinceRef.current = nextSince(batch, sinceRef.current);
         setEvents((cur) => mergeEvents(cur, batch));
         setFresh(new Set(batch.map((e) => e.id)));
@@ -53,11 +58,31 @@ export function RealTimeAuditStream({ initial }: { initial: CopyEvent[] }) {
       },
     );
     const syncLive = () => setLive(!document.hidden);
+    let active = true;
+    const onRemoved = () => {
+      resetting = true;
+      const current = ++generation;
+      api
+        .adminCopyEvents(null, AUDIT_MAX_ROWS)
+        .then((batch) => {
+          if (!active || current !== generation) return;
+          sinceRef.current = nextSince(batch, null);
+          setEvents(batch);
+          setFresh(new Set());
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (current === generation) resetting = false;
+        });
+    };
     document.addEventListener("visibilitychange", syncLive);
+    window.addEventListener(BOOKS_REMOVED_EVENT, onRemoved);
     poller.start();
     return () => {
+      active = false;
       poller.stop();
       document.removeEventListener("visibilitychange", syncLive);
+      window.removeEventListener(BOOKS_REMOVED_EVENT, onRemoved);
     };
   }, []);
 

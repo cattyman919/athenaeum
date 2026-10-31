@@ -211,6 +211,13 @@ export function createApiClient(opts: ClientOptions = {}) {
         `/api/admin/books/${encodeURIComponent(bookId)}/isbns/${encodeURIComponent(isbn13)}`,
         { method: "DELETE" },
       ),
+    deleteAdminBook: (id: string) =>
+      json<void>(`/api/admin/books/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    bulkDeleteAdminBooks: (ids: string[]) =>
+      json<void>("/api/admin/books/bulk-delete", {
+        method: "POST",
+        body: JSON.stringify({ ids }),
+      }),
     mergeBooks: (sourceId: string, intoId: string) =>
       json<MergeBooksResponse>(`/api/admin/books/${encodeURIComponent(sourceId)}/merge`, {
         method: "POST",

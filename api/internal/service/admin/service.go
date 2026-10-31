@@ -33,6 +33,7 @@ type Repository interface {
 	CreateBook(ctx context.Context, actor uuid.UUID, b model.BookFields, copies []model.NewCopy) (uuid.UUID, error)
 	PatchBook(ctx context.Context, id uuid.UUID, p model.BookPatch) error
 	DeleteBook(ctx context.Context, id uuid.UUID) error
+	DeleteBooks(ctx context.Context, ids []uuid.UUID) error
 	AddCopy(ctx context.Context, actor, bookID uuid.UUID, c model.NewCopy) (model.AdminCopy, *model.LocationRow, error)
 	PatchCopy(ctx context.Context, actor, id uuid.UUID, p model.CopyPatch, now time.Time) (model.AdminCopy, *model.LocationRow, error)
 	DeleteCopy(ctx context.Context, id uuid.UUID) error
@@ -232,7 +233,10 @@ func (s *Service) ListBooks(ctx context.Context, req BookListRequest) (BookPage,
 		if err != nil {
 			return BookPage{}, err
 		}
-		items = append(items, model.AdminBookFromDetail(d, r.Meta.OpenLibraryKey, r.Meta.UpdatedAt))
+		item := model.AdminBookFromDetail(d, r.Meta.OpenLibraryKey, r.Meta.UpdatedAt)
+		item.ActiveLoans = r.ActiveLoans
+		item.Removable = item.Removable && r.ActiveLoans == 0
+		items = append(items, item)
 	}
 	return BookPage{Items: items, Meta: meta(page, perPage, total)}, nil
 }
@@ -247,7 +251,10 @@ func (s *Service) Book(ctx context.Context, id uuid.UUID) (model.AdminBook, erro
 	if err != nil {
 		return model.AdminBook{}, err
 	}
-	return model.AdminBookFromDetail(d, m.OpenLibraryKey, m.UpdatedAt), nil
+	item := model.AdminBookFromDetail(d, m.OpenLibraryKey, m.UpdatedAt)
+	item.ActiveLoans = m.ActiveLoans
+	item.Removable = item.Removable && m.ActiveLoans == 0
+	return item, nil
 }
 
 // CopyInput is one requested copy (POST /api/admin/books copies[], POST /api/admin/copies).
@@ -478,6 +485,26 @@ func (s *Service) DeleteBook(ctx context.Context, id string) error {
 		return err
 	}
 	return s.repo.DeleteBook(ctx, bid)
+}
+
+func (s *Service) DeleteBooks(ctx context.Context, ids []string) error {
+	if len(ids) == 0 || len(ids) > 50 {
+		return invalid("ids must contain between 1 and 50 book IDs.")
+	}
+	parsed := make([]uuid.UUID, 0, len(ids))
+	seen := make(map[uuid.UUID]bool, len(ids))
+	for _, id := range ids {
+		bid, err := uuid.Parse(id)
+		if err != nil || bid == uuid.Nil {
+			return invalid("ids must contain valid book IDs.")
+		}
+		if seen[bid] {
+			return invalid("ids must not contain duplicates.")
+		}
+		seen[bid] = true
+		parsed = append(parsed, bid)
+	}
+	return s.repo.DeleteBooks(ctx, parsed)
 }
 
 // ---- copies ----------------------------------------------------------------

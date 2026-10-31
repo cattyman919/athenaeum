@@ -304,6 +304,51 @@ func (unitEmb) EmbedDocuments(_ context.Context, texts []string) ([][]float32, e
 	return out, nil
 }
 
+func TestAdminBulkDeleteHTTP(t *testing.T) {
+	a := newAPI(t)
+	path := "/api/admin/books/bulk-delete"
+	if rec, _ := a.do("POST", path, `{}`); rec.Code != 401 {
+		t.Fatalf("anonymous: %d", rec.Code)
+	}
+	a.register("bulk-admin@athenaeum.dev")
+	if rec, _ := a.do("POST", path, `{}`); rec.Code != 403 {
+		t.Fatalf("patron: %d", rec.Code)
+	}
+	if _, err := a.pool.Exec(context.Background(), `UPDATE users SET role='admin' WHERE email='bulk-admin@athenaeum.dev'`); err != nil {
+		t.Fatal(err)
+	}
+	rec, _ := a.do("POST", "/api/auth/login", `{"email":"bulk-admin@athenaeum.dev","password":"correct horse battery"}`)
+	a.cookies = rec.Result().Cookies()
+	for _, body := range []string{`{}`, `{"ids":[]}`, `{"ids":[null]}`, `{"ids":["bad"]}`, `not json`} {
+		if rec, out := a.do("POST", path, body); rec.Code != 400 || out["error"] != "VALIDATION_FAILED" {
+			t.Fatalf("invalid %s: %d %s", body, rec.Code, rec.Body)
+		}
+	}
+	var blocked, removable string
+	if err := a.pool.QueryRow(context.Background(), `SELECT b.id FROM books b JOIN book_copies c ON c.book_id=b.id WHERE c.status='checked_out' LIMIT 1`).Scan(&blocked); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.pool.QueryRow(context.Background(), `SELECT b.id FROM books b WHERE NOT EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id=b.id AND c.status IN ('checked_out','reserved_waitlist')) LIMIT 1`).Scan(&removable); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"ids":["` + removable + `","` + blocked + `"]}`
+	rec, out := a.do("POST", path, body)
+	items, ok := out["blocked"].([]any)
+	if rec.Code != 409 || out["error"] != "CONFLICT" || !ok || len(items) != 1 {
+		t.Fatalf("conflict: %d %s", rec.Code, rec.Body)
+	}
+	item := items[0].(map[string]any)
+	if item["id"] != blocked || item["title"] == "" || item["active_loans"] == nil {
+		t.Fatalf("blocked item: %v", item)
+	}
+	if rec, _ := a.do("POST", path, `{"ids":["`+removable+`"]}`); rec.Code != 204 {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body)
+	}
+	if rec, _ := a.do("POST", path, `{"ids":["`+removable+`"]}`); rec.Code != 404 {
+		t.Fatalf("missing: %d %s", rec.Code, rec.Body)
+	}
+}
+
 func TestIndexStatusDrainsAfterWorkerRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

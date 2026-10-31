@@ -254,6 +254,10 @@ func TestAdminBookAndCopyCRUD(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantCode(t, svc.DeleteCopy(ctx, c2.ID.String()), model.CodeNotFound)
+	wantCode(t, svc.DeleteBook(ctx, b.ID.String()), model.CodeConflict)
+	if _, err := svc.PatchCopy(ctx, actor, "ATH-002981-C02", model.CopyPatch{Status: &avail}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.DeleteBook(ctx, b.ID.String()); err != nil {
 		t.Fatal(err)
 	}
@@ -263,6 +267,98 @@ func TestAdminBookAndCopyCRUD(t *testing.T) {
 		t.Fatal("copies must cascade")
 	}
 	wantCode(t, svc.DeleteBook(ctx, b.ID.String()), model.CodeNotFound)
+}
+
+func TestAdminBulkDeleteAndISBNSearch(t *testing.T) {
+	ctx := context.Background()
+	pool, svc, actor := adminSvc(t)
+	one, err := svc.CreateBook(ctx, actor, admin.CreateBookRequest{Fields: model.BookFields{Title: "Bulk removable"}, Copies: []admin.CopyInput{{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	two, err := svc.CreateBook(ctx, actor, admin.CreateBookRequest{Fields: model.BookFields{Title: "Bulk reserved"}, Copies: []admin.CopyInput{{Status: model.CopyReservedWaitlist}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO book_isbns (isbn13, book_id, is_primary) VALUES ('9781234567897', $1, false)`, one.ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err := svc.ListBooks(ctx, admin.BookListRequest{Search: "34567897"})
+	if err != nil || len(page.Items) != 1 || page.Items[0].ID != one.ID || !page.Items[0].Removable || page.Items[0].ActiveLoans != 0 {
+		t.Fatalf("alternate ISBN search: %+v, %v", page, err)
+	}
+	page, err = svc.ListBooks(ctx, admin.BookListRequest{Search: "13593"})
+	if err != nil || len(page.Items) != 1 || page.Items[0].Title != "Dune" {
+		t.Fatalf("primary ISBN substring search: %+v, %v", page, err)
+	}
+	page, err = svc.ListBooks(ctx, admin.BookListRequest{Search: "Bulk reserved"})
+	if err != nil || len(page.Items) != 1 || page.Items[0].Removable || page.Items[0].ActiveLoans != 0 {
+		t.Fatalf("reserved search: %+v, %v", page, err)
+	}
+	ids := []string{one.ID.String(), two.ID.String()}
+	wantCode(t, svc.DeleteBooks(ctx, nil), model.CodeValidationFailed)
+	wantCode(t, svc.DeleteBooks(ctx, []string{"bad"}), model.CodeValidationFailed)
+	wantCode(t, svc.DeleteBooks(ctx, []string{ids[0], ids[0]}), model.CodeValidationFailed)
+	wantCode(t, svc.DeleteBooks(ctx, make([]string, 51)), model.CodeValidationFailed)
+	wantCode(t, svc.DeleteBooks(ctx, []string{ids[0], uuid.NewString()}), model.CodeNotFound)
+	extra := wantCode(t, svc.DeleteBooks(ctx, ids), model.CodeConflict)
+	if extra["blocked"] == nil {
+		t.Fatal("missing blocked details")
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM books WHERE id = ANY($1)`, []uuid.UUID{one.ID, two.ID}).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("atomic delete count %d: %v", count, err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO loans (id, copy_id, user_id, borrowed_at, due_at) SELECT $1, id, $2, now(), now() + interval '14 days' FROM book_copies WHERE book_id=$3`, uuid.New(), actor, one.ID); err != nil {
+		t.Fatal(err)
+	}
+	page, err = svc.ListBooks(ctx, admin.BookListRequest{Search: "Bulk removable"})
+	if err != nil || len(page.Items) != 1 || page.Items[0].Removable || page.Items[0].ActiveLoans != 1 {
+		t.Fatalf("open loan search: %+v, %v", page, err)
+	}
+	wantCode(t, svc.DeleteBook(ctx, one.ID.String()), model.CodeConflict)
+	if _, err := pool.Exec(ctx, `UPDATE loans SET returned_at=now() WHERE copy_id IN (SELECT id FROM book_copies WHERE book_id=$1)`, one.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE book_copies SET status='available' WHERE book_id=$1`, two.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.DeleteBooks(ctx, ids); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAdminDeleteWaitsForConcurrentCheckout(t *testing.T) {
+	ctx := context.Background()
+	pool, svc, actor := adminSvc(t)
+	book, err := svc.CreateBook(ctx, actor, admin.CreateBookRequest{Fields: model.BookFields{Title: "Concurrent checkout"}, Copies: []admin.CopyInput{{}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `UPDATE book_copies SET status='checked_out' WHERE book_id=$1`, book.ID); err != nil {
+		t.Fatal(err)
+	}
+	result := make(chan error, 1)
+	go func() { result <- svc.DeleteBook(ctx, book.ID.String()) }()
+	select {
+	case err := <-result:
+		t.Fatalf("delete completed before checkout commit: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-result:
+		wantCode(t, err, model.CodeConflict)
+	case <-time.After(5 * time.Second):
+		t.Fatal("delete did not complete after checkout")
+	}
 }
 
 func TestAdminUsers(t *testing.T) {

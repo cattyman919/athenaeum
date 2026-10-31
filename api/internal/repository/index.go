@@ -74,7 +74,7 @@ func (s *IndexStore) Replace(ctx context.Context, bookIDs []string, rows []model
 
 	live := map[string]bool{}
 	if len(bookIDs) > 0 {
-		idRows, err := tx.Query(ctx, `SELECT id::text FROM books WHERE id::text = ANY($1) FOR KEY SHARE`, bookIDs)
+		idRows, err := tx.Query(ctx, `SELECT id::text FROM books WHERE id::text = ANY($1) ORDER BY id FOR KEY SHARE`, bookIDs)
 		if err != nil {
 			return fmt.Errorf("lock books: %w", err)
 		}

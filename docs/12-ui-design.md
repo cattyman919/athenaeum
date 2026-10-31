@@ -307,8 +307,17 @@ bar (model engine label + latency); rate-limit quota meters (5/min · 50/day —
 
 ### Screen 6 — `/admin` and `/admin/layout` Staff Admin & Stacks Manager
 Stitch: **Admin Portal** (`3177…`, single screen; **not exported yet** — export
-pending [7.1.1](#711-stitch-mcp-tool-verification--export-runbook)). Executive KPI grid (titles,
-inventory occupancy, active patrons, AI accuracy); `BuildingTreeBrowser` drill-down
+pending [7.1.1](#711-stitch-mcp-tool-verification--export-runbook)). The `/admin`
+Books management panel appears immediately below the header and above the KPI grid:
+a paginated, searchable table with row and select-all checkboxes, **Remove** and
+**Merge into…** actions, and a bulk removal action. Search covers title, author and
+all edition ISBNs. Confirmation dialogs explain the destructive cascade and show
+book and loan details; checked-out or reserved-waitlist copies block removal.
+Loading, empty and retryable error states must remain visually distinct. See
+[07 §/admin](07-frontend.md#admin--screen-6a-stitch-3177da52) and
+[03 §8.2](03-api-spec.md#82-admin-books) for behavior and API contract.
+
+Executive KPI grid (titles, inventory occupancy, active patrons, AI accuracy); `BuildingTreeBrowser` drill-down
 (Building → Floors → Sections → Aisles → Shelves); `Shelf Manifest Inspector` right
 panel (slot occupancy meter, quick-assign barcode input → copy state changes);
 floor mini-map (SVG); `RealTimeAuditStream` (`copy_events` poll — [03 §8.1](03-api-spec.md#81-admin-kpis--audit)).
