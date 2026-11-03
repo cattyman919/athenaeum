@@ -31,14 +31,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     getCurrentUser(),
   ]);
   return (
-    // suppressHydrationWarning: browser extensions (translators, dark-mode tools) add attributes
-    // to <html> before React hydrates; this only silences that one element, not its children.
+    // suppressHydrationWarning: browser extensions (translators, dark-mode tools, asbplayer) add
+    // attributes to <html>/<body> before React hydrates; it only silences attribute mismatches
+    // on those two elements, never their children.
     <html
       lang={locale}
       className={`${inter.variable} ${mono.variable} ${notoSc.variable}`}
       suppressHydrationWarning
     >
-      <body className="min-h-screen font-sans">
+      <body className="min-h-screen font-sans" suppressHydrationWarning>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <AuthProvider initialUser={user}>{children}</AuthProvider>
           <OfflineBanner />
