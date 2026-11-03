@@ -29,3 +29,5 @@ web/playwright-report/
 web/test-results/
 web/e2e/.auth/
 .ollama-cache/
+
+report/
