@@ -6,14 +6,14 @@ import { resetRateLimits } from "./rate-limit";
 test.use({ storageState: DEMO_STATE });
 
 test.describe("/library — screen 4 (docs/13 §6)", () => {
-  test("KPI cards match the seeded demo patron (24 / 2 / 15 / 7)", async ({ page }) => {
+  test("KPI cards match the seeded demo patron (23 / 1 / 15 / 7)", async ({ page }) => {
     await gotoReady(page, "/library");
     const val = (k: string) => page.getByTestId(`kpi-${k}`).getByTestId("kpi-value");
-    await expect(val("total")).toHaveText("24");
-    await expect(val("reading")).toHaveText("2");
+    await expect(val("total")).toHaveText("23");
+    await expect(val("reading")).toHaveText("1");
     await expect(val("read")).toHaveText("15");
     await expect(val("favorites")).toHaveText("7");
-    await expect(page.getByTestId("library-row")).toHaveCount(24);
+    await expect(page.getByTestId("library-row")).toHaveCount(23);
   });
 
   test("stage tabs filter rows and rows show shelf coordinates and progress", async ({ page }) => {
@@ -21,7 +21,7 @@ test.describe("/library — screen 4 (docs/13 §6)", () => {
     await page.getByTestId("tab-reading").click();
     await expect(page).toHaveURL(/stage=reading/);
     const rows = page.getByTestId("library-row");
-    await expect(rows).toHaveCount(2);
+    await expect(rows).toHaveCount(1);
     const dune = rows.filter({ has: page.locator("[data-testid=row-stage]") }).first();
     await expect(page.locator("[data-title='Dune']")).toContainText("Floor 3 • Shelf S-2");
     await expect(page.locator("[data-title='Dune']").getByTestId("row-progress")).toHaveText(
@@ -55,7 +55,7 @@ test.describe("/library — screen 4 (docs/13 §6)", () => {
 // Loans tab — borrow lifecycle: active loan → renew (once) → return.
 // The test is self-contained: it borrows a copy via page.request (demo patron session)
 // before navigating to the Loans tab, so it does not depend on seeded loans
-// (the 12 seeded loans all belong to reviewer accounts — docs/13 §1/§3).
+// (the 11 seeded loans all belong to reviewer accounts — docs/13 §1/§3).
 test.describe("/library Loans tab (docs/03 §6.5–6.7, docs/07 §library)", () => {
   // Ender's Game C1 — book #9, accession 002949; C1 is available (not in the checked-out
   // ledger, docs/13 §3).  Using a book that is not in the demo patron's library avoids KPI

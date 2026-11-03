@@ -93,20 +93,20 @@ func TestCatalogBrowseAndFacets(t *testing.T) {
 	_, svc := seededCatalog(t)
 
 	all := search(t, svc, catalog.Request{})
-	if all.Meta.Total != 40 {
+	if all.Meta.Total != 39 {
 		t.Fatalf("browse total %d", all.Meta.Total)
 	}
-	if len(all.Items) != 40 {
+	if len(all.Items) != 39 {
 		t.Fatal("browse should return everything")
 	}
 
-	// docs/13 §5: availability=available → 35 of 40 books.
-	if p := search(t, svc, catalog.Request{Filters: model.SearchFilters{AvailableOnly: true}}); p.Meta.Total != 35 {
-		t.Fatalf("available-only %d, want 35", p.Meta.Total)
+	// docs/13 §5: availability=available → 34 of 39 books.
+	if p := search(t, svc, catalog.Request{Filters: model.SearchFilters{AvailableOnly: true}}); p.Meta.Total != 34 {
+		t.Fatalf("available-only %d, want 34", p.Meta.Total)
 	}
-	// SF section = 10 books.
+	// SF section = 9 books.
 	sf := search(t, svc, catalog.Request{Filters: model.SearchFilters{Sections: []string{"SF"}}})
-	if sf.Meta.Total != 10 {
+	if sf.Meta.Total != 9 {
 		t.Fatalf("SF %d", sf.Meta.Total)
 	}
 	for _, b := range sf.Items {
@@ -115,7 +115,7 @@ func TestCatalogBrowseAndFacets(t *testing.T) {
 		}
 	}
 	// Two sections combine with OR.
-	if p := search(t, svc, catalog.Request{Filters: model.SearchFilters{Sections: []string{"SF", "REF"}}}); p.Meta.Total != 16 {
+	if p := search(t, svc, catalog.Request{Filters: model.SearchFilters{Sections: []string{"SF", "REF"}}}); p.Meta.Total != 15 {
 		t.Fatalf("SF+REF %d", p.Meta.Total)
 	}
 	// Era buckets partition the catalog by published_year.
@@ -123,8 +123,8 @@ func TestCatalogBrowseAndFacets(t *testing.T) {
 	for _, era := range []string{"pre1800", "1800_1970", "1970_2000", "2000_n"} {
 		total += search(t, svc, catalog.Request{Filters: model.SearchFilters{Eras: []string{era}}}).Meta.Total
 	}
-	if total != 40 {
-		t.Fatalf("era buckets cover %d books, want 40", total)
+	if total != 39 {
+		t.Fatalf("era buckets cover %d books, want 39", total)
 	}
 	if p := search(t, svc, catalog.Request{Filters: model.SearchFilters{Eras: []string{"pre1800"}}}); p.Meta.Total != 0 {
 		t.Fatalf("pre1800 %d", p.Meta.Total)
@@ -136,7 +136,7 @@ func TestCatalogBrowseAndFacets(t *testing.T) {
 			t.Fatalf("filter leak: %+v", b)
 		}
 	}
-	if p.Meta.Total != 2 { // The Three-Body Problem (2008), Project Hail Mary (2021)
+	if p.Meta.Total != 1 { // The Three-Body Problem (2008)
 		t.Fatalf("SF∧available∧2000+ = %d", p.Meta.Total)
 	}
 }
@@ -208,7 +208,7 @@ func TestKeywordSearchBehaviour(t *testing.T) {
 	}
 	// Sorting by year.
 	p = search(t, svc, catalog.Request{Sort: "year:desc", Filters: model.SearchFilters{Sections: []string{"SF"}}})
-	if *p.Items[0].PublishedYear != 2021 || *p.Items[len(p.Items)-1].PublishedYear != 1932 {
+	if *p.Items[0].PublishedYear != 2008 || *p.Items[len(p.Items)-1].PublishedYear != 1932 {
 		t.Fatalf("year:desc %d..%d", *p.Items[0].PublishedYear, *p.Items[len(p.Items)-1].PublishedYear)
 	}
 }

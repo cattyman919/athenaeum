@@ -113,8 +113,8 @@ func TestIndexStorePendingAndClearDirty(t *testing.T) {
 	if flagged != 0 {
 		t.Fatalf("seed must leave embedding_dirty=false, %d flagged", flagged)
 	}
-	if p := pendingIDs(t, st); len(p) != 40 {
-		t.Fatalf("fresh seed backlog %d, want 40", len(p))
+	if p := pendingIDs(t, st); len(p) != 39 {
+		t.Fatalf("fresh seed backlog %d, want 39", len(p))
 	}
 
 	// Blank-description book without embeddings is not pending unless flagged.
@@ -214,11 +214,11 @@ func TestIndexStoreStatusMatchesPending(t *testing.T) {
 		t.Fatal(err)
 	}
 	n, err := st.PendingCount(ctx)
-	if err != nil || n != len(want) || n != 40 {
+	if err != nil || n != len(want) || n != 39 {
 		t.Fatalf("count %d err %v, want %d", n, err, len(want))
 	}
 	s, err := st.PendingStatus(ctx, 5)
-	if err != nil || s.PendingCount != 40 || len(s.PendingBookIDs) != 5 {
+	if err != nil || s.PendingCount != 39 || len(s.PendingBookIDs) != 5 {
 		t.Fatalf("status %+v %v", s, err)
 	}
 	for i, id := range s.PendingBookIDs {

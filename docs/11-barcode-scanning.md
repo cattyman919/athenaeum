@@ -149,7 +149,7 @@ sequenceDiagram
     participant R as api POST /api/books/{id}/return
     participant PG as Postgres (copies + loans + copy_events)
 
-    S->>A: POST code "9780593135204"
+    S->>A: POST code "9780812540833"
     A-->>S: 200 match=book, borrowable=true, borrow_copy={barcode,location}, my_loans=[]
     S-->>Dialog: show book + "Borrow this book" (scan-borrow)
     S->>B: POST borrow (10 per min per user; shared copy-borrow bucket)
@@ -157,7 +157,7 @@ sequenceDiagram
     B->>PG: status available -> checked_out; INSERT loans (due_at = now + 14d)
     B->>PG: append copy_events (source=self_checkout, actor=patron)
     B-->>S: 201 loan (due_at) + copy {barcode, location}
-    S-->>Dialog: scan-borrow-copy panel: "Take copy ATH-002948-C02 from Shelf S-1 — due Oct 30"; "Scan Next"
+    S-->>Dialog: scan-borrow-copy panel: "Take copy ATH-002949-C01 from Shelf S-2 — due Oct 30"; "Scan Next"
 
     note over S,PG: Return path — caller already has a loan
     A-->>S: 200 match=book, returnable=true, my_loans=[{id, copy_id, barcode, due_at}]

@@ -1,11 +1,11 @@
 # Mock Data Reference
 
-> Concrete catalog of every seeded fixture: all 40 mock books (with checksum-valid ISBN-13s and home shelves), the complete 40-shelf inventory, edge-case tables (zero-copy, multi-copy, checked-out ledger), demo users, and how to extend the data — schemas in [08-seed-data.md](08-seed-data.md), tables in [02-data-model.md](02-data-model.md).
+> Concrete catalog of every seeded fixture: all 39 mock books (with checksum-valid ISBN-13s and home shelves), the complete 40-shelf inventory, edge-case tables (zero-copy, multi-copy, checked-out ledger), demo users, and how to extend the data — schemas in [08-seed-data.md](08-seed-data.md), tables in [02-data-model.md](02-data-model.md).
 
 ## Contents
 
 1. [Fixture Totals](#1-fixture-totals)
-2. [Book Catalog (all 40)](#2-book-catalog-all-40)
+2. [Book Catalog (all 39)](#2-book-catalog-all-39)
 3. [Copy Status Ledger](#3-copy-status-ledger)
 4. [Shelf Inventory (all 40)](#4-shelf-inventory-all-40)
 5. [Edge-case Tables](#5-edge-case-tables)
@@ -17,18 +17,20 @@
 | Metric | Value |
 | --- | --- |
 | Buildings / floors / sections / aisles / shelves | 1 / 3 / 5 / 15 / 40 |
-| Books | 40 |
-| Copies | 60 (12 `checked_out` = 20%, 48 `available`, 0 `missing_lost`, 0 `reserved_waitlist`) |
+| Books | 39 (catalog numbers #1–#40; #8 retired) |
+| Copies | 58 (11 `checked_out` ≈ 19%, 47 `available`, 0 `missing_lost`, 0 `reserved_waitlist`) |
 | Zero-copy books | 5 |
 | Users | 22 (`admin`, demo, and 20 reviewers `user1@gmail.com`..`user20@gmail.com`) |
-| `user_library` rows | 24 for demo (2 reading · 15 read · 7 want_to_read; 7 favorites) + ~200 reviewer rating rows |
-| `loans` rows | 12 (one open loan per seeded `checked_out` copy, owned by reviewers; all due dates in the future) |
+| `user_library` rows | 23 for demo (1 reading · 15 read · 7 want_to_read; 7 favorites) + ~200 reviewer rating rows |
+| `loans` rows | 11 (one open loan per seeded `checked_out` copy, owned by reviewers; all due dates in the future) |
 | `waitlist` rows | 2 (demo patron) |
 
-## 2. Book Catalog (all 40)
+## 2. Book Catalog (all 39)
 
 Order = insertion order (`books.json`); `accession = 002940 + #` → barcode roots
-(`ATH-002941-…` book #1 — matches the DESIGN.md/Stitch copy manifest).
+(`ATH-002941-…` book #1 — matches the DESIGN.md/Stitch copy manifest). `#` is the
+**catalog number**, not the file position: retired numbers are skipped and never reused
+(`seed.RetiredCatalogNumbers`), so every remaining book keeps its barcodes.
 All ISBN-13s pass EAN-13 checkdigit. Home `shelf_path` applies to all copies of the
 book unless noted in [§3](#3-copy-status-ledger).
 
@@ -41,7 +43,7 @@ book unless noted in [§3](#3-copy-status-ledger).
 | 5 | Foundation | Isaac Asimov | 1951 | SF | `9780553380019` | 3 | `MAIN/3F/SF/A-2/S-1` |
 | 6 | Snow Crash | Neal Stephenson | 1992 | SF | `9780553380958` | 3 | `MAIN/3F/SF/A-2/S-2` |
 | 7 | The Three-Body Problem | Liu Cixin | 2008 | SF | `9780765382030` | 2 | `MAIN/3F/SF/A-2/S-3` |
-| 8 | Project Hail Mary | Andy Weir | 2021 | SF | `9780593135204` | 2 | `MAIN/3F/SF/A-3/S-1` |
+| 8 | *(retired 2026-11-03 — was Project Hail Mary; accession `002948` stays unused)* | — | — | — | — | — | — |
 | 9 | Ender's Game | Orson Scott Card | 1985 | SF | `9780812540833` | 2 | `MAIN/3F/SF/A-3/S-2` |
 | 10 | Brave New World | Aldous Huxley | 1932 | SF | `9780060850524` | 2 | `MAIN/3F/SF/A-4/S-1` |
 | 11 | The Pragmatic Programmer | David Thomas, Andrew Hunt | 1999 | SCI | `9780135957059` | 3 | `MAIN/1F/SCI/A-1/S-2` |
@@ -77,15 +79,12 @@ book unless noted in [§3](#3-copy-status-ledger).
 
 Notes:
 
-- **Book #8 (Project Hail Mary)** carries a second edition ISBN `9780593355275` as a
-  non-primary `book_isbns` entry (decided Phase 21 / plan `1792200000000`). The seeded book
-  `9780593355275` that previously existed as a separate catalog row was merged into book #8
-  (`6bb2ef05…`) via `POST /api/admin/books/{source}/merge` — the source's copy (`ATH-002948-C03`,
-  added during the merge demo) moved to book #8, giving it 3 copies total. The alternate ISBN
-  is stored in `book_isbns`; scanning `9780593355275` now resolves to the same catalog record.
-  Fixture count changes: book #8 now has 3 copies (was 2); total copies remain 60 (merged copy
-  replaced what would have been a separate seeded copy). Stub ISBN `9780593355275` used in
-  identify-isbn E2E specs still returns no OL data (unknown to the stub).
+- **Book #8 (Project Hail Mary) was removed from the mock catalog on 2026-11-03.** Its
+  number and accession `002948` are retired (not reused), so books #9–#40 keep their
+  barcodes, and the admin accession counter still starts after `002980`
+  ([08 §5](./08-seed-data.md#5-barcode-allocation)). Its edition ISBN `9780593355275` is
+  not in the catalog; identify-isbn E2E specs use it as an ISBN unknown everywhere (the OL
+  stub returns no data).
 - Archive items **#38–40 intentionally have no Open Library records** — they
   demonstrate the metadata fallback ([08 §6](./08-seed-data.md#6-open-library-fallback)) and
   frontend empty-cover states.
@@ -100,7 +99,7 @@ Each `checked_out` copy also carries one open `loans` row (borrower = a reviewer
 ([08 §4](08-seed-data.md#4-seed-algorithm) step 5c).
 
 - Metadata order: copies are listed C1, C2, C3 within each book.
-- **12 `checked_out` copies** — always the first copy (C1) of a multi-copy book, so
+- **11 `checked_out` copies** — always the first copy (C1) of a multi-copy book, so
   every checked-out title still shows an available sibling in the UI. Every
   other copy is `available`.
 
@@ -115,7 +114,6 @@ Each `checked_out` copy also carries one open `loans` row (borrower = a reviewer
 | 3 | Hyperion | `ATH-002943-C01` |
 | 4 | The Left Hand of Darkness | `ATH-002944-C01` |
 | 7 | The Three-Body Problem | `ATH-002947-C01` |
-| 8 | Project Hail Mary | `ATH-002948-C01` |
 | 15 | Clean Code | `ATH-002955-C01` |
 | 20 | The C Programming Language | `ATH-002960-C01` |
 
@@ -174,7 +172,6 @@ Row counts: 15 aisles · shelves per cabin: SCI 8, PER 4, HVA 7, REF 3, SF 18 = 
 | 3 | Hyperion | 2 | C1 (checked_out) · C2 `SF/A-1/S-3` |
 | 4 | The Left Hand of Darkness | 2 | C1 (checked_out) · C2 `SF/A-2/S-1` |
 | 7 | The Three-Body Problem | 2 | C1 (checked_out) · C2 `SF/A-2/S-3` |
-| 8 | Project Hail Mary | 2 | C1 (checked_out) · C2 `SF/A-3/S-1` |
 | 9 | Ender's Game | 2 | C1/C2 on `SF/A-3/S-2` |
 | 10 | Brave New World | 2 | C1/C2 on `SF/A-4/S-1` |
 | 12 | SICP | 2 | C1/C2 on `SCI/A-1/S-3` |
@@ -193,8 +190,8 @@ Row counts: 15 aisles · shelves per cabin: SCI 8, PER 4, HVA 7, REF 3, SF 18 = 
 | 36 | A Rulebook for Arguments | 1 | C1 on `REF/A-2/S-1` |
 | 37 | The Economist Style Guide | 1 | C1 on `PER/A-1/S-1` |
 
-Copy audit math: 3×7 = 21, 2×11 = 22, 1×17 = 17 → **60 copies** across 35 books;
-12 checked out exactly ([§1](#1-fixture-totals)).
+Copy audit math: 3×7 = 21, 2×10 = 20, 1×17 = 17 → **58 copies** across 34 books;
+11 checked out exactly ([§1](#1-fixture-totals)).
 
 ### Demo expectations (page-by-page)
 
@@ -204,8 +201,8 @@ Copy audit math: 3×7 = 21, 2×11 = 22, 1×17 = 17 → **60 copies** across 35 b
   `suggested_actions: ["reserve","notify_when_available"]`.
 - `/books/{#34}`, `{#38}`, `{#39}`, `{#40}`: zero-copy display + waitlist demo
   (with history rows).
-- `/catalog?availability=available`: 35 (books w/ ≥1 available copy).
-- `/catalog?section=SF`: 10 results · `/catalog?mode=keyword&q=dune`: Dune #1 first.
+- `/catalog?availability=available`: 34 (books w/ ≥1 available copy).
+- `/catalog?section=SF`: 9 results · `/catalog?mode=keyword&q=dune`: Dune #1 first.
 - Hybrid mode: topical queries (e.g. "what can I read about memory and data systems?")
   hit DDIA, SICP, ESL, CLRS in different order than keyword.
 
@@ -223,17 +220,17 @@ login-able users (you can sign in as `user1@gmail.com` / `user1`); their ratings
 deterministic (hash of user+book, values 3-5) so the catalog shows varied `★ x.y (n)` and some
 books stay unrated. Never used by the e2e suite.
 
-`demo`'s seeded `user_library` (24 entries — matches the `/library` KPI cards):
+`demo`'s seeded `user_library` (23 entries — matches the `/library` KPI cards):
 
 | Stage | Books (#) |
 | --- | --- |
-| `reading` (2) | Dune (progress 40%) · Project Hail Mary (progress 12%) |
+| `reading` (1) | Dune (progress 40%) |
 | `read` (15) | Neuromancer, Foundation, Snow Crash, Hyperion, Three-Body, Clean Code, SICP, C Programming, Brief History, 1491, Guns of August, Salt, Ways of Seeing, Name of the Rose, Ender's Game |
 | `want_to_read` (7) | Left Hand of Darkness, GEB, Thinking Fast, Story of Art, Postwar, Guns Germs & Steel, Designing Data-Intensive Applications |
 | favorites (7) | Dune, Neuromancer, Foundation, Snow Crash, Hyperion, Three-Body, Designing Data-Intensive Applications |
 | ratings seeded | Neuromancer 5, Foundation 4, Snow Crash 5, SICP 5, 1491 4 |
 
-> Correction: the favorites list includes *Designing Data-Intensive Applications*, which must be a library row to be favorited; it replaces *Zen and the Art of Motorcycle Maintenance* in `want_to_read` so the 24-entry / 7-favorite totals hold. Seeded from `api/mocks/library.json` (titles resolve against `books.json`; the account follows `SEED_USER_EMAIL`).
+> Correction: the favorites list includes *Designing Data-Intensive Applications*, which must be a library row to be favorited; it replaces *Zen and the Art of Motorcycle Maintenance* in `want_to_read` so the 7-favorite total holds (23 entries since Project Hail Mary was retired). Seeded from `api/mocks/library.json` (titles resolve against `books.json`; the account follows `SEED_USER_EMAIL`).
 
 The reading-stage enum now includes **`dropped`** ([02 §4](02-data-model.md#user_library)); the demo
 library seeds none, so the Dropped tab shows an empty state.

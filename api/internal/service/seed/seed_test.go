@@ -25,7 +25,7 @@ func TestShippedFixturesAreValidAndMatchDocs13(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := fx.Counts()
-	want := model.SeedCounts{Books: 40, Copies: 60, Shelves: 40, CheckedOut: 12, ZeroCopyBooks: 5, LibraryEntries: 24, WaitlistRows: 2}
+	want := model.SeedCounts{Books: 39, Copies: 58, Shelves: 40, CheckedOut: 11, ZeroCopyBooks: 5, LibraryEntries: 23, WaitlistRows: 2}
 	if c != want {
 		t.Fatalf("counts %+v, want %+v", c, want)
 	}
@@ -58,20 +58,21 @@ func TestShippedFixtureSpotChecks(t *testing.T) {
 			}
 		}
 	}
-	zero := map[int]bool{33: true, 34: true, 38: true, 39: true, 40: true}
+	// 1-based file positions; docs/13 keeps catalog numbers #33/#34/#38–#40 (#8 retired).
+	zero := map[int]bool{32: true, 33: true, 37: true, 38: true, 39: true}
 	for i, b := range fx.Books {
 		if (len(b.Copies) == 0) != zero[i+1] {
 			t.Errorf("book #%d %s zero-copy mismatch", i+1, b.Title)
 		}
 	}
-	// SF section: 10 books (docs/13 §5).
+	// SF section: 9 books (docs/13 §5).
 	sf := 0
 	for _, b := range fx.Books {
 		if b.SectionCode == "SF" {
 			sf++
 		}
 	}
-	if sf != 10 {
+	if sf != 9 {
 		t.Errorf("SF books %d", sf)
 	}
 }
@@ -138,7 +139,7 @@ func TestLibraryFixtureMatchesDocs13(t *testing.T) {
 			fav++
 		}
 	}
-	if byStatus["reading"] != 2 || byStatus["read"] != 15 || byStatus["want_to_read"] != 7 || fav != 7 {
+	if byStatus["reading"] != 1 || byStatus["read"] != 15 || byStatus["want_to_read"] != 7 || fav != 7 {
 		t.Fatalf("stages %v favorites %d", byStatus, fav)
 	}
 	if len(fx.Library.Waitlist) != 2 {
@@ -164,6 +165,14 @@ func TestValidateLibraryFailureModes(t *testing.T) {
 	for name, fx := range tests {
 		if err := fx.Validate(); err == nil {
 			t.Errorf("%s: expected error", name)
+		}
+	}
+}
+
+func TestCatalogNumberSkipsRetired(t *testing.T) {
+	for pos, want := range map[int]int{1: 1, 7: 7, 8: 9, 9: 10, 39: 40} {
+		if got := seed.CatalogNumber(pos); got != want {
+			t.Errorf("CatalogNumber(%d) = %d, want %d", pos, got, want)
 		}
 	}
 }

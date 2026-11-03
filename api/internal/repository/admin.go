@@ -20,6 +20,9 @@ const (
 	pgForeignKeyViolation = "23503"
 	// accessionBase: book #n of the catalog owns accession 002940+n (docs/08 §5).
 	accessionBase = 2940
+	// seededAccessions: the mock catalog reserves #1–#40 (002941–002980) even where a
+	// title was retired (#8), so admin-created books always start after 002980 (docs/08 §5).
+	seededAccessions = 40
 	// accessionLockKey serializes barcode allocation across transactions.
 	accessionLockKey = 2940_0001
 	maxCopyNumber    = 99
@@ -663,7 +666,8 @@ func allocateBarcode(ctx context.Context, tx pgx.Tx, bookID uuid.UUID) (string, 
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = tx.QueryRow(ctx, `SELECT GREATEST(
 			  COALESCE((SELECT max(substring(barcode from 5 for 6)::int) FROM book_copies), 0),
-			  $2 + (SELECT count(*) FROM books WHERE id <> $1)) + 1`, bookID, accessionBase).Scan(&acc)
+			  $2 + (SELECT count(*) FROM books WHERE id <> $1),
+			  $2 + $3::int) + 1`, bookID, accessionBase, seededAccessions).Scan(&acc)
 	}
 	if err != nil {
 		return "", fmt.Errorf("allocate accession: %w", err)

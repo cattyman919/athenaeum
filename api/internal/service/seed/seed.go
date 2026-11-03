@@ -22,7 +22,7 @@ type Store interface {
 	// ApplyBuilding upserts the tree by natural keys, one transaction per floor.
 	ApplyBuilding(ctx context.Context, b model.BuildingFixture) error
 	// ApplyBook upserts one book and its copies in a single transaction;
-	// bookIndex is 1-based (barcode allocation) and shelf paths are resolved
+	// bookIndex is the catalog number #n (CatalogNumber; barcode allocation) and shelf paths are resolved
 	// with building.ResolvePath.
 	ApplyBook(ctx context.Context, bookIndex int, b model.BookFixture) error
 	// ApplyDemoLibrary upserts the demo patron's library entries and waitlist rows
@@ -89,7 +89,7 @@ func Run(ctx context.Context, st Store, enr Enricher, fx Fixtures, opts Options,
 	}
 	for i, b := range fx.Books {
 		b = enrich(ctx, enr, b, log)
-		if err := st.ApplyBook(ctx, i+1, b); err != nil {
+		if err := st.ApplyBook(ctx, CatalogNumber(i+1), b); err != nil {
 			return model.SeedCounts{}, fmt.Errorf("books[%d] (%s): %w", i, b.Title, err)
 		}
 	}

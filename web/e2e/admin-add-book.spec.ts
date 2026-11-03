@@ -56,7 +56,7 @@ test.describe("admin add book via ISBN (docs/11)", () => {
       await expect(page.getByText("Added “Foundation” to the catalog.")).toBeVisible();
       await expect(dialog).toBeHidden();
     } finally {
-      // Keep the seeded 40-title catalog intact for the other specs.
+      // Keep the seeded 39-title catalog intact for the other specs.
       const del = await page.request.delete(`/api/admin/books/${book.id}`);
       expect(del.status()).toBe(204);
     }

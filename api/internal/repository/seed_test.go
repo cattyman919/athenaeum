@@ -39,8 +39,8 @@ func TestSeedParityIdempotencyAndReset(t *testing.T) {
 	if err := fx.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	// 2 admin/demo + 20 reviewer accounts (user1@gmail.com…user20@gmail.com) + 12 open loans.
-	want := model.SeedCounts{Users: 22, Books: 40, Copies: 60, Shelves: 40, CheckedOut: 12, ZeroCopyBooks: 5, LibraryEntries: 24, WaitlistRows: 2, Loans: 12}
+	// 2 admin/demo + 20 reviewer accounts (user1@gmail.com…user20@gmail.com) + 11 open loans.
+	want := model.SeedCounts{Users: 22, Books: 39, Copies: 58, Shelves: 40, CheckedOut: 11, ZeroCopyBooks: 5, LibraryEntries: 23, WaitlistRows: 2, Loans: 11}
 
 	got, err := seed.Run(ctx, store, stubEnricher{}, fx, seed.Options{Users: seedUsers}, logging.Discard())
 	if err != nil {
@@ -58,8 +58,8 @@ func TestSeedParityIdempotencyAndReset(t *testing.T) {
 		t.Fatalf("rerun: %+v %v", got, err)
 	}
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM copy_events`).Scan(&events2)
-	if events1 != 60 || events2 != 60 {
-		t.Fatalf("copy_events %d then %d, want 60/60", events1, events2)
+	if events1 != 58 || events2 != 58 {
+		t.Fatalf("copy_events %d then %d, want 58/58", events1, events2)
 	}
 
 	// Barcodes and locations: Dune C01 is checked out on MAIN/3F/SF/A-1/S-2; 20% checked out.
@@ -73,11 +73,11 @@ func TestSeedParityIdempotencyAndReset(t *testing.T) {
 	}
 	var withKey, availableBooks int
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM books WHERE open_library_key = '/books/OL1M'`).Scan(&withKey)
-	if withKey != 40 { // first (successful) run enriched; failed second run keeps it
+	if withKey != 39 { // first (successful) run enriched; failed second run keeps it
 		t.Fatalf("enriched keys %d", withKey)
 	}
 	_ = pool.QueryRow(ctx, `SELECT count(DISTINCT book_id) FROM book_copies WHERE status = 'available'`).Scan(&availableBooks)
-	if availableBooks != 35 { // docs/13 §5: /catalog?availability=available → 35
+	if availableBooks != 34 { // docs/13 §5: /catalog?availability=available → 34
 		t.Fatalf("books with available copy: %d", availableBooks)
 	}
 	var tree string

@@ -22,6 +22,23 @@ var SectionColors = map[string]string{
 // AccessionBase: book #n gets accession 002940+n (docs/08 §5).
 const AccessionBase = 2940
 
+// RetiredCatalogNumbers are catalog numbers withdrawn from the mock catalog, ascending.
+// Their accessions are never reused, so later books keep their labels (docs/08 §5,
+// docs/13 §2): #8 Project Hail Mary (002948) was retired on 2026-11-03.
+var RetiredCatalogNumbers = []int{8}
+
+// CatalogNumber maps a 1-based books.json position to the book's catalog number #n,
+// skipping retired numbers (position 8 → #9 once #8 is retired).
+func CatalogNumber(pos int) int {
+	n := pos
+	for _, r := range RetiredCatalogNumbers {
+		if r <= n {
+			n++
+		}
+	}
+	return n
+}
+
 var barcodeRe = regexp.MustCompile(`^ATH-[0-9]{6}-C[0-9]{2}$`)
 
 var validStatus = map[string]bool{"available": true, "checked_out": true, "missing_lost": true}
@@ -101,7 +118,7 @@ func (f Fixtures) Validate() error {
 	barcodes := map[string]bool{}
 	isbns := map[string]bool{}
 	for i, b := range f.Books {
-		idx := i + 1
+		idx := CatalogNumber(i + 1)
 		where := fmt.Sprintf("books.json: books[%d] (%s)", i, b.Title)
 		if b.Title == "" {
 			return fmt.Errorf("%s: title is required", where)

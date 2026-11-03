@@ -4,7 +4,7 @@ import { gotoReady } from "./helpers";
 import { resetRateLimits } from "./rate-limit";
 
 // Admin portal smoke (docs/07 screens 6a/6b, docs/03 §8). KPI numbers are the seeded
-// fixture totals of docs/13 §1 (40 titles, 60 copies: 48 available / 12 checked out /
+// fixture totals of docs/13 §1 (39 titles, 58 copies: 47 available / 11 checked out /
 // 0 missing; 40 shelves × 15 slots). Every mutation here is reverted before the test ends
 // so the other specs keep seeing the seed counts.
 const S2 = "MAIN/3F/SF/A-1/S-2"; // Dune C1/C2 + Neuromancer C1/C2 (docs/13 §5)
@@ -54,12 +54,12 @@ test.describe("admin portal smoke", () => {
   test("KPI grid matches the seeded fixture totals (docs/13 §1)", async ({ page }) => {
     await gotoReady(page, "/admin");
     const kpi = (key: string) => page.locator(`[data-testid=kpi-card][data-kpi="${key}"]`);
-    await expect(kpi("titles").getByTestId("kpi-value")).toHaveText("40");
-    await expect(kpi("copies").getByTestId("kpi-value")).toHaveText("60");
-    await expect(page.getByTestId("kpi-copies-available")).toHaveText("48 available");
-    await expect(page.getByTestId("kpi-copies-checked-out")).toHaveText("12 checked out");
+    await expect(kpi("titles").getByTestId("kpi-value")).toHaveText("39");
+    await expect(kpi("copies").getByTestId("kpi-value")).toHaveText("58");
+    await expect(page.getByTestId("kpi-copies-available")).toHaveText("47 available");
+    await expect(page.getByTestId("kpi-copies-checked-out")).toHaveText("11 checked out");
     await expect(page.getByTestId("kpi-copies-missing")).toHaveText("0 missing");
-    await expect(page.getByTestId("kpi-capacity-slots")).toHaveText("60 / 600 slots occupied");
+    await expect(page.getByTestId("kpi-capacity-slots")).toHaveText("58 / 600 slots occupied");
     await expect(kpi("capacity").getByTestId("kpi-value")).toHaveText("10%");
     await expect(kpi("patrons").getByTestId("kpi-value")).toHaveText(/^\d+$/);
     await expect(page.getByTestId("audit-stream")).toBeVisible();

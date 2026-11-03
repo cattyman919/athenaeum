@@ -39,21 +39,21 @@ func TestReindexStoreUpsertPruneAndStale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sum.IndexedBooks != 40 || sum.ChunksWritten != 40 || sum.StaleChunks != 0 {
+	if sum.IndexedBooks != 39 || sum.ChunksWritten != 39 || sum.StaleChunks != 0 {
 		t.Fatalf("%+v", sum)
 	}
 	var rows int
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM book_embeddings`).Scan(&rows)
-	if rows != 40 {
+	if rows != 39 {
 		t.Fatalf("rows %d", rows)
 	}
 
-	// Idempotent: rerun keeps 40 rows.
+	// Idempotent: rerun keeps 39 rows.
 	if _, err := ix.Run(ctx, ""); err != nil {
 		t.Fatal(err)
 	}
 	_ = pool.QueryRow(ctx, `SELECT count(*) FROM book_embeddings`).Scan(&rows)
-	if rows != 40 {
+	if rows != 39 {
 		t.Fatalf("rows after rerun %d", rows)
 	}
 

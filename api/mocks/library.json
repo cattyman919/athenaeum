@@ -9,13 +9,6 @@
       "rating": null
     },
     {
-      "title": "Project Hail Mary",
-      "status": "reading",
-      "is_favorite": false,
-      "progress_pct": 12,
-      "rating": null
-    },
-    {
       "title": "Neuromancer",
       "status": "read",
       "is_favorite": true,

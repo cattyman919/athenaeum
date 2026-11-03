@@ -228,35 +228,6 @@
       ]
     },
     {
-      "title": "Project Hail Mary",
-      "subtitle": null,
-      "authors": [
-        "Andy Weir"
-      ],
-      "isbn13": "9780593135204",
-      "publisher": "Ballantine Books",
-      "published_year": 2021,
-      "description": "A lone astronaut wakes with no memory aboard a spacecraft and must solve an extinction-level problem with help from an unexpected ally.",
-      "section_code": "SF",
-      "dewey_num": "813.6",
-      "loc_num": "PS3623.E36 P76 2021",
-      "open_library_key": null,
-      "copies": [
-        {
-          "barcode": "ATH-002948-C01",
-          "status": "checked_out",
-          "condition": "good",
-          "shelf_path": "MAIN/3F/SF/A-3/S-1"
-        },
-        {
-          "barcode": "ATH-002948-C02",
-          "status": "available",
-          "condition": "good",
-          "shelf_path": "MAIN/3F/SF/A-3/S-1"
-        }
-      ]
-    },
-    {
       "title": "Ender's Game",
       "subtitle": null,
       "authors": [

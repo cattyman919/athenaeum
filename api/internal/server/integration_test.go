@@ -369,12 +369,12 @@ func TestIndexStatusDrainsAfterWorkerRun(t *testing.T) {
 	// Fresh seed has no embeddings: every described book is pending.
 	rec, st := a.do("GET", "/api/admin/index-status", "")
 	ids, _ := st["pending_book_ids"].([]any)
-	if rec.Code != 200 || st["pending_count"] != float64(40) || len(ids) != 40 {
+	if rec.Code != 200 || st["pending_count"] != float64(39) || len(ids) != 39 {
 		t.Fatalf("fresh index-status %d %s", rec.Code, rec.Body)
 	}
 	for _, mode := range []string{"", "&mode=keyword"} {
 		_, out := a.do("GET", "/api/books/search?per_page=1"+mode, "")
-		if m := out["meta"].(map[string]any); m["index_pending"] != float64(40) {
+		if m := out["meta"].(map[string]any); m["index_pending"] != float64(39) {
 			t.Fatalf("search meta%s %v", mode, m)
 		}
 	}

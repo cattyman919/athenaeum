@@ -43,10 +43,10 @@ func TestAdminKPIsAndTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if k.TitlesInCatalog != 40 || k.Copies != (model.CopyCounts{Total: 60, Available: 48, CheckedOut: 12}) {
+	if k.TitlesInCatalog != 39 || k.Copies != (model.CopyCounts{Total: 58, Available: 47, CheckedOut: 11}) {
 		t.Fatalf("kpis %+v", k)
 	}
-	if k.ShelfCapacity != (model.Occupancy{Occupied: 60, Total: 40 * model.ShelfSlots}) || k.ComputedAt.IsZero() {
+	if k.ShelfCapacity != (model.Occupancy{Occupied: 58, Total: 40 * model.ShelfSlots}) || k.ComputedAt.IsZero() {
 		t.Fatalf("capacity %+v", k)
 	}
 
@@ -73,7 +73,7 @@ func TestAdminKPIsAndTree(t *testing.T) {
 			}
 		}
 	}
-	if shelves != 40 || occupied != 60 || s2 == nil || s2.Occupied != 4 || s2.Total != 15 || s2.HeightTier == "" {
+	if shelves != 40 || occupied != 58 || s2 == nil || s2.Occupied != 4 || s2.Total != 15 || s2.HeightTier == "" {
 		t.Fatalf("shelves=%d occupied=%d s2=%+v", shelves, occupied, s2)
 	}
 
@@ -99,7 +99,8 @@ func TestAdminBookAndCopyCRUD(t *testing.T) {
 	ctx := context.Background()
 	pool, svc, actor := adminSvc(t)
 
-	// Create with two auto-barcoded copies: the accession counter continues after book #40.
+	// Create with two auto-barcoded copies: the accession counter continues after book #40
+	// (the seeded range 002941–002980 stays reserved although #8 was retired).
 	b, err := svc.CreateBook(ctx, actor, admin.CreateBookRequest{
 		Fields: model.BookFields{
 			Title: " Solaris ", Authors: []string{"Stanisław Lem", " "}, ISBN13: str("9780156027601"),
@@ -243,7 +244,7 @@ func TestAdminBookAndCopyCRUD(t *testing.T) {
 		t.Fatalf("shelf filter %+v %v", page.Meta, err)
 	}
 	page, err = svc.ListBooks(ctx, admin.BookListRequest{PerPage: 5})
-	if err != nil || page.Meta.Total != 41 || page.Meta.TotalPages != 9 || len(page.Items) != 5 || page.Items[0].ID != b.ID {
+	if err != nil || page.Meta.Total != 40 || page.Meta.TotalPages != 8 || len(page.Items) != 5 || page.Items[0].ID != b.ID {
 		t.Fatalf("default sort updated_at:desc %+v %v", page.Meta, err)
 	}
 	_, err = svc.ListBooks(ctx, admin.BookListRequest{Sort: "isbn:asc"})

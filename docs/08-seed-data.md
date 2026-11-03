@@ -1,6 +1,6 @@
 # Seed Data & Mocks
 
-> Seed architecture: `mocks/building.json` + `mocks/books.json` schemas, the deterministic seed algorithm, failure modes, reindex behavior, and Open Library enrichment/fallback — concrete fixture values (all 40 books, all shelves) in [13-mock-data-reference.md](./13-mock-data-reference.md), hierarchy semantics in [05-building-layout.md](./05-building-layout.md).
+> Seed architecture: `mocks/building.json` + `mocks/books.json` schemas, the deterministic seed algorithm, failure modes, reindex behavior, and Open Library enrichment/fallback — concrete fixture values (all 39 books, all shelves) in [13-mock-data-reference.md](./13-mock-data-reference.md), hierarchy semantics in [05-building-layout.md](./05-building-layout.md).
 
 ## Contents
 
@@ -20,11 +20,11 @@
 | File | Contents | Consumer |
 | --- | --- | --- |
 | `api/mocks/building.json` | 1 building, 3 floors, 5 sections, 15 aisles, 40 shelves | `cmd/seed` |
-| `api/mocks/books.json` | 40 books, ~60 copies (12 `checked_out`), 5 zero-copy books | `cmd/seed` |
+| `api/mocks/books.json` | 39 books, 58 copies (11 `checked_out`), 5 zero-copy books | `cmd/seed` |
 | `api/mocks/library.json` | demo patron library + reviewer ratings + seeded loans (schemas below) | `cmd/seed` |
 
 Target distribution mirrors [13-mock-data-reference.md](./13-mock-data-reference.md):
-60 copies → 20% `checked_out` = 12 exactly, zero `missing_lost`, zero
+58 copies → ~19% `checked_out` = 11 exactly, zero `missing_lost`, zero
 `reserved_waitlist` (waitlists start only via UI).
 
 ## 2. `mocks/building.json` Schema
@@ -145,7 +145,7 @@ when that account is part of the run. Re-running changes nothing.
      c. loans: for each seeded `checked_out` copy, insert an open `loans` row owned by a
         reviewer (deterministic pick), borrowed_at in the past, due_at = borrowed_at + 14d
         (all future — no overdue in the demo); status stays `checked_out`
-6. print counts: users, books, copies, shelves — expect 22/40/60/40, plus
+6. print counts: users, books, copies, shelves — expect 22/39/58/40, plus
    loans=<#checked_out>, ratings=<#user_library rows with rating> (docs/13 §1)
 7. warm the cover cache (§6a) unless offline: prune unreferenced book_covers rows,
    download every uncached books.cover_url (4 workers) — prints
@@ -165,14 +165,20 @@ Accession numbers are a single building-wide counter so the DESIGN.md example
 (`ATH-002941-C01`, book #1 of the catalog — [13](13-mock-data-reference.md)) stays fixed:
 
 ```
-accession(counter) = 002940 + book_index          # book 1 → 002941
+accession(counter) = 002940 + catalog_number      # book #1 → 002941
 book.book_copies: copy n → ATH-{accession}-C{n}    # n zero-padded to 2
 ```
+
+- `catalog_number` is the book's position in `books.json` with **retired numbers
+  skipped** (`seed.RetiredCatalogNumbers`, `seed.CatalogNumber`): removing a mock book
+  retires its number instead of renumbering, so every other book keeps its barcodes.
+  Retired: **#8** (Project Hail Mary, `002948`, removed 2026-11-03).
 
 - Explicit `barcode` in mocks for book #1 Dune (`ATH-002941-C01..C3`) — seed
   cross-checks generated vs explicit values and errors on drift.
 - Admin-created books continue the same counter (`POST /api/admin/copies` without
-  barcode — [03 §8.3](03-api-spec.md#83-admin-copies)).
+  barcode — [03 §8.3](03-api-spec.md#83-admin-copies)), never below `002981`: the seeded
+  range `002941–002980` (#1–#40, retired numbers included) stays reserved.
 
 ## 6. Open Library Fallback
 

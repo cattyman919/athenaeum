@@ -14,9 +14,9 @@ test.beforeAll(async () => {
 });
 
 test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
-  test("browse shows 12 per page of 40 volumes with pagination", async ({ page }) => {
+  test("browse shows 12 per page of 39 volumes with pagination", async ({ page }) => {
     await gotoReady(page, "/catalog");
-    await expect(page.getByTestId("result-count")).toHaveText("40 volumes");
+    await expect(page.getByTestId("result-count")).toHaveText("39 volumes");
     await expect(cards(page)).toHaveCount(12);
     await expect(page.getByText("Page 1 of 4")).toBeVisible();
 
@@ -116,23 +116,23 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await gotoReady(page, "/catalog");
     await page.getByTestId("facet-section-SF").click();
     await expect(page).toHaveURL(/section=SF/);
-    await expect(page.getByTestId("result-count")).toHaveText("10 volumes");
+    await expect(page.getByTestId("result-count")).toHaveText("9 volumes");
 
     await page.getByTestId("facet-available").click();
     await expect(page).toHaveURL(/availability=available/);
     await page.getByTestId("facet-era-2000_n").click();
-    await expect(page.getByTestId("result-count")).toHaveText("2 volumes");
-    expect((await titles(page)).sort()).toEqual(["Project Hail Mary", "The Three-Body Problem"]);
+    await expect(page.getByTestId("result-count")).toHaveText("1 volume");
+    expect(await titles(page)).toEqual(["The Three-Body Problem"]);
 
     await page.getByTestId("clear-filters").click();
-    await expect(page.getByTestId("result-count")).toHaveText("40 volumes");
+    await expect(page.getByTestId("result-count")).toHaveText("39 volumes");
   });
 
-  test("availability facet matches docs/13 (35 of 40 books have a copy on the shelf)", async ({
+  test("availability facet matches docs/13 (34 of 39 books have a copy on the shelf)", async ({
     page,
   }) => {
     await gotoReady(page, "/catalog?availability=available");
-    await expect(page.getByTestId("result-count")).toHaveText("35 volumes");
+    await expect(page.getByTestId("result-count")).toHaveText("34 volumes");
   });
 
   test("zero-copy books show the not-in-building beacon", async ({ page }) => {
@@ -145,7 +145,7 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
 
   test("sorting by year descending puts the newest SF title first", async ({ page }) => {
     await gotoReady(page, "/catalog?section=SF&sort=year:desc");
-    await expect(cards(page).first()).toHaveAttribute("data-title", "Project Hail Mary");
+    await expect(cards(page).first()).toHaveAttribute("data-title", "The Three-Body Problem");
   });
 
   test("empty search shows the pill with nearby sections", async ({ page }) => {
@@ -154,7 +154,7 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await expect(empty).toContainText("No volumes matched");
     await empty.getByRole("link", { name: "Science Fiction & Speculative" }).click();
     await expect(page).toHaveURL(/section=SF/);
-    await expect(page.getByTestId("result-count")).toHaveText("10 volumes");
+    await expect(page.getByTestId("result-count")).toHaveText("9 volumes");
   });
 
   test("⌘K palette searches the same endpoint and opens a result", async ({ page }) => {
@@ -227,7 +227,7 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await page.getByTestId("catalog-advanced").click();
     await expect(page.getByTestId("catalog-advanced-panel")).toBeVisible();
     await expect(page.getByTestId("mode-semantic")).toHaveText("语义");
-    await expect(page.getByTestId("result-count")).toHaveText("共 40 册");
+    await expect(page.getByTestId("result-count")).toHaveText("共 39 册");
     // Section names come from wayfinding.section.<code> (docs/14 §6.1).
     await expect(page.getByTestId("facet-sidebar")).toContainText("科幻与奇幻");
     await expect(page.getByTestId("facet-sidebar")).not.toContainText(
