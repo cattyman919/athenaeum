@@ -128,7 +128,7 @@ func (r *CatalogRepository) Summaries(ctx context.Context, ids []uuid.UUID) (map
 		return out, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-		SELECT b.id, b.title, b.authors, b.isbn13, b.cover_url, b.published_year,
+		SELECT b.id, b.title, b.authors, b.isbn13, `+coverURLSQL("b")+`, b.published_year,
 		       se.code, se.name, se.color,
 		       coalesce(c.total, 0), coalesce(c.avail, 0), coalesce(c.statuses, '{}'),
 		       loc.path, loc.shelf_code

@@ -28,6 +28,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 	"github.com/cattyman919/athenaeum/api/internal/service/circulation"
+	"github.com/cattyman919/athenaeum/api/internal/service/covers"
 	"github.com/cattyman919/athenaeum/api/internal/service/index"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
 	"github.com/cattyman919/athenaeum/api/internal/service/olbooks"
@@ -143,7 +144,9 @@ func run() error {
 		ISBN:        isbnSvc,
 		Scan:        catalog.NewScanService(catalogRepo),
 		Circulation: circulation.New(repository.NewCirculationRepository(pool)),
-		Limiter:     middleware.NewRateLimiter(rdb, log),
+		Covers: covers.New(repository.NewCoverRepository(pool),
+			covers.NewHTTPFetcher(cfg.OpenLibraryCoversBaseURL, cfg.OfflineMode), log),
+		Limiter: middleware.NewRateLimiter(rdb, log),
 	}, fmt.Sprintf(":%d", cfg.APIPort))
 
 	errCh := make(chan error, 1)

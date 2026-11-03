@@ -52,6 +52,7 @@ func newMux() *http.ServeMux {
 	mux.HandleFunc("POST /asr", asr)
 	mux.HandleFunc("POST /fast/asr", asrPartial)       // WHISPER_PARTIAL_BASE_URL={stubs}/fast
 	mux.HandleFunc("GET /api/books", openLibraryBooks) // OPENLIBRARY_BASE_URL (openlibrary.go)
+	mux.HandleFunc("GET /b/{kind}/{key}", coverImage)  // OPENLIBRARY_COVERS_BASE_URL (covers.go)
 	return mux
 }
 

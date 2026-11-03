@@ -22,8 +22,8 @@ func TestUpDownUp(t *testing.T) {
 		 WHERE table_schema='public' AND table_type='BASE TABLE'`).Scan(&tables); err != nil {
 		t.Fatal(err)
 	}
-	if tables != 17 { // docs/02 §1: 15 original tables + loans (M17) + book_isbns (M21) = 17 (+1 view)
-		t.Fatalf("want 16 tables, got %d", tables)
+	if tables != 18 { // docs/02 §1: 15 original tables + loans (M17) + book_isbns (M21) + book_covers = 18 (+1 view)
+		t.Fatalf("want 18 tables, got %d", tables)
 	}
 	var view int
 	if err := pool.QueryRow(ctx,

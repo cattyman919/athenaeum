@@ -124,7 +124,7 @@ func (r *LibraryRepository) List(ctx context.Context, userID uuid.UUID, f model.
 	}
 	args = append(args, perPage, (page-1)*perPage)
 	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
-		SELECT b.id, b.title, b.cover_url, b.authors, ul.status, ul.is_favorite, ul.progress_pct, ul.rating, ul.added_at,
+		SELECT b.id, b.title, `+coverURLSQL("b")+`, b.authors, ul.status, ul.is_favorite, ul.progress_pct, ul.rating, ul.added_at,
 		       loc.floor_number, loc.shelf_code, loc.path
 		FROM user_library ul JOIN books b ON b.id = ul.book_id
 		LEFT JOIN LATERAL (

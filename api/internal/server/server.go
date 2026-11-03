@@ -18,6 +18,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/service/auth"
 	"github.com/cattyman919/athenaeum/api/internal/service/catalog"
 	"github.com/cattyman919/athenaeum/api/internal/service/circulation"
+	"github.com/cattyman919/athenaeum/api/internal/service/covers"
 	"github.com/cattyman919/athenaeum/api/internal/service/library"
 	"github.com/cattyman919/athenaeum/api/internal/service/waitlist"
 )
@@ -44,7 +45,9 @@ type Deps struct {
 	Scan *catalog.ScanService
 	// Circulation serves patron self-service return (docs/03 §6.4); nil skips the route.
 	Circulation *circulation.Service
-	Limiter     *middleware.RateLimiter
+	// Covers serves cached cover images (docs/03 §5.6); nil skips the route.
+	Covers  *covers.Service
+	Limiter *middleware.RateLimiter
 	// ChatHeartbeat overrides the SSE heartbeat interval (tests); 0 = 15 s.
 	ChatHeartbeat time.Duration
 }
@@ -64,6 +67,8 @@ var specificBucketRoutes = map[string]bool{
 	"POST /api/copies/:id/renew":    true,
 	"POST /api/books/:id/borrow":    true,
 	"POST /api/books/:id/return":    true,
+	// Cover images: a catalog page loads dozens; served from Postgres with immutable caching.
+	"GET /api/books/:id/cover": true,
 }
 
 func isSpecific(c *gin.Context) bool {
@@ -120,6 +125,12 @@ func NewRouter(d Deps) *gin.Engine {
 		bg := api.Group("/books", requireAuth)
 		bg.GET("/search", limit(middleware.BucketSearch), bh.Search)
 		bg.GET("/:id", bh.Get)
+	}
+
+	if d.Covers != nil {
+		// Public: covers are not sensitive and <img> loads must not depend on the
+		// access-token refresh dance (docs/03 §5.6).
+		api.GET("/books/:id/cover", handler.NewCoversHandler(d.Covers).Get)
 	}
 
 	if d.ISBN != nil {

@@ -11,7 +11,7 @@ define need
 	@test -e $(1) || { echo "error: $(1) does not exist yet ($(2))"; exit 1; }
 endef
 
-.PHONY: up down db-migrate seed reindex api web lint test vet e2e ci compose
+.PHONY: up down db-migrate seed covers reindex api web lint test vet e2e ci compose
 
 up: ## postgres, redis, ollama, whisper, whisper-fast (+ api/web once their Dockerfiles exist)
 	docker compose up -d --build
@@ -26,6 +26,9 @@ db-migrate:
 seed:
 	$(call need,api/cmd/seed,arrives in milestone M3)
 	@$(ENVLOAD) cd api && go run ./cmd/seed --mocks=./mocks
+
+covers: ## download uncached book covers into Postgres without reseeding (docs/08 §6a)
+	@$(ENVLOAD) cd api && go run ./cmd/seed --mocks=./mocks --covers-only
 
 reindex:
 	$(call need,api/cmd/reindex,arrives in milestone M3)

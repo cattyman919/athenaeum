@@ -30,11 +30,13 @@ export function BookCover({
       style={accent ? { borderLeft: `3px solid ${accent}` } : undefined}
     >
       {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element -- remote Open Library covers
+        // Covers are served immutably cached from Postgres (/api/books/{id}/cover, docs/03 §5.6).
+        // eslint-disable-next-line @next/next/no-img-element -- no optimizer needed for cached covers
         <img
           src={src}
           alt={alt}
           loading="lazy"
+          decoding="async"
           onError={() => setFailed(true)}
           className="h-full w-full object-cover"
         />

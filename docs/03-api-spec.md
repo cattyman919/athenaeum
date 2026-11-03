@@ -70,6 +70,7 @@ else IP (hashed). Middleware: [01-architecture.md](01-architecture.md#3-request-
 | `POST /api/books/identify-isbn` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; patron OL identification — [§5.5](#55-post-apibooksidentify-isbn)) |
 | `POST /api/books/{id}/borrow` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; borrow-by-book shares the `copies/borrow` bucket — [§6.8](#68-post-apibooksidborrow)) |
 | `POST /api/books/{id}/return` | 10 | 1 min | user_id | 429 (`RATE_LIMITED`; return-by-book shares the `copies/return` bucket — [§6.9](#69-post-apibooksidreturn)) |
+| `GET /api/books/{id}/cover` | — | — | — | not limited: a catalog page loads dozens of covers, each one indexed row read ([§5.6](#56-get-apibooksidcover)) |
 
 Specific limits shadow the general one (most restrictive wins per endpoint).
 
@@ -129,6 +130,7 @@ Auth column: 🔓 public · 🔒 `user` · 👑 `admin`.
 | 48 | DELETE | `/api/admin/books/{id}/isbns/{isbn13}` | 👑 | detach a non-primary edition ISBN | [§8.6](#86-admin-isbn-management--merge) |
 | 49 | POST | `/api/admin/books/{id}/merge` | 👑 | merge source book into target (one tx) | [§8.6](#86-admin-isbn-management--merge) |
 | 50 | POST | `/api/admin/books/bulk-delete` | 👑 | atomically remove selected books | [§8.2](#82-admin-books) |
+| 51 | GET | `/api/books/{id}/cover` | 🔓 | cover image from the Postgres cache | [§5.6](#56-get-apibooksidcover) |
 
 404 for unknown `id` values on every `/api/.../{id}` route.
 
@@ -486,6 +488,32 @@ metadata. Traffic is throttled independently of the scan bucket ([11](./11-barco
 | OL has no record | false | null | null | offline_partial | ["not_found"] |
 | OL down / `OFFLINE_MODE` | false | null | null | offline_partial | ["upstream_unavailable"] |
 | Bad checksum | — | — | — | — | 400 `INVALID_ISBN` |
+
+### 5.6 GET /api/books/{id}/cover
+
+Serves the book's cover image bytes from `book_covers`
+([02](02-data-model.md#book_covers), [08 §6a](08-seed-data.md#6a-cover-cache)). Public
+(🔓): covers are not sensitive and `<img>` loads must not depend on the access-token
+refresh flow. Not rate limited ([§2](#2-rate-limiting)).
+
+**`cover_url` in every book payload** (search items, detail, neighbors, library, loans,
+waitlist, chat citations, scan results) is this route — `/api/books/{id}/cover`, with
+`?v={12 hex chars}` (sha256 prefix of the cached bytes) once cached — or `null` when the
+book has no cover. Browsers resolve it against the web origin, which proxies `/api/*`.
+The admin book schema ([§8.2](#82-admin-books)) is the exception: its `cover_url` is the
+raw upstream URL stored in `books.cover_url`, which is what `PATCH` edits.
+`fetch-isbn` / `identify-isbn` metadata also return upstream URLs (no book row yet).
+
+- **Hit** → `200`, body = image bytes, `Content-Type` as stored,
+  `ETag: "{sha256}"`, `Cache-Control: public, max-age=31536000, immutable`
+  (the `?v=` query changes whenever the bytes do). `If-None-Match` matching → `304`.
+- **Miss** → read-through: the API fetches `books.cover_url` once (10 s timeout,
+  concurrent requests for one URL share a single fetch), stores it, and serves it as
+  above. Skipped when `OFFLINE_MODE=true`.
+- `404 NOT_FOUND` when the book is unknown (or `{id}` is not a UUID), has no
+  `cover_url`, upstream has no usable image (404, non-image, < 1 KiB placeholder,
+  > 2 MiB), or the fetch failed / was skipped offline. A failed URL is not retried for
+  15 minutes. The web `BookCover` component renders its typographic placeholder on 404.
 
 ## 6. Personal Library, Waitlist & Loans
 

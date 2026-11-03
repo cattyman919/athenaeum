@@ -147,6 +147,7 @@ plain JSON.
 | Ollama | api → localhost:11434 | embeddings, batch mode for reindex | `OLLAMA_BASE_URL`, `OLLAMA_EMBED_MODEL`, `OLLAMA_EMBED_DIM` | 10s per call; outage → 503 `EMBEDDING_UNAVAILABLE` |
 | Whisper | api → whisper:9000 (final) · whisper-fast:9000 (live partials) | speech-to-text for `/chat` voice input via `WhisperAdapter` (ACL) | `WHISPER_BASE_URL`, `WHISPER_MODEL`, `WHISPER_PARTIAL_BASE_URL`, `WHISPER_FAST_MODEL` | 30s timeout (15s for partials); outage → 503 `TRANSCRIPTION_UNAVAILABLE` ([15 §6](15-voice-input.md#6-limits-rate--errors)) |
 | Open Library | api → openlibrary.org | metadata enrichment for ISBN intake (`POST /api/books/fetch-isbn`, admin) **and** patron ISBN identification (`POST /api/books/identify-isbn` — called after a scan miss, [03 §5.5](03-api-spec.md#55-post-apibooksidentify-isbn)) | `OPENLIBRARY_BASE_URL`, `OFFLINE_MODE` | 3s timeout / 2 retries; Redis 24h cache; fallback to `offline_partial` warnings (patron endpoint never returns 5xx for OL issues — [08-seed-data.md](08-seed-data.md#6-open-library-fallback)); admin endpoint: 502 when all fail |
+| Open Library covers | api → covers.openlibrary.org | cover images, downloaded once into `book_covers` (seed warm-up + read-through) and served from `GET /api/books/{id}/cover` ([03 §5.6](03-api-spec.md#56-get-apibooksidcover)) — browsers never contact Open Library | `OPENLIBRARY_COVERS_BASE_URL`, `OFFLINE_MODE` | 10 s timeout, no retries; failed URLs suppressed 15 min; 404 → UI placeholder |
 | Google OAuth | browser → accounts.google.com | SSO redirect + code exchange | `GOOGLE_OAUTH_CLIENT_ID/SECRET` | invalid code/state → 401 ([04-auth.md](04-auth.md#3-google-sso)) |
 
 ## 6. Docker Compose Topology
@@ -208,6 +209,7 @@ Loaded by `internal/config` via `caarlos0/env` into a typed `Config` struct (no 
 | `WHISPER_PARTIAL_BASE_URL` | empty → `WHISPER_BASE_URL` | smaller/faster Whisper for live partials (`?partial=true`); `.env.example` / compose point it at `whisper-fast` (`http://localhost:9001`) ([15 §5](15-voice-input.md#5-whisper-service)) |
 | `WHISPER_FAST_MODEL` | `base` | model of the `whisper-fast` container (compose `ASR_MODEL`) ([15 §5](15-voice-input.md#5-whisper-service)) |
 | `OPENLIBRARY_BASE_URL` | `https://openlibrary.org` | overridable for tests/proxies |
+| `OPENLIBRARY_COVERS_BASE_URL` | `https://covers.openlibrary.org` | where `covers.openlibrary.org` cover URLs are fetched from for the Postgres cover cache ([08 §6a](08-seed-data.md#6a-cover-cache)); e2e points it at the stubs |
 | `OFFLINE_MODE` | `false` | skips outbound metadata fetches entirely |
 | `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | set in `.env.example` | created by `cmd/seed` |
 | `SEED_USER_EMAIL` / `SEED_USER_PASSWORD` | set in `.env.example` | demo patron |

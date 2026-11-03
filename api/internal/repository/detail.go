@@ -20,7 +20,7 @@ func (r *CatalogRepository) Detail(ctx context.Context, id uuid.UUID, userID uui
 	var secCode, secName, secColor *string
 	err := r.pool.QueryRow(ctx, `
 		SELECT b.id, b.title, b.subtitle, b.authors, b.isbn13, b.isbn10, b.publisher, b.published_year,
-		       b.description, b.dewey_num, b.loc_num, b.cover_url, se.code, se.name, se.color
+		       b.description, b.dewey_num, b.loc_num, `+coverURLSQL("b")+`, se.code, se.name, se.color
 		FROM books b LEFT JOIN sections se ON se.id = b.section_id
 		WHERE b.id = $1`, id).Scan(&d.ID, &d.Title, &d.Subtitle, &authors, &d.ISBN13, &d.ISBN10, &d.Publisher,
 		&d.PublishedYear, &d.Description, &d.DeweyNum, &d.LOCNum, &d.CoverURL, &secCode, &secName, &secColor)
@@ -126,7 +126,7 @@ func (r *CatalogRepository) Detail(ctx context.Context, id uuid.UUID, userID uui
 // neighbors: other books with an available copy sharing the shelf, then the section.
 func (r *CatalogRepository) neighbors(ctx context.Context, id uuid.UUID) ([]model.Neighbor, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT b2.id, b2.title, b2.authors, b2.cover_url
+		SELECT b2.id, b2.title, b2.authors, `+coverURLSQL("b2")+`
 		FROM books b2, books b
 		WHERE b.id = $1 AND b2.id <> b.id
 		  AND EXISTS (SELECT 1 FROM book_copies c WHERE c.book_id = b2.id AND c.status = 'available')

@@ -10,6 +10,7 @@
 4. [Seed Algorithm](#4-seed-algorithm)
 5. [Barcode Allocation](#5-barcode-allocation)
 6. [Open Library Fallback](#6-open-library-fallback)
+   - [6a. Cover Cache](#6a-cover-cache)
 7. [Reindex](#7-reindex)
 8. [Failure Modes](#8-failure-modes)
 9. [Idempotency & Reset](#9-idempotency--reset)
@@ -119,7 +120,7 @@ when that account is part of the run. Re-running changes nothing.
 
 ## 4. Seed Algorithm
 
-`cmd/seed` (flags: `--mocks=./mocks`, `--reset`, `--offline`):
+`cmd/seed` (flags: `--mocks=./mocks`, `--reset`, `--offline`, `--covers-only`):
 
 ```bash
 1. load config; connect Postgres (DATABASE_URL)
@@ -146,7 +147,10 @@ when that account is part of the run. Re-running changes nothing.
         (all future — no overdue in the demo); status stays `checked_out`
 6. print counts: users, books, copies, shelves — expect 22/40/60/40, plus
    loans=<#checked_out>, ratings=<#user_library rows with rating> (docs/13 §1)
-7. note: embeddings are backfilled by the auto-index worker on API start (docs/06 §2);
+7. warm the cover cache (§6a) unless offline: prune unreferenced book_covers rows,
+   download every uncached books.cover_url (4 workers) — prints
+   `covers: fetched=N missing=N failed=N pruned=N`; per-cover failures never fail the seed
+8. note: embeddings are backfilled by the auto-index worker on API start (docs/06 §2);
    `make reindex` is only needed for model/chunker changes
 ```
 
@@ -187,6 +191,23 @@ Used by `cmd/seed` (enrichment) and `POST /api/books/fetch-isbn`
 Mock descriptions in `books.json` are the offline source of truth — real texts for
 better-known works, neutral editorial blurb templates for archive items
 ([13 §catalog](13-mock-data-reference.md#2-book-catalog-all-40)).
+
+### 6a. Cover Cache
+
+Open Library cover URLs redirect through archive.org and often take seconds per
+image, so browsers never load them directly. The bytes are stored once in
+[`book_covers`](02-data-model.md#book_covers) and served by
+[`GET /api/books/{id}/cover`](03-api-spec.md#56-get-apibooksidcover) with immutable
+caching. Code: `internal/service/covers/`.
+
+| Step | Behavior |
+| --- | --- |
+| Seed warm-up | after seeding (step 7 of §4): fetch every `books.cover_url` not yet in `book_covers`, 4 at a time; `make covers` (`cmd/seed --covers-only`) re-runs only this step |
+| Read-through | the cover route fetches a missing cover on first request and stores it; concurrent requests share one fetch |
+| Fetch rules | 10 s timeout, no retries; `covers.openlibrary.org` URLs get `?default=false` (404 instead of a 1×1 placeholder) and are rewritten onto `OPENLIBRARY_COVERS_BASE_URL`; only `image/*` between 1 KiB and 2 MiB is stored |
+| No cover / failure | seed logs `INFO cover_missing` / `WARN cover_fetch_failed` and continues; the route answers 404 (UI placeholder) and suppresses that URL for 15 min |
+| `OFFLINE_MODE=true` / `--offline` | no fetches; already-cached covers are still served |
+| Reset / reseed | rows are keyed by URL, so `--reset` keeps the cache and nothing is re-downloaded; rows no book references are pruned on the next warm-up |
 
 ## 7. Reindex
 

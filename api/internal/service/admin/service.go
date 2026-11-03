@@ -234,6 +234,7 @@ func (s *Service) ListBooks(ctx context.Context, req BookListRequest) (BookPage,
 			return BookPage{}, err
 		}
 		item := model.AdminBookFromDetail(d, r.Meta.OpenLibraryKey, r.Meta.UpdatedAt)
+		item.CoverURL = r.Meta.CoverURL // admin edits the upstream URL, not the API route
 		item.ActiveLoans = r.ActiveLoans
 		item.Removable = item.Removable && r.ActiveLoans == 0
 		items = append(items, item)
@@ -252,6 +253,7 @@ func (s *Service) Book(ctx context.Context, id uuid.UUID) (model.AdminBook, erro
 		return model.AdminBook{}, err
 	}
 	item := model.AdminBookFromDetail(d, m.OpenLibraryKey, m.UpdatedAt)
+	item.CoverURL = m.CoverURL // admin edits the upstream URL, not the API route
 	item.ActiveLoans = m.ActiveLoans
 	item.Removable = item.Removable && m.ActiveLoans == 0
 	return item, nil

@@ -42,6 +42,23 @@ test.describe("/catalog — screen 2 (docs/07 §7, docs/13 §5)", () => {
     await expect(cards(page).first()).toHaveAttribute("data-title", "Dune");
   });
 
+  test("covers are served from the API's Postgres cache (docs/03 §5.6)", async ({ page }) => {
+    await gotoReady(page, "/catalog?q=dune");
+    const img = cards(page).first().locator("img");
+    await expect(img).toHaveAttribute(
+      "src",
+      /^\/api\/books\/[0-9a-f-]{36}\/cover(\?v=[0-9a-f]{12})?$/,
+    );
+    await expect
+      .poll(() => img.evaluate((el: HTMLImageElement) => (el.complete ? el.naturalWidth : 0)))
+      .toBeGreaterThan(0);
+
+    const res = await page.request.get((await img.getAttribute("src"))!);
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toMatch(/^image\//);
+    expect(res.headers()["cache-control"]).toContain("immutable");
+  });
+
   // NEW: Verify the default state hides mode tabs and still returns results.
   test("default mode is hybrid: mode tabs are hidden until Advanced is opened", async ({
     page,

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/logging"
 	"github.com/cattyman919/athenaeum/api/internal/model"
 	"github.com/cattyman919/athenaeum/api/internal/repository"
+	"github.com/cattyman919/athenaeum/api/internal/service/covers"
 	"github.com/cattyman919/athenaeum/api/internal/service/olbooks"
 	"github.com/cattyman919/athenaeum/api/internal/service/seed"
 )
@@ -29,7 +31,8 @@ func main() {
 func run() error {
 	mocks := flag.String("mocks", "./mocks", "directory with building.json and books.json")
 	reset := flag.Bool("reset", false, "truncate catalog content before seeding")
-	offline := flag.Bool("offline", false, "skip Open Library enrichment")
+	offline := flag.Bool("offline", false, "skip Open Library enrichment and cover downloads")
+	coversOnly := flag.Bool("covers-only", false, "only download uncached covers into book_covers (docs/08 §6a)")
 	flag.Parse()
 
 	cfg, err := config.Load()
@@ -37,6 +40,8 @@ func run() error {
 		return err
 	}
 	log := logging.New(cfg.IsProd())
+
+	noNetwork := cfg.OfflineMode || *offline
 
 	fx, err := seed.Load(*mocks)
 	if err != nil {
@@ -58,8 +63,14 @@ func run() error {
 		return fmt.Errorf("database unreachable: %w", err)
 	}
 
+	coverSvc := covers.New(repository.NewCoverRepository(pool),
+		covers.NewHTTPFetcher(cfg.OpenLibraryCoversBaseURL, noNetwork), log)
+	if *coversOnly {
+		return warmCovers(ctx, coverSvc, noNetwork)
+	}
+
 	counts, err := seed.Run(ctx, repository.NewSeedStore(pool),
-		olbooks.New(cfg.OpenLibraryBaseURL, cfg.OfflineMode || *offline), fx,
+		olbooks.New(cfg.OpenLibraryBaseURL, noNetwork), fx,
 		seed.Options{Reset: *reset, Users: []seed.UserSpec{
 			{Email: cfg.SeedAdminEmail, Name: "Library Admin", Password: cfg.SeedAdminPassword, Role: model.RoleAdmin},
 			{Email: cfg.SeedUserEmail, Name: "Demo Patron", Password: cfg.SeedUserPassword, Role: model.RoleUser},
@@ -69,6 +80,27 @@ func run() error {
 	}
 	fmt.Printf("seeded: users=%d books=%d copies=%d shelves=%d (checked_out=%d zero_copy_books=%d)\n",
 		counts.Users, counts.Books, counts.Copies, counts.Shelves, counts.CheckedOut, counts.ZeroCopyBooks)
+	if err := warmCovers(ctx, coverSvc, noNetwork); err != nil {
+		return err
+	}
 	fmt.Println("next: cd api && go run ./cmd/reindex   # embeddings (docs/06 §2)")
+	return nil
+}
+
+// warmCovers downloads every uncached cover into Postgres so the demo never waits on
+// Open Library (docs/08 §6a). Individual failures are logged and left for the API's
+// read-through; only database errors fail the command.
+func warmCovers(ctx context.Context, svc *covers.Service, offline bool) error {
+	if offline {
+		fmt.Println("covers: skipped (offline mode); the API fetches them on first view when online")
+		return nil
+	}
+	start := time.Now()
+	res, err := svc.Warm(ctx, covers.DefaultWorkers)
+	if err != nil {
+		return fmt.Errorf("covers: %w", err)
+	}
+	fmt.Printf("covers: fetched=%d missing=%d failed=%d pruned=%d (%s)\n",
+		res.Fetched, res.Missing, res.Failed, res.Pruned, time.Since(start).Round(time.Millisecond))
 	return nil
 }

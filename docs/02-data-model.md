@@ -30,6 +30,7 @@
 | `copy_events` | Admin audit-stream rows | copy + return mutations | admin audit stream |
 | `loans` | Active + past borrowings (borrower, due date) | self-service checkout/return, admin | `/library` loans, detail |
 | `book_isbns` | All ISBN-13s for a book (primary + alternate editions) | admin ISBN attach/merge, intake dedupe | scan, search, detail, identify-isbn |
+| `book_covers` | Cover image bytes cached from `books.cover_url` (keyed by that URL) | `cmd/seed` warm-up, cover route read-through | `GET /api/books/{id}/cover` ([03 §5.6](./03-api-spec.md#56-get-apibooksidcover)) |
 | `book_locations` | **VIEW** — denormalized copy→building path | — | detail, wayfinding, export |
 | `book_ratings` | **VIEW** — per-book average + count of `user_library.rating` | — | search, detail, `/catalog` |
 
@@ -133,8 +134,15 @@ erDiagram
         uuid section_id FK
         text dewey_num
         text loc_num
-        text cover_url
+        text cover_url "upstream URL; key into book_covers"
         bool embedding_dirty "auto-index backlog"
+    }
+    book_covers {
+        text source_url PK "= books.cover_url"
+        text content_type
+        bytea bytes
+        text sha256
+        timestamptz fetched_at
     }
     book_copies {
         uuid id PK
@@ -255,7 +263,7 @@ CREATE TABLE books (
   publisher       TEXT,
   published_year  INT,
   description     TEXT,                               -- RAG chunk source, docs/06
-  cover_url       TEXT,
+  cover_url       TEXT,                               -- upstream image URL; bytes cached in book_covers
   open_library_key TEXT,                              -- enrich provenance, docs/08
   dewey_num       TEXT,
   loc_num         TEXT,
@@ -508,6 +516,31 @@ an admin merge combines them in one transaction:
 
 Response: `200 { book_id, merged_copies, isbns }` where `isbns` is the full updated
 array of `[{isbn13, is_primary}]` for the target book.
+
+### book_covers
+
+Cover images cached in Postgres so pages never wait on Open Library
+([08 §6a](./08-seed-data.md#6a-cover-cache)). Rows are keyed by the **upstream URL**
+(`books.cover_url`), not by `book_id`: the cache survives `seed --reset` (which re-creates
+book ids), two books sharing a URL share one row, and editing `cover_url` simply makes
+the book a cache miss. There is deliberately no FK; rows no book references are removed
+by the warm-up's prune step. `BYTEA` (not large objects) because covers are small
+(L-size Open Library JPEGs are ~20–150 KB; capped at 2 MiB) and read whole.
+
+```sql
+CREATE TABLE book_covers (
+  source_url   TEXT        PRIMARY KEY,                -- = books.cover_url the bytes came from
+  content_type TEXT        NOT NULL CHECK (content_type LIKE 'image/%'),
+  bytes        BYTEA       NOT NULL CHECK (octet_length(bytes) BETWEEN 1 AND 2097152),
+  sha256       TEXT        NOT NULL,                    -- hex digest: ETag + ?v= cache-buster
+  fetched_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+API payloads never expose `books.cover_url` directly (except the admin book schema,
+where it is the editable source): every public `cover_url` is rendered as
+`/api/books/{id}/cover`, plus `?v={first 12 hex of sha256}` once the bytes are cached
+(`coverURLSQL` in `api/internal/repository/covers.go`).
 
 ## 5. Indexes
 

@@ -10,12 +10,9 @@ import { gotoReady } from "./helpers";
 test.use({ storageState: DEMO_STATE });
 
 const WEB_URL = "http://localhost:13000";
-const COVER_URL = /^https:\/\/covers\.openlibrary\.org\/b\/isbn\/\d{13}-[SML]\.jpg$/;
-// 1×1 transparent PNG served for Open Library covers so the thumbnail loads offline.
-const PIXEL = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-  "base64",
-);
+// Covers are served from the API's Postgres cache (docs/03 §5.6); the e2e API fetches
+// them from the stub covers host (OPENLIBRARY_COVERS_BASE_URL), so the thumbnail loads offline.
+const COVER_URL = /^\/api\/books\/[0-9a-f-]{36}\/cover(\?v=[0-9a-f]{12})?$/;
 
 test.describe("delete conversation confirmation", () => {
   test("asks first; cancel keeps the chat, confirm deletes it", async ({ page }) => {
@@ -97,9 +94,6 @@ test.describe("AI reply markdown", () => {
 
 test.describe("AI Librarian chat", () => {
   test("streams tokens, tool activity and a citation card (en)", async ({ page }) => {
-    await page.route("https://covers.openlibrary.org/**", (route) =>
-      route.fulfill({ status: 200, contentType: "image/png", body: PIXEL }),
-    );
     await gotoReady(page, "/chat");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("AI Librarian");
     await expect(page.getByText("How can I help your research?")).toBeVisible();

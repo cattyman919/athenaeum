@@ -68,6 +68,8 @@ export default defineConfig({
         // (docs/11, docs/08 §6). Seeding runs offline in scripts/e2e-prepare.sh.
         OFFLINE_MODE: "false",
         OPENLIBRARY_BASE_URL: STUBS_URL,
+        // Cover cache read-through (docs/08 §6a): the stub serves a JPEG for every cover URL.
+        OPENLIBRARY_COVERS_BASE_URL: STUBS_URL,
         // Chat runs the real agent/tools/SSE pipeline against the stub model (docs/01 §7).
         OPENROUTER_API_KEY: "e2e-stub-key",
         OPENROUTER_BASE_URL: STUBS_URL,

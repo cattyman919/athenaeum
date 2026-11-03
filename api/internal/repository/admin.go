@@ -120,7 +120,7 @@ func (r *AdminRepository) ListBooks(ctx context.Context, f model.AdminBookFilter
 	if err := r.pool.QueryRow(ctx, `SELECT count(*) FROM books b WHERE `+where, search, f.ShelfID).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count admin books: %w", err)
 	}
-	rows, err := r.pool.Query(ctx, `SELECT b.id, b.open_library_key, b.updated_at, (SELECT count(*) FROM loans l JOIN book_copies c ON c.id = l.copy_id WHERE c.book_id = b.id AND l.returned_at IS NULL) FROM books b WHERE `+where+
+	rows, err := r.pool.Query(ctx, `SELECT b.id, b.open_library_key, b.cover_url, b.updated_at, (SELECT count(*) FROM loans l JOIN book_copies c ON c.id = l.copy_id WHERE c.book_id = b.id AND l.returned_at IS NULL) FROM books b WHERE `+where+
 		` ORDER BY `+col+` `+dir+` NULLS LAST, b.id LIMIT $3 OFFSET $4`,
 		search, f.ShelfID, perPage, (page-1)*perPage)
 	if err != nil {
@@ -130,7 +130,7 @@ func (r *AdminRepository) ListBooks(ctx context.Context, f model.AdminBookFilter
 	out := []model.AdminBookRow{}
 	for rows.Next() {
 		var b model.AdminBookRow
-		if err := rows.Scan(&b.ID, &b.Meta.OpenLibraryKey, &b.Meta.UpdatedAt, &b.ActiveLoans); err != nil {
+		if err := rows.Scan(&b.ID, &b.Meta.OpenLibraryKey, &b.Meta.CoverURL, &b.Meta.UpdatedAt, &b.ActiveLoans); err != nil {
 			return nil, 0, err
 		}
 		out = append(out, b)
@@ -141,10 +141,10 @@ func (r *AdminRepository) ListBooks(ctx context.Context, f model.AdminBookFilter
 // BookMeta loads admin-only book metadata; NOT_FOUND when absent.
 func (r *AdminRepository) BookMeta(ctx context.Context, id uuid.UUID) (model.BookMeta, error) {
 	var m model.BookMeta
-	err := r.pool.QueryRow(ctx, `SELECT b.open_library_key, b.updated_at,
+	err := r.pool.QueryRow(ctx, `SELECT b.open_library_key, b.cover_url, b.updated_at,
 		(SELECT count(*) FROM loans l JOIN book_copies c ON c.id = l.copy_id WHERE c.book_id = b.id AND l.returned_at IS NULL)
 		FROM books b WHERE b.id = $1`, id).
-		Scan(&m.OpenLibraryKey, &m.UpdatedAt, &m.ActiveLoans)
+		Scan(&m.OpenLibraryKey, &m.CoverURL, &m.UpdatedAt, &m.ActiveLoans)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return model.BookMeta{}, model.New(model.CodeNotFound, "Book not found.")
 	}

@@ -142,6 +142,7 @@ defaults: [01 §7](01-architecture.md#7-environment-variables). Never commit `.e
 | `make up` | `docker compose up -d --build` (postgres, redis, ollama, whisper) |
 | `make db-migrate` | `migrate -path api/migrations -database "$DATABASE_URL" up` |
 | `make seed` | `cd api && go run ./cmd/seed --mocks=./mocks` |
+| `make covers` | `cd api && go run ./cmd/seed --mocks=./mocks --covers-only` — download uncached covers into Postgres without reseeding ([08 §6a](08-seed-data.md#6a-cover-cache)) |
 | `make reindex` | `cd api && go run ./cmd/reindex` |
 | `make api` | `cd api && go run ./cmd/api` (`:8080`) |
 | `make web` | `cd web && pnpm dev` (`:3000`) |
@@ -211,8 +212,9 @@ milestone on — the stub provider binary `api/cmd/e2e-stubs` (OpenAI-compatible
 ChatModel scripted as `meta`/`token`/`tool_call`/`tool_result`/`citations`/`done`,
 [06 §6](06-ai-rag.md#6-sse-event-contract), plus a fixed-text Whisper `/asr` stub mirroring the real service's wire contract,
 [15 §5](15-voice-input.md#5-whisper-service), and a "fast" `/fast/asr` stub for live partials that answers a strict prefix of
-the same phrase growing with the clip size) wired via
-`OPENROUTER_BASE_URL` / `WHISPER_BASE_URL` / `WHISPER_PARTIAL_BASE_URL` (`{stubs}/fast`); `OFFLINE_MODE=true`. Semantic search specs assert
+the same phrase growing with the clip size, and a `covers.openlibrary.org` stand-in `/b/{kind}/{key}` serving a
+deterministic JPEG for the cover cache, [08 §6a](08-seed-data.md#6a-cover-cache)) wired via
+`OPENROUTER_BASE_URL` / `WHISPER_BASE_URL` / `WHISPER_PARTIAL_BASE_URL` (`{stubs}/fast`) / `OPENLIBRARY_COVERS_BASE_URL`; `OFFLINE_MODE=true`. Semantic search specs assert
 real relevance against the real embedding model; chat and Whisper stay stubbed so the suite
 needs no secrets. Auth is captured once per role (`admin` + demo patron,
 [13 §6](13-mock-data-reference.md#6-demo-users--personal-library)) into Playwright

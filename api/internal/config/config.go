@@ -47,7 +47,10 @@ type Config struct {
 	WhisperFastModel      string `env:"WHISPER_FAST_MODEL" envDefault:"base"`
 
 	OpenLibraryBaseURL string `env:"OPENLIBRARY_BASE_URL" envDefault:"https://openlibrary.org"`
-	OfflineMode        bool   `env:"OFFLINE_MODE" envDefault:"false"`
+	// OpenLibraryCoversBaseURL is where covers.openlibrary.org cover URLs are fetched from
+	// (docs/08 §6a); the e2e suite points it at the stubs.
+	OpenLibraryCoversBaseURL string `env:"OPENLIBRARY_COVERS_BASE_URL" envDefault:"https://covers.openlibrary.org"`
+	OfflineMode              bool   `env:"OFFLINE_MODE" envDefault:"false"`
 
 	SeedAdminEmail    string `env:"SEED_ADMIN_EMAIL" envDefault:"admin@athenaeum.dev"`
 	SeedAdminPassword string `env:"SEED_ADMIN_PASSWORD" envDefault:"athenaeum-demo"`

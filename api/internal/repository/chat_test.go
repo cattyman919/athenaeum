@@ -109,7 +109,7 @@ func TestChatRepository(t *testing.T) {
 	vec := storedEmbedding(t, pool, "Dune")
 	chunks, err := repo.RetrieveChunks(ctx, vec, 8, 4, 0.15)
 	if err != nil || len(chunks) == 0 || chunks[0].Title != "Dune" || chunks[0].Path == nil || chunks[0].Score < 0.99 ||
-		chunks[0].CoverURL == nil || !strings.HasPrefix(*chunks[0].CoverURL, "https://covers.openlibrary.org/") {
+		chunks[0].CoverURL == nil || *chunks[0].CoverURL != "/api/books/"+chunks[0].BookID.String()+"/cover" {
 		t.Fatalf("chunks %+v %v", chunks, err)
 	}
 	for _, ch := range chunks {

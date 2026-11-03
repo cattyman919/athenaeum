@@ -175,7 +175,7 @@ func (r *ChatRepository) AppendMessages(ctx context.Context, conversationID uuid
 func (r *ChatRepository) RetrieveChunks(ctx context.Context, vec []float32, k, perBook int, minScore float64) ([]model.RAGChunk, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT t.book_id, t.title, t.content, loc.path, t.score, t.cover_url FROM (
-		  SELECT e.book_id, b.title, b.cover_url, e.content, (1 - (e.embedding <=> $1::vector))::float8 AS score,
+		  SELECT e.book_id, b.title, `+coverURLSQL("b")+` AS cover_url, e.content, (1 - (e.embedding <=> $1::vector))::float8 AS score,
 		         row_number() OVER (PARTITION BY e.book_id ORDER BY e.embedding <=> $1::vector) AS rn
 		  FROM (SELECT book_id, content, embedding FROM book_embeddings
 		        ORDER BY embedding <=> $1::vector LIMIT 64) e

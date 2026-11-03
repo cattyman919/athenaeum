@@ -154,7 +154,7 @@ func TestCatalogItemPayload(t *testing.T) {
 	if d.Location == nil || d.Location.Path != "MAIN/3F/SF/A-1/S-2" || d.Location.ShelfCode != "S-2" {
 		t.Fatalf("location %+v", d.Location)
 	}
-	if d.ISBN13 == nil || *d.ISBN13 != "9780441013593" || d.CoverURL == nil || !strings.Contains(*d.CoverURL, "9780441013593") {
+	if d.ISBN13 == nil || *d.ISBN13 != "9780441013593" || d.CoverURL == nil || *d.CoverURL != "/api/books/"+d.ID.String()+"/cover" {
 		t.Fatalf("isbn/cover %v %v", d.ISBN13, d.CoverURL)
 	}
 	if d.Score <= 0 {

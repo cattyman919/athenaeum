@@ -117,8 +117,10 @@ func AdminBookFromDetail(d BookDetail, olKey *string, updatedAt time.Time) Admin
 // BookMeta is the admin-only book metadata not carried by BookDetail.
 type BookMeta struct {
 	OpenLibraryKey *string
-	UpdatedAt      time.Time
-	ActiveLoans    int
+	// CoverURL is the raw upstream books.cover_url (admin edits it; public payloads expose the API cover route).
+	CoverURL    *string
+	UpdatedAt   time.Time
+	ActiveLoans int
 }
 
 // AdminBookRow is one admin list hit; the service hydrates the detail.

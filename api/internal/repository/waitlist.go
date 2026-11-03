@@ -94,7 +94,7 @@ func (r *WaitlistRepository) List(ctx context.Context, userID uuid.UUID) ([]mode
 		SELECT w.id, w.status, w.ready_at, w.expires_at,
 		       (SELECT count(*)::int FROM waitlist w2 WHERE w2.book_id = w.book_id AND w2.status IN ('waiting','ready')
 		          AND (w2.created_at < w.created_at OR (w2.created_at = w.created_at AND w2.id <= w.id))),
-		       b.id, b.title, b.cover_url, b.authors
+		       b.id, b.title, `+coverURLSQL("b")+`, b.authors
 		FROM waitlist w JOIN books b ON b.id = w.book_id
 		WHERE w.user_id = $1 AND w.status IN ('waiting','ready')
 		ORDER BY w.created_at, w.id`, userID)

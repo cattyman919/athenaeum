@@ -30,6 +30,7 @@
 23. [Phase 20 — ISBN Identification & Catalog Scan Button](#23-phase-20--isbn-identification--catalog-scan-button)
 24. [Phase 21 — Editions & Borrow/Return by ISBN](#24-phase-21--editions--borrowreturn-by-isbn)
    - [Phase 22 — Admin Book Management](#phase-22--admin-book-management)
+   - [Phase 23 — Cover Cache in Postgres](#phase-23--cover-cache-in-postgres)
 25. [Open TODO Registry (from docs)](#25-open-todo-registry-from-docs)
 26. [Session Log](#26-session-log)
 
@@ -421,6 +422,20 @@ Refs: [docs/03 §8.2](docs/03-api-spec.md#82-admin-books),
 - [x] Integrate and verify API/UI behavior, guard concurrency and error envelopes; run backend, frontend and targeted Playwright tests plus lint/typecheck/build gates.
 - [ ] Re-run the full `make e2e` suite when Ollama can complete embedding requests; preparation timed out during reindex.
 
+### Phase 23 — Cover Cache in Postgres
+
+Refs: [docs/02 §book_covers](docs/02-data-model.md#book_covers),
+[docs/03 §5.6](docs/03-api-spec.md#56-get-apibooksidcover),
+[docs/08 §6a](docs/08-seed-data.md#6a-cover-cache). Why: Open Library cover URLs
+(redirecting through archive.org) took seconds per image and broke offline demos.
+
+- [x] Migration 0009 `book_covers` (BYTEA, keyed by upstream `source_url`, 2 MiB cap).
+- [x] `internal/service/covers`: HTTP fetcher (`?default=false`, image/* 1 KiB–2 MiB, `OPENLIBRARY_COVERS_BASE_URL` rewrite), read-through `Get` (singleflight + 15 min negative cache), `Warm` (prune + 4 workers).
+- [x] `GET /api/books/{id}/cover` (public, unlimited, ETag + immutable `Cache-Control`, 304); every public `cover_url` rendered as `/api/books/{id}/cover?v=…`; admin keeps the raw upstream URL.
+- [x] Seed warm-up + `make covers` (`cmd/seed --covers-only`); e2e stub `/b/{kind}/{key}` JPEG.
+- [x] Tests: covers unit tests, migration count, `TestCoverCacheJourney` integration, stub test, Playwright catalog cover + chat citation cover assertions.
+- [ ] Run `make covers` (or `make seed`) against the dev DB after `make db-migrate` so the demo has every cover cached.
+
 ## 25. Open TODO Registry (from docs)
 
 Live registry of every `> ⚠️ TODO:` callout in the docs (re-grep after changes: `grep -n "> ⚠️ TODO" docs/*.md`):
@@ -447,6 +462,7 @@ Append one row per session that touches code or docs. Keep newest at the top.
 
 | Date (UTC) | Session / engine | Completed | Resume from | Blockers |
 | --- | --- | --- | --- | --- |
+| 2026-11-03 | Claude Code (claude-opus-5-5) | **Phase 23:** cover images cached in Postgres (`book_covers`, migration 0009), served by public `GET /api/books/{id}/cover` with immutable caching; seed warm-up + `make covers`; public `cover_url` now the API route; docs 01/02/03/08/09 | `make db-migrate && make covers` on the dev DB | — |
 | 2026-10-31 | Kilo (kilo-auto/frontier), parallel agents | Admin book search, guarded single/bulk removal and confirmations implemented; dev DB migrated 0006 → 0008; lint, unit tests and targeted Playwright passed | Re-run full `make e2e` | E2E preparation timed out waiting for Ollama embeddings |
 | 2026-10-17 | Kilo (kilo/claude-sonnet-4.6) | **Docs-only — Phase 21 / plan M20 Step 1:** editions + borrow/return by ISBN; `book_isbns` table DDL + ER + indexes + merge semantics (docs/02); endpoint index rows 45-49 + rate table rows + §5.2 `isbns` + §5.3 `similar` + §5.4 book-match `borrowable`/`borrow_copy`/`returnable`/`my_loans` + §6.8/§6.9 borrow/return-by-book + §8.6 admin ISBN/merge (docs/03); intake similar banner + scanner borrow/return by book (docs/07); §1 overview + §2b-iii borrow/return by ISBN + §7/§8/§9 + fixed copy-tag-only claim (docs/11); editions list + copy state machine (docs/12); PHM alt ISBN `9780593355275` note (docs/13); `scanner.result.*` keys + intake English-only (docs/14); item 20 (docs/10); Phase 21 (TODO.md) | Implement Step 2 (DB+API editions), Step 3 (borrow/return by book API), Step 4 (web intake), Step 5 (scanner), Step 6 (tests) | None (docs-only) |
 | 2026-10-16 | Kilo (kilo/claude-sonnet-4.6) | **Docs-only — Phase 20 / plan M19 Step 1:** `POST /api/books/identify-isbn` (🔒 user, 10/1min `identify_isbn`, Open Library patron identification after scan miss); endpoint table row 44; §5.3 note; §2 rate table; docs/11 §2a sequence + §7 not-in-library result row + §8 in_catalog:false rewrite + §9 endpoint + §11 scope; docs/07 scanner identify flow + catalog search bar scan button (`catalog-scan`); docs/12 Screen 2 scan affordance + not-registered state; docs/14 `scanner.notInCatalog.*` + `catalog.search.scan` keys; docs/01 OL integration row (patron + admin); docs/09 §8.1 stub ISBNs 9780553293357 / 9780593355275; docs/10 item 19; TODO Phase 20 | Implement Step 2 (API), 3 (web scanner), 4 (catalog scan), 5 (tests) | None (docs-only) |

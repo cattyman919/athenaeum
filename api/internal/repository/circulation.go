@@ -274,7 +274,7 @@ func (r *CirculationRepository) ListLoans(ctx context.Context, userID uuid.UUID,
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			l.id, l.copy_id, bc.barcode, l.borrowed_at, l.due_at, l.returned_at, l.renewals,
-			b.id AS book_id, b.title, b.cover_url, b.authors
+			b.id AS book_id, b.title, `+coverURLSQL("b")+`, b.authors
 		FROM loans l
 		JOIN book_copies bc ON bc.id = l.copy_id
 		JOIN books b ON b.id = bc.book_id
