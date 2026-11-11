@@ -114,6 +114,18 @@ test.describe("AI Librarian chat", () => {
     );
     await expect(page.getByTestId("tool-chip")).toContainText("Searched the catalog");
 
+    // The stub model streams thought summaries before its tool call (docs/06 §6): the
+    // panel collapses to "Thought for Ns" once the answer arrives and expands on click.
+    const thinking = page.getByTestId("chat-thinking");
+    await expect(thinking).toHaveAttribute("data-state", "closed");
+    const toggle = page.getByTestId("chat-thinking-toggle");
+    await expect(toggle).toHaveText(/^Thought for \d+ seconds?$/);
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByTestId("chat-thinking-text")).toContainText("Planning the search");
+    await expect(page.getByTestId("chat-assistant-message")).not.toContainText("Planning");
+
     const card = page.getByTestId("citation-card").filter({ hasText: "Neuromancer" });
     await expect(card).toBeVisible();
     await expect(card.getByTestId("citation-shelf")).toContainText("Floor 3 • Shelf S-2");
@@ -151,6 +163,11 @@ test.describe("AI Librarian chat", () => {
     await expect(
       replayed.getByTestId("citation-cover").getByRole("img", { name: "Neuromancer, jacket" }),
     ).toHaveAttribute("src", COVER_URL);
+
+    // The thinking is persisted too: replayed collapsed, with its duration.
+    await expect(page.getByTestId("chat-thinking-toggle")).toHaveText(/^Thought for \d+ seconds?$/);
+    await page.getByTestId("chat-thinking-toggle").click();
+    await expect(page.getByTestId("chat-thinking-text")).toContainText("Understanding the request");
     const res = await page.request.get(`/api/chat/conversations/${id}`);
     expect(res.status()).toBe(200);
     const detail = (await res.json()) as {

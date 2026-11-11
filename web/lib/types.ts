@@ -173,6 +173,10 @@ export interface ChatMessage {
   created_at: string;
   /** Persisted citation cards; assistant messages only (docs/06 §7). */
   citations?: ChatCitation[];
+  /** Persisted thought summary and wait before the first answer token; assistant
+   *  messages only, null when the model streamed no thinking (docs/06 §7). */
+  thinking?: string | null;
+  thinking_ms?: number | null;
 }
 
 export interface ConversationDetail {

@@ -509,6 +509,11 @@
       "value": "{used} / {limit}",
       "unknown": "— / {limit}"
     },
+    "thinking": {
+      "active": "Thinking…",
+      "done": "Thought for {seconds, plural, one {# second} other {# seconds}}",
+      "label": "Thinking"
+    },
     "thread": {
       "copy": "Copy reply",
       "copied": "Copied",

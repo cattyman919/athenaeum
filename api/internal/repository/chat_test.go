@@ -99,6 +99,42 @@ func TestChatRepository(t *testing.T) {
 	if body, _ := json.Marshal(msgs[0]); strings.Contains(string(body), "citations") {
 		t.Fatalf("user rows carry no citations: %s", body)
 	}
+	if wire["thinking"] != nil || wire["thinking_ms"] != nil {
+		t.Fatalf("an assistant row without thinking reports null: %s", body)
+	}
+
+	// Thinking round-trips through tool_meta and surfaces on the assistant row only.
+	a3, thought, ms := "Dune is on S-2.", "**Planning**\n\nSearch the catalog first.", 4200
+	if err := repo.AppendMessages(ctx, c.ID, []model.ChatMessage{
+		{ID: uuid.New(), Role: model.MsgRoleAssistant, Content: &a3, Thinking: &thought, ThinkingMs: &ms,
+			CreatedAt: now.Add(4 * time.Millisecond)},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT tool_meta::text FROM messages WHERE conversation_id = $1 AND content = $2`, c.ID, a3).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	stored = model.AssistantMeta{}
+	if err := json.Unmarshal([]byte(raw), &stored); err != nil || stored.Thinking != thought || stored.ThinkingMs != ms || stored.Citations == nil {
+		t.Fatalf("stored thinking meta %s %v", raw, err)
+	}
+	msgs, err = repo.Messages(ctx, c.ID)
+	if err != nil || len(msgs) != 5 {
+		t.Fatalf("messages %+v %v", msgs, err)
+	}
+	got5 := msgs[4]
+	if got5.Thinking == nil || *got5.Thinking != thought || got5.ThinkingMs == nil || *got5.ThinkingMs != ms || got5.ToolMeta != nil {
+		t.Fatalf("thinking round-trip %+v", got5)
+	}
+	body, _ = json.Marshal(got5)
+	wire = map[string]any{}
+	_ = json.Unmarshal(body, &wire)
+	if wire["thinking"] != thought || wire["thinking_ms"] != float64(ms) {
+		t.Fatalf("thinking wire shape %s", body)
+	}
+	if body, _ := json.Marshal(msgs[0]); strings.Contains(string(body), "thinking") {
+		t.Fatalf("user rows carry no thinking: %s", body)
+	}
 
 	list, total, err := repo.ListConversations(ctx, u, 20, 0)
 	if err != nil || total != 1 || len(list) != 1 || !list[0].UpdatedAt.After(c.UpdatedAt) {

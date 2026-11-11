@@ -39,9 +39,9 @@ type EngineResult struct {
 	Hits      []Citation // books touched by tools, first-seen order
 }
 
-// Engine runs the agent loop. It calls emit for tool_call/tool_result events and
-// onToken for every raw text delta as soon as the model produces it — including text
-// a model writes before a tool call (docs/06 §6). The Eino implementation is
+// Engine runs the agent loop. It calls emit for thinking/tool_call/tool_result events
+// and onToken for every raw text delta as soon as the model produces it — including
+// text a model writes before a tool call (docs/06 §6). The Eino implementation is
 // EinoEngine; tests may use it with a scripted ToolCallingChatModel.
 type Engine interface {
 	Run(ctx context.Context, userID uuid.UUID, in EngineInput, emit func(Event), onToken func(string)) (EngineResult, error)
@@ -57,6 +57,7 @@ type turnState struct {
 	emitFn  func(Event)
 	tokenFn func(string)
 	sent    bool // any text forwarded yet this turn
+	thought bool // any thinking forwarded yet this turn
 	tools   []model.ToolMeta
 	hits    []Citation
 	seen    map[uuid.UUID]int
@@ -96,6 +97,21 @@ func (s *turnState) token(text string, firstInRound bool) {
 	}
 	s.sent = true
 	s.tokenFn(text)
+}
+
+// think forwards one reasoning delta live as a thinking event, separating model
+// rounds like token does.
+func (s *turnState) think(text string, firstInRound bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.emitFn == nil || text == "" {
+		return
+	}
+	if firstInRound && s.thought {
+		text = roundSeparator + text
+	}
+	s.thought = true
+	s.emitFn(Event{Name: EventThinking, Data: ThinkingData{Text: text}})
 }
 
 func (s *turnState) addRecord(m model.ToolMeta) {
@@ -177,16 +193,21 @@ func (m *cappedModel) Stream(ctx context.Context, input []*schema.Message, opts 
 		return nil, err
 	}
 	st := turnFrom(ctx)
-	firstInRound := true
+	firstInRound, firstThoughtInRound := true, true
 	// The converter runs once per chunk, as the agent first reads it from OpenRouter
-	// (the tool-call checker drives that read). Forwarding text here streams it live;
-	// the agent's own output only arrives after the checker has drained the round.
+	// (the tool-call checker drives that read). Forwarding text and reasoning here
+	// streams them live; the agent's own output only arrives after the checker has
+	// drained the round.
 	return schema.StreamReaderWithConvert(sr, func(msg *schema.Message) (*schema.Message, error) {
 		if msg == nil {
 			return msg, nil
 		}
 		if msg.ResponseMeta != nil {
 			st.addUsage(msg.ResponseMeta.Usage)
+		}
+		if msg.ReasoningContent != "" {
+			st.think(msg.ReasoningContent, firstThoughtInRound)
+			firstThoughtInRound = false
 		}
 		if msg.Content != "" {
 			st.token(msg.Content, firstInRound)

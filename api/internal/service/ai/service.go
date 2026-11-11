@@ -372,10 +372,24 @@ func (t *Turn) Run(ctx context.Context, sink Sink) {
 	history := TrimHistory(system, t.history, t.message, ContextTokens)
 
 	filter := newMarkerFilter()
+	// Thinking is streamed and also kept for the assistant row; thinking_ms is the wait
+	// from the start of the turn to the first answer token (docs/06 §6-§7). The engine
+	// serializes these callbacks, and both are read only after Run returns.
+	started := time.Now()
+	var thinking strings.Builder
+	var firstToken time.Duration
 	res, err := s.engine.Run(ctx, t.userID, EngineInput{System: system, History: history, User: t.message},
-		send,
+		func(e Event) {
+			if d, ok := e.Data.(ThinkingData); ok && e.Name == EventThinking {
+				thinking.WriteString(d.Text)
+			}
+			send(e)
+		},
 		func(delta string) {
 			if out := filter.Push(delta); out != "" {
+				if firstToken == 0 {
+					firstToken = time.Since(started)
+				}
 				send(Event{Name: EventToken, Data: TokenData{Text: out}})
 			}
 		})
@@ -413,14 +427,23 @@ func (t *Turn) Run(ctx context.Context, sink Sink) {
 			ToolMeta: meta, CreatedAt: base.Add(time.Duration(i) * time.Millisecond)})
 	}
 	tokensOut := res.TokensOut
-	msgs = append(msgs, model.ChatMessage{ID: t.assistID, Role: model.MsgRoleAssistant, Content: &answer,
-		Tokens: &tokensOut, Citations: citations, CreatedAt: base.Add(time.Duration(len(res.Tools)) * time.Millisecond)})
+	assistant := model.ChatMessage{ID: t.assistID, Role: model.MsgRoleAssistant, Content: &answer,
+		Tokens: &tokensOut, Citations: citations, CreatedAt: base.Add(time.Duration(len(res.Tools)) * time.Millisecond)}
+	if thought := thinking.String(); thought != "" {
+		if firstToken == 0 {
+			firstToken = time.Since(started) // no answer text: the whole turn was thinking
+		}
+		ms := int(firstToken.Milliseconds())
+		assistant.Thinking, assistant.ThinkingMs = &thought, &ms
+	}
+	msgs = append(msgs, assistant)
 	if err := s.repo.AppendMessages(context.WithoutCancel(ctx), t.conv.ID, msgs); err != nil {
 		fail(err)
 		return
 	}
 	s.log.InfoContext(ctx, "chat turn done", "conversation_id", t.conv.ID, "turn", t.number,
-		"tools", len(res.Tools), "answer_len", len(answer), "tokens_in", res.TokensIn, "tokens_out", res.TokensOut)
+		"tools", len(res.Tools), "answer_len", len(answer), "thinking_len", thinking.Len(),
+		"tokens_in", res.TokensIn, "tokens_out", res.TokensOut)
 
 	finish := FinishStop
 	if t.daily {

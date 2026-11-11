@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import {
   BookOpenCheck,
+  Brain,
   Check,
+  ChevronDown,
   Copy,
   Loader2,
   MessageSquarePlus,
@@ -57,6 +59,69 @@ function CopyReplyButton({ text }: { text: string }) {
       )}
       <span aria-live="polite">{copied ? t("copied") : t("copy")}</span>
     </button>
+  );
+}
+
+/** How long the librarian thought: persisted thinking_ms for past turns, otherwise the
+ *  live wait from sending to the first answer token (or to the end of the turn). */
+function thinkingSeconds(turn: ChatTurn): number | null {
+  const ms =
+    turn.thinkingMs ??
+    (turn.startedAt != null && (turn.firstTokenAt ?? turn.finishedAt) != null
+      ? (turn.firstTokenAt ?? turn.finishedAt)! - turn.startedAt
+      : null);
+  return ms == null ? null : Math.max(1, Math.round(ms / 1000));
+}
+
+/** The model's streamed thought summary (docs/06 §6). Expanded while it is thinking,
+ *  collapsed to "Thought for Ns" once the answer starts, unless the user toggled it. */
+function ThinkingPanel({ turn, streaming }: { turn: ChatTurn; streaming: boolean }) {
+  const t = useTranslations("chat.thinking");
+  const id = React.useId();
+  const active = streaming && !turn.text;
+  const [userOpen, setUserOpen] = React.useState<boolean | null>(null);
+  const open = userOpen ?? active;
+  const seconds = active ? null : thinkingSeconds(turn);
+  return (
+    <div
+      data-testid="chat-thinking"
+      data-state={open ? "open" : "closed"}
+      className="flex flex-col gap-1.5"
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={id}
+        onClick={() => setUserOpen(!open)}
+        data-testid="chat-thinking-toggle"
+        className="inline-flex w-fit items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {active ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden />
+        ) : (
+          <Brain className="h-3.5 w-3.5" aria-hidden />
+        )}
+        <span aria-live="polite">
+          {active ? t("active") : seconds != null ? t("done", { seconds }) : t("label")}
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 transition-transform motion-reduce:transition-none",
+            open && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <div
+          id={id}
+          data-testid="chat-thinking-text"
+          className="rounded-md bg-secondary/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground"
+        >
+          <Markdown>{turn.thinking ?? ""}</Markdown>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -657,6 +722,8 @@ function TurnView({
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground">{t("thread.librarian")}</span>
 
+          {turn.thinking && <ThinkingPanel turn={turn} streaming={streaming} />}
+
           {turn.tools.length > 0 && (
             <ul
               aria-label={t("tools.label")}
@@ -682,7 +749,7 @@ function TurnView({
             </ul>
           )}
 
-          {(turn.text || streaming) && (
+          {(turn.text || (streaming && !turn.thinking)) && (
             <div className="rounded-lg rounded-tl-sm border border-border bg-background px-4 py-3 text-sm leading-relaxed">
               {turn.text ? (
                 <>

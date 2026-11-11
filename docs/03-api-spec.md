@@ -730,7 +730,7 @@ Non-streaming conversation CRUD is plain JSON, all for the calling user only:
 | --- | --- |
 | `GET /api/chat/conversations` | `{items:[{id,title,updated_at}], meta}` |
 | `POST /api/chat/conversations` | body `{title?}` → 201 |
-| `GET /api/chat/conversations/{id}` | `{id,title,messages:[{id,role,content,tool_meta,created_at}]}`; assistant messages add `citations:[{book_id,title,path,snippet,score,cover_url}]` (persisted `citations` event, [06 §7](06-ai-rag.md#7-conversation-persistence); `[]` when none, `tool_meta` null) |
+| `GET /api/chat/conversations/{id}` | `{id,title,messages:[{id,role,content,tool_meta,created_at}]}`; assistant messages add `citations:[{book_id,title,path,snippet,score,cover_url}]` (persisted `citations` event, [06 §7](06-ai-rag.md#7-conversation-persistence); `[]` when none, `tool_meta` null) plus `thinking` (persisted `thinking` events, string) and `thinking_ms` (int) — both `null` when the model streamed no thinking |
 | `DELETE /api/chat/conversations/{id}` | 204 |
 
 ### 7.1 SSE stream

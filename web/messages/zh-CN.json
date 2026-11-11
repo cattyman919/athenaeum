@@ -509,6 +509,11 @@
       "value": "{used} / {limit}",
       "unknown": "— / {limit}"
     },
+    "thinking": {
+      "active": "思考中…",
+      "done": "已思考 {seconds} 秒",
+      "label": "思考过程"
+    },
     "thread": {
       "copy": "复制回复",
       "copied": "已复制",

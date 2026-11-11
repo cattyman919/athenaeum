@@ -120,6 +120,9 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 	if *msgs[2].Content != answer || msgs[2].ID != done.MessageID {
 		t.Fatalf("assistant %+v", msgs[2])
 	}
+	if msgs[2].Thinking != nil || msgs[2].ThinkingMs != nil {
+		t.Fatalf("no reasoning streamed, so no thinking persists: %v %v", msgs[2].Thinking, msgs[2].ThinkingMs)
+	}
 	// The streamed citation cards persist on the assistant message (docs/06 §7).
 	if len(msgs[2].Citations) != 1 || msgs[2].Citations[0].BookID != duneID || msgs[2].Citations[0].CoverURL == nil {
 		t.Fatalf("persisted citations %+v", msgs[2].Citations)
@@ -145,6 +148,70 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 	in := m.inputs[len(m.inputs)-1]
 	if len(in) != 4 || in[1].Content != "Any novels about a desert planet with spice trade?" || in[2].Role != schema.Assistant {
 		t.Fatalf("history window %d", len(in))
+	}
+}
+
+// Reasoning deltas stream as thinking events ahead of each round's text and tool call,
+// rounds are separated by a blank line, and the full thought persists on the assistant
+// row with thinking_ms (docs/06 §6-§7).
+func TestThinkingStreamsAndPersists(t *testing.T) {
+	repo := newMemRepo()
+	step1 := toolStep("call_1", ToolSearchCatalog, `{"query":"dune","mode":"keyword"}`)
+	step1.thinking = []string{"Plan:", " search first."}
+	m := &scriptedModel{steps: []step{step1, {thinking: []string{"Answer with the shelf."}, tokens: []string{"Dune is on S-2."}}}}
+	svc := newTestService(t, m, &fakeCatalog{}, repo, fakeEmb{})
+	user := uuid.New()
+	turn, err := svc.Prepare(context.Background(), user, ChatRequest{Message: "Where is Dune?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := &recSink{}
+	turn.Run(context.Background(), sink)
+
+	var names []string
+	for _, n := range sink.names() {
+		if len(names) == 0 || names[len(names)-1] != n || n != EventThinking {
+			names = append(names, n) // collapse consecutive thinking events
+		}
+	}
+	if got, want := sequence(names), "meta,thinking,token,tool_call,tool_result,thinking,token,citations,done"; got != want {
+		t.Fatalf("event order\n got %s\nwant %s", got, want)
+	}
+	var thought strings.Builder
+	for _, e := range sink.events {
+		if e.Name == EventThinking {
+			thought.WriteString(e.Data.(ThinkingData).Text)
+		}
+	}
+	const want = "Plan: search first.\n\nAnswer with the shelf."
+	if thought.String() != want {
+		t.Fatalf("thinking %q", thought.String())
+	}
+
+	msgs := repo.msgs[turn.ConversationID()]
+	a := msgs[len(msgs)-1]
+	if a.Role != model.MsgRoleAssistant || a.Thinking == nil || *a.Thinking != want || a.ThinkingMs == nil || *a.ThinkingMs < 0 {
+		t.Fatalf("persisted thinking %+v ms=%v", a.Thinking, a.ThinkingMs)
+	}
+	if *a.Content != "Let me check the catalog.\n\nDune is on S-2." {
+		t.Fatalf("thinking must not leak into the answer: %q", *a.Content)
+	}
+	wire, _ := json.Marshal(a)
+	if !strings.Contains(string(wire), `"thinking":"Plan: search first.\n\nAnswer with the shelf."`) ||
+		!strings.Contains(string(wire), `"thinking_ms":`) {
+		t.Fatalf("history wire %s", wire)
+	}
+	// The thought is never replayed to the model as conversation history.
+	m.steps = []step{{tokens: []string{"You're welcome."}}}
+	turn2, err := svc.Prepare(context.Background(), user, ChatRequest{ConversationID: turn.ConversationID().String(), Message: "Thanks"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn2.Run(context.Background(), &recSink{})
+	for _, in := range m.inputs[len(m.inputs)-1] {
+		if strings.Contains(in.Content, "Plan:") || in.ReasoningContent != "" {
+			t.Fatalf("thinking leaked into the next turn's input: %+v", in)
+		}
 	}
 }
 

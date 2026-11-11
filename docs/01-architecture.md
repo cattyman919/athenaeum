@@ -201,6 +201,7 @@ Loaded by `internal/config` via `caarlos0/env` into a typed `Config` struct (no 
 | `OPENROUTER_API_KEY` | — | required for chat; absent → `/api/chat` returns 503 |
 | `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | |
 | `OPENROUTER_MODEL` | `anthropic/claude-3.5-sonnet` | |
+| `OPENROUTER_REASONING_EFFORT` | `medium` | `none`/`low`/`medium`/`high`; streams the model's thought summaries as `thinking` events ([06 §5](06-ai-rag.md#5-provider-configuration-acl)); other values fail startup |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | |
 | `OLLAMA_EMBED_MODEL` | `nomic-embed-text` | |
 | `OLLAMA_EMBED_DIM` | `768` | matches `book_embeddings.embedding` ([02](02-data-model.md#book_embeddings)) |

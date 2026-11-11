@@ -117,6 +117,15 @@ type request struct {
 	Messages []message        `json:"messages"`
 	Tools    []map[string]any `json:"tools"`
 	Stream   bool             `json:"stream"`
+	// Reasoning is OpenRouter's reasoning request; when present the stub streams
+	// thought summaries like Gemini does (docs/06 §6 thinking events).
+	Reasoning map[string]any `json:"reasoning"`
+}
+
+// stubThinking are the thought-summary deltas streamed before the tool call.
+var stubThinking = []string{
+	"**Understanding the request**\n\nThe patron wants a book on this topic; I should search the catalog first.\n\n",
+	"**Planning the search**\n\nA keyword search on the main term should find it.\n\n",
 }
 
 func chatCompletions(w http.ResponseWriter, r *http.Request) {
@@ -141,6 +150,11 @@ func chatCompletions(w http.ResponseWriter, r *http.Request) {
 	if last.Role == "user" && len(req.Tools) > 0 {
 		args, _ := json.Marshal(map[string]any{"query": keywordQuery(last.Content), "mode": "keyword", "top_k": 3})
 		send(delta(map[string]any{"role": "assistant", "content": ""}, nil))
+		if req.Reasoning != nil {
+			for _, r := range stubThinking {
+				send(delta(map[string]any{"reasoning": r}, nil))
+			}
+		}
 		send(delta(map[string]any{"tool_calls": []map[string]any{{"index": 0, "id": "call_1", "type": "function",
 			"function": map[string]any{"name": "search_catalog", "arguments": ""}}}}, nil))
 		send(delta(map[string]any{"tool_calls": []map[string]any{{"index": 0,

@@ -155,6 +155,7 @@ while (true) {
   buf += decoder.decode(value, { stream: true });
   for (const evt of parseSSE(buf)) {        // splits on \n\n, parses event:/data:
     if (evt.event === "token") appendToken(evt.data.text);
+    else if (evt.event === "thinking") appendThinking(evt.data.text);
     else if (evt.event === "citations") setCitations(evt.data.citations);
     else if (evt.event === "done") finalize(evt.data);
     else if (evt.event === "error") showError(evt.data);
@@ -162,6 +163,16 @@ while (true) {
   buf = "";
 }
 ```
+
+**Thinking panel** (`ThinkingPanel` in `components/chat-workspace.tsx`): when a turn has
+`thinking` text, a disclosure button sits above the tool chips. While the model is still
+thinking (streaming, no answer text yet) it is expanded with a spinner and "Thinking…"
+(replacing the "Consulting the catalog…" bubble); once the first `token` arrives it
+collapses to "Thought for N seconds" (live: `startedAt → firstTokenAt`; replayed turns:
+persisted `thinking_ms`). A user toggle overrides the automatic state; replayed turns
+start collapsed. The text renders as Markdown in muted `text-xs`; the button carries
+`aria-expanded`/`aria-controls` and the spinner honours `motion-reduce`. Strings live in
+`chat.thinking.*` (EN / zh-CN). Turns without thinking render exactly as before.
 
 ## 7. Page Breakdowns
 

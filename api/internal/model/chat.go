@@ -39,9 +39,14 @@ type ChatMessage struct {
 	// Citations are the final citation cards of an assistant row, persisted in
 	// tool_meta as {"citations":[…]} (docs/06 §7) and serialized only on assistant rows.
 	Citations []ChatCitation `json:"-"`
+	// Thinking is the model's streamed thought summary and ThinkingMs the wait before
+	// the first answer token; assistant rows only, persisted in tool_meta (docs/06 §7).
+	Thinking   *string `json:"-"`
+	ThinkingMs *int    `json:"-"`
 }
 
-// MarshalJSON adds `citations` (never null) to assistant rows (docs/03 §7).
+// MarshalJSON adds `citations` (never null) and `thinking`/`thinking_ms` (null when the
+// model streamed no thinking) to assistant rows (docs/03 §7).
 func (m ChatMessage) MarshalJSON() ([]byte, error) {
 	type plain ChatMessage
 	if m.Role != MsgRoleAssistant {
@@ -53,8 +58,10 @@ func (m ChatMessage) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(struct {
 		plain
-		Citations []ChatCitation `json:"citations"`
-	}{plain(m), cits})
+		Citations  []ChatCitation `json:"citations"`
+		Thinking   *string        `json:"thinking"`
+		ThinkingMs *int           `json:"thinking_ms"`
+	}{plain(m), cits, m.Thinking, m.ThinkingMs})
 }
 
 // ChatCitation is one citation card: the `citations` SSE entry (docs/06 §6) and the
@@ -68,9 +75,12 @@ type ChatCitation struct {
 	CoverURL *string   `json:"cover_url"`
 }
 
-// AssistantMeta is the messages.tool_meta JSONB for assistant rows: {citations}.
+// AssistantMeta is the messages.tool_meta JSONB for assistant rows:
+// {citations, thinking?, thinking_ms?}.
 type AssistantMeta struct {
-	Citations []ChatCitation `json:"citations"`
+	Citations  []ChatCitation `json:"citations"`
+	Thinking   string         `json:"thinking,omitempty"`
+	ThinkingMs int            `json:"thinking_ms,omitempty"`
 }
 
 // ToolMeta is the messages.tool_meta JSONB for tool rows: {tool_call_id, name, args, result}.

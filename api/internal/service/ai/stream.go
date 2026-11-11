@@ -11,10 +11,12 @@ import (
 	"github.com/cattyman919/athenaeum/api/internal/model"
 )
 
-// SSE event names (docs/06 §6). Order within one turn is fixed:
-// meta → (tool_call → tool_result)* → token* → citations → done; error replaces the rest.
+// SSE event names (docs/06 §6). Order within one turn:
+// meta → (thinking* → token* → tool_call → tool_result)* → thinking* → token* →
+// citations → done; error replaces the rest. thinking and token stream live.
 const (
 	EventMeta       = "meta"
+	EventThinking   = "thinking"
 	EventToolCall   = "tool_call"
 	EventToolResult = "tool_result"
 	EventToken      = "token"
@@ -64,6 +66,12 @@ type ToolResultData struct {
 
 // TokenData is the token payload.
 type TokenData struct {
+	Text string `json:"text"`
+}
+
+// ThinkingData is the thinking payload: one delta of the model's readable thought
+// summary (reasoning models only).
+type ThinkingData struct {
 	Text string `json:"text"`
 }
 

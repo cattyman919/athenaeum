@@ -102,6 +102,7 @@ func run() error {
 	if cfg.OpenRouterAPIKey != "" {
 		chatModel := ai.NewOpenRouter(ai.OpenRouterConfig{
 			BaseURL: cfg.OpenRouterBaseURL, APIKey: cfg.OpenRouterAPIKey, Model: cfg.OpenRouterModel,
+			ReasoningEffort: cfg.OpenRouterReasoningEffort,
 		})
 		eng, err := ai.NewEinoEngine(ctx, chatModel, catalogSvc)
 		if err != nil {

@@ -33,7 +33,14 @@ const (
 	DefaultMaxTokens   = 1024
 	connectTimeout     = 5 * time.Second
 	streamTimeout      = 120 * time.Second
+	// ReasoningHeadroom is added to max_tokens when reasoning is requested: reasoning
+	// tokens count against the completion limit, so without it a long thought would
+	// truncate the answer (docs/06 §8).
+	ReasoningHeadroom = 2048
 )
+
+// ReasoningOff disables the reasoning request (OPENROUTER_REASONING_EFFORT=none).
+const ReasoningOff = "none"
 
 // OpenRouterConfig configures the ACL chat model.
 type OpenRouterConfig struct {
@@ -43,6 +50,9 @@ type OpenRouterConfig struct {
 	Temperature float32
 	TopP        float32
 	MaxTokens   int
+	// ReasoningEffort asks reasoning models to stream their thought summaries
+	// (low | medium | high); empty or ReasoningOff sends no reasoning request.
+	ReasoningEffort string
 	// HTTPClient overrides the default client (5 s connect / 120 s stream, docs/01 §5).
 	HTTPClient *http.Client
 }
@@ -154,12 +164,22 @@ type oaRequest struct {
 	Temperature   float32        `json:"temperature"`
 	TopP          float32        `json:"top_p"`
 	MaxTokens     int            `json:"max_tokens"`
+	Reasoning     *oaReasoning   `json:"reasoning,omitempty"`
+}
+
+// oaReasoning is OpenRouter's unified reasoning request; models without reasoning
+// support ignore it.
+type oaReasoning struct {
+	Effort string `json:"effort"`
 }
 
 type oaChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content   string       `json:"content"`
+			Content string `json:"content"`
+			// Reasoning is the readable thought-summary delta (OpenRouter); encrypted
+			// reasoning_details are not read.
+			Reasoning string       `json:"reasoning"`
 			ToolCalls []oaToolCall `json:"tool_calls"`
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
@@ -186,6 +206,10 @@ func (m *ACLChatModel) buildRequest(input []*schema.Message, opts ...einomodel.O
 	req := &oaRequest{
 		Model: *o.Model, Stream: true, StreamOptions: map[string]any{"include_usage": true},
 		Temperature: *o.Temperature, TopP: *o.TopP, MaxTokens: *o.MaxTokens,
+	}
+	if e := m.cfg.ReasoningEffort; e != "" && e != ReasoningOff {
+		req.Reasoning = &oaReasoning{Effort: e}
+		req.MaxTokens += ReasoningHeadroom
 	}
 	for _, msg := range input {
 		om := oaMessage{Role: string(msg.Role), Content: msg.Content, ToolCallID: msg.ToolCallID}
@@ -289,6 +313,7 @@ func readSSE(r io.Reader, sw *schema.StreamWriter[*schema.Message]) {
 		if len(ch.Choices) > 0 {
 			c := ch.Choices[0]
 			msg.Content = c.Delta.Content
+			msg.ReasoningContent = c.Delta.Reasoning
 			for i, tc := range c.Delta.ToolCalls {
 				idx := i
 				if tc.Index != nil {
@@ -312,7 +337,7 @@ func readSSE(r io.Reader, sw *schema.StreamWriter[*schema.Message]) {
 			msg.ResponseMeta.Usage = &schema.TokenUsage{PromptTokens: ch.Usage.PromptTokens,
 				CompletionTokens: ch.Usage.CompletionTokens, TotalTokens: ch.Usage.TotalTokens}
 		}
-		if msg.Content == "" && len(msg.ToolCalls) == 0 && msg.ResponseMeta == nil {
+		if msg.Content == "" && msg.ReasoningContent == "" && len(msg.ToolCalls) == 0 && msg.ResponseMeta == nil {
 			continue
 		}
 		if sw.Send(msg, nil) {

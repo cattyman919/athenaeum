@@ -34,6 +34,9 @@ type Config struct {
 	OpenRouterAPIKey  string `env:"OPENROUTER_API_KEY"`
 	OpenRouterBaseURL string `env:"OPENROUTER_BASE_URL" envDefault:"https://openrouter.ai/api/v1"`
 	OpenRouterModel   string `env:"OPENROUTER_MODEL" envDefault:"anthropic/claude-3.5-sonnet"`
+	// OpenRouterReasoningEffort asks reasoning models to stream thought summaries
+	// (docs/06 §6): low | medium | high, or none to disable.
+	OpenRouterReasoningEffort string `env:"OPENROUTER_REASONING_EFFORT" envDefault:"medium"`
 
 	OllamaBaseURL    string `env:"OLLAMA_BASE_URL" envDefault:"http://localhost:11434"`
 	OllamaEmbedModel string `env:"OLLAMA_EMBED_MODEL" envDefault:"nomic-embed-text"`
@@ -96,6 +99,12 @@ func (c Config) validate() error {
 	case "dev", "prod":
 	default:
 		return fmt.Errorf("config: APP_ENV must be dev or prod, got %q", c.AppEnv)
+	}
+	switch c.OpenRouterReasoningEffort {
+	case "none", "low", "medium", "high":
+	default:
+		return fmt.Errorf("config: OPENROUTER_REASONING_EFFORT must be none, low, medium or high, got %q",
+			c.OpenRouterReasoningEffort)
 	}
 	if c.OllamaEmbedDim <= 0 {
 		return errors.New("config: OLLAMA_EMBED_DIM must be positive")

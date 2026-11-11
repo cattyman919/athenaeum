@@ -1,7 +1,8 @@
 // Pure chat-turn state machine for the /chat SSE client (docs/06 §6, docs/07 §6).
-// Event order within one turn: meta → (token* → tool_call → tool_result)* → token* →
-// citations → done; `error` replaces the remaining flow. Tokens stream live, so text a
-// model writes before a tool call can arrive ahead of it. The hook feeds parsed frames
+// Event order within one turn: meta → (thinking* → token* → tool_call → tool_result)* →
+// thinking* → token* → citations → done; `error` replaces the remaining flow. Thinking
+// and tokens stream live, so text a model writes before a tool call can arrive ahead of
+// it. The hook feeds parsed frames
 // here so the logic stays unit-testable without a browser.
 
 import type {
@@ -36,6 +37,11 @@ export interface ChatTurn {
   key: string;
   prompt: string;
   text: string;
+  /** The model's streamed thought summary (reasoning models only, docs/06 §6). */
+  thinking?: string;
+  /** Persisted wait before the first answer token; live turns derive it from
+   *  startedAt → firstTokenAt instead. */
+  thinkingMs?: number;
   tools: ToolActivity[];
   citations: ChatCitation[];
   meta?: ChatMetaEvent;
@@ -65,6 +71,10 @@ function applyEvent(turn: ChatTurn, event: string, data: unknown, at: number): C
   switch (event) {
     case "meta":
       return { ...turn, meta: data as ChatMetaEvent };
+    case "thinking": {
+      const text = (data as { text?: string }).text ?? "";
+      return { ...turn, thinking: (turn.thinking ?? "") + text };
+    }
     case "tool_call": {
       const d = data as ChatToolCallEvent;
       return { ...turn, tools: [...turn.tools, { id: d.id, name: d.name, args: d.args }] };
@@ -173,6 +183,10 @@ export function turnsFromHistory(messages: ChatMessage[]): ChatTurn[] {
     } else if (m.role === "assistant") {
       current.text = current.text ? `${current.text}\n\n${m.content ?? ""}` : (m.content ?? "");
       if (m.citations?.length) current.citations = m.citations;
+      if (m.thinking) {
+        current.thinking = m.thinking;
+        if (m.thinking_ms != null) current.thinkingMs = m.thinking_ms;
+      }
     }
   }
   return turns;

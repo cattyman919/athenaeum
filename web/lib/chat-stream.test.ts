@@ -68,6 +68,28 @@ describe("chat turn reducer (docs/06 §6)", () => {
     expect(b.status).toBe("aborted");
   });
 
+  it("accumulates streamed thinking separately from the answer text", () => {
+    const [t] = run([
+      { type: "start", key: "k", prompt: "Dune?", at: 0 },
+      ev("meta", { conversation_id: "c1", turn: 1, model: "m", locale: "en" }),
+      ev("thinking", { text: "**Planning**\n\n" }, 2),
+      ev("thinking", { text: "Search first." }, 3),
+      ev("tool_call", { id: "call_1", name: "search_catalog", args: {} }),
+      ev("tool_result", { id: "call_1", summary: "1 book found" }),
+      ev("thinking", { text: "\n\nCite the shelf." }, 4),
+      ev("token", { text: "Dune." }, 6),
+      ev("done", { message_id: "m", tokens_in: 1, tokens_out: 2, finish_reason: "stop" }, 9),
+    ]);
+    expect(t.thinking).toBe("**Planning**\n\nSearch first.\n\nCite the shelf.");
+    expect(t.text).toBe("Dune.");
+    expect(t.firstTokenAt).toBe(6);
+  });
+
+  it("leaves thinking undefined when the model streams none", () => {
+    const [t] = run([{ type: "start", key: "k", prompt: "x", at: 0 }, ev("token", { text: "Hi" })]);
+    expect(t.thinking).toBeUndefined();
+  });
+
   it("records pre-stream failures with rate-limit extras", () => {
     const [t] = run([
       { type: "start", key: "k", prompt: "x", at: 0 },
@@ -130,6 +152,36 @@ describe("turnsFromHistory", () => {
     ]);
     expect(turns[0].citations).toEqual([citation]);
     expect(turns[1].citations).toEqual([]);
+  });
+
+  it("restores persisted thinking and its duration (docs/06 §7)", () => {
+    const turns = turnsFromHistory([
+      { id: "1", role: "user", content: "Dune?", tool_meta: null, created_at: "" },
+      {
+        id: "2",
+        role: "assistant",
+        content: "Dune is on S-2.",
+        tool_meta: null,
+        citations: [],
+        thinking: "**Planning**\n\nSearch first.",
+        thinking_ms: 8400,
+        created_at: "",
+      },
+      { id: "3", role: "user", content: "Thanks", tool_meta: null, created_at: "" },
+      {
+        id: "4",
+        role: "assistant",
+        content: "Welcome.",
+        tool_meta: null,
+        citations: [],
+        thinking: null,
+        thinking_ms: null,
+        created_at: "",
+      },
+    ]);
+    expect(turns[0]).toMatchObject({ thinking: "**Planning**\n\nSearch first.", thinkingMs: 8400 });
+    expect(turns[1].thinking).toBeUndefined();
+    expect(turns[1].thinkingMs).toBeUndefined();
   });
 });
 

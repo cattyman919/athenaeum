@@ -145,10 +145,11 @@ func (c *fakeCatalog) Detail(_ context.Context, id string, _ uuid.UUID) (model.B
 // --- scripted Eino chat model ("fake Eino stream", docs/09 §8) ---
 
 type step struct {
-	tool   *schema.ToolCall // emit this tool call (split across chunks)
-	tokens []string         // or stream these deltas
-	hold   <-chan struct{}  // if set, pause after the first token until closed
-	err    error            // then fail mid-stream
+	thinking []string         // reasoning deltas sent first (ReasoningContent)
+	tool     *schema.ToolCall // emit this tool call (split across chunks)
+	tokens   []string         // or stream these deltas
+	hold     <-chan struct{}  // if set, pause after the first token until closed
+	err      error            // then fail mid-stream
 }
 
 type scriptedModel struct {
@@ -207,6 +208,9 @@ func (m *scriptedModel) Stream(_ context.Context, in []*schema.Message, opts ...
 	sr, sw := schema.Pipe[*schema.Message](8)
 	go func() {
 		defer sw.Close()
+		for _, r := range s.thinking {
+			sw.Send(&schema.Message{Role: schema.Assistant, ReasoningContent: r}, nil)
+		}
 		if s.tool != nil {
 			idx := 0
 			sw.Send(&schema.Message{Role: schema.Assistant, Content: "Let me check the catalog."}, nil)

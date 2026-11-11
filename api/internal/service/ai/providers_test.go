@@ -84,6 +84,49 @@ func TestOpenRouterAdapterStream(t *testing.T) {
 	}
 }
 
+// Reasoning is requested with headroom on max_tokens, and streamed `reasoning` deltas
+// become ReasoningContent; effort "none" sends no reasoning request.
+func TestOpenRouterAdapterReasoning(t *testing.T) {
+	var got oaRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = oaRequest{}
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &got)
+		w.Header().Set("Content-Type", "text/event-stream")
+		for _, line := range []string{
+			`{"choices":[{"delta":{"role":"assistant","content":""}}]}`,
+			`{"choices":[{"delta":{"reasoning":"**Planning**\n\nSearch first.\n\n","reasoning_details":[{"type":"reasoning.text"}]}}]}`,
+			`{"choices":[{"delta":{"reasoning":"**Answering**\n\nCite the shelf.\n\n"}}]}`,
+			`{"choices":[{"delta":{"content":"Dune is on S-2."},"finish_reason":"stop"}]}`,
+			"[DONE]",
+		} {
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", line)
+		}
+	}))
+	defer srv.Close()
+
+	m := NewOpenRouter(OpenRouterConfig{BaseURL: srv.URL, Model: "google/gemini-3.8-flash", ReasoningEffort: "medium"})
+	msg, err := m.Generate(context.Background(), []*schema.Message{schema.UserMessage("dune?")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Reasoning == nil || got.Reasoning.Effort != "medium" || got.MaxTokens != DefaultMaxTokens+ReasoningHeadroom {
+		t.Fatalf("reasoning request %+v max_tokens=%d", got.Reasoning, got.MaxTokens)
+	}
+	if msg.ReasoningContent != "**Planning**\n\nSearch first.\n\n**Answering**\n\nCite the shelf.\n\n" ||
+		msg.Content != "Dune is on S-2." {
+		t.Fatalf("message reasoning=%q content=%q", msg.ReasoningContent, msg.Content)
+	}
+
+	off := NewOpenRouter(OpenRouterConfig{BaseURL: srv.URL, Model: "google/gemini-3.8-flash", ReasoningEffort: ReasoningOff})
+	if _, err := off.Generate(context.Background(), []*schema.Message{schema.UserMessage("dune?")}); err != nil {
+		t.Fatal(err)
+	}
+	if got.Reasoning != nil || got.MaxTokens != DefaultMaxTokens {
+		t.Fatalf("effort none must not request reasoning: %+v max_tokens=%d", got.Reasoning, got.MaxTokens)
+	}
+}
+
 func TestOpenRouterAdapterErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("x") == "" && r.Header.Get("Authorization") == "Bearer bad" {

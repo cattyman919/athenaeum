@@ -179,6 +179,7 @@ chatModel:
   api_key: ${OPENROUTER_API_KEY}
   model: ${OPENROUTER_MODEL}
   streaming: true
+  reasoning: { effort: ${OPENROUTER_REASONING_EFFORT} }  # low|medium|high; none → omitted
 embedding:
   adapter: ACLOllamaEmbedder -> eino.Embedder
   base_url: ${OLLAMA_BASE_URL}
@@ -189,15 +190,22 @@ embedding:
 - `OPENROUTER_API_KEY` missing → `POST /api/chat` 503 before streaming (documented in [03 §7.1](03-api-spec.md#71-sse-stream)).
 - Ollama down mid-index → `503 EMBEDDING_UNAVAILABLE` for search modes requiring vectors; keyword mode unaffected.
 - Voice input adds a third adapter, `WhisperAdapter` → the faster-whisper service (`WHISPER_BASE_URL`); unreachable/timeout → `503 TRANSCRIPTION_UNAVAILABLE` ([15 §5](15-voice-input.md#5-whisper-service)).
+- Reasoning: unless `OPENROUTER_REASONING_EFFORT=none` (default `medium`), every request carries
+  OpenRouter's `reasoning: {effort}` and `max_tokens` grows by a 2048-token reasoning headroom so
+  thinking cannot truncate the 1024-token answer (§8). The adapter reads each stream delta's readable
+  `reasoning` text into the message's reasoning content (→ §6 `thinking` events); encrypted
+  `reasoning_details` are ignored and not sent back. Models without reasoning support ignore the
+  field; Gemini returns titled thought summaries for non-trivial questions and none for trivial ones.
 
 ## 6. SSE Event Contract
 
 `POST /api/chat` (auth + rate limits: [03 §7.1](03-api-spec.md#71-sse-stream)). Event order in
-one turn is `meta → (token* → tool_call → tool_result)* → token* → citations → done`:
+one turn is `meta → (thinking* → token* → tool_call → tool_result)* → thinking* → token* → citations → done`:
 
 | # | event | data payload | Emitted |
 | --- | --- | --- | --- |
 | 1 | `meta` | `{"conversation_id":"c0f1…","turn":7,"model":"anthropic/claude-3.5-s","locale":"en"}` | always, first |
+| — | `thinking` | `{"text":"**Planning the search**\n\nA keyword search…\n\n"}` | N deltas of the model's thought summary, live, before each round's text/tool call (reasoning models only, §5) |
 | 2 | `tool_call` | `{"id":"call_1","name":"search_catalog","args":{"query":"babylonian math","mode":"semantic"}}` | each invocation |
 | 3 | `tool_result` | `{"id":"call_1","summary":"5 books found"}` | after each tool |
 | 4 | `token` | `{"text":"The Babylonian"}` | N streaming deltas, live as the model writes them |
@@ -211,6 +219,11 @@ one turn is `meta → (token* → tool_call → tool_result)* → token* → cit
   the next round's text starts with a blank line (`\n\n`). The client appends every
   `token` to the answer regardless of position, and the persisted assistant message holds
   the same concatenated text.
+- `thinking` events stream the same way but are never part of the answer: the client
+  accumulates them separately into a collapsible "Thinking…" panel that collapses to
+  "Thought for Ns" once the first `token` arrives ([07 §6](07-frontend.md#6-chat-streaming-client)).
+  A later round's thinking also starts with `\n\n`. Thinking is persisted (§7) but never
+  replayed to the model as history.
 
 ```text
 event: meta
@@ -251,8 +264,11 @@ stateDiagram-v2
 ```
 
 - Role enum `system, user, assistant, tool`; `tool_meta` JSONB stores `{tool_call_id, name, args, result}` on tool rows for agent replay
-  and `{citations:[…]}` (the §6 `citations` payload, incl. `cover_url`) on assistant rows. The conversation
-  API returns the latter as each assistant message's `citations` array (`[]` when none) with `tool_meta: null`.
+  and `{citations:[…], thinking?, thinking_ms?}` (the §6 `citations` payload, incl. `cover_url`, plus the
+  concatenated `thinking` text and `thinking_ms` — the wait from the start of the turn to the first answer
+  token) on assistant rows. The conversation API returns these as each assistant message's `citations`
+  array (`[]` when none) and `thinking` / `thinking_ms` (`null` when the model streamed no thinking),
+  with `tool_meta: null`. No schema change: both live in the existing `tool_meta` JSONB.
 - Replay/rename: **not in v1** — every turn re-sends the window; historical messages load on entering an existing conversation (GET #21), then streaming appends.
 
 ## 8. Guardrails
@@ -262,7 +278,7 @@ stateDiagram-v2
 | Rate limits | 5/min + 50/day ([03 §2](03-api-spec.md#2-rate-limiting)); daily counter surfaced as quota meter in telemetry bar |
 | Message count cap | 40 messages per conversation (`429` afterwards with "start a new conversation") |
 | Context cap | 8K tokens; history trimmed oldest-first |
-| Max answer length | persona stops at `max_tokens` 1024/stream |
+| Max answer length | persona stops at `max_tokens` 1024/stream; with reasoning on, the request adds a 2048-token reasoning headroom (§5) so thinking never eats the answer budget |
 | System prompt scope | "recommend only books that exist in the Athenaeum catalog (use search_catalog); cite only retrieved shelf paths; do not invent titles, barcodes, or racks" |
 | PII | never stored in `messages` beyond the conversation itself; log sampling excludes message bodies ([09](09-development.md#7-logging)) |
 | Non-library questions | agent deflects politely without tool use |

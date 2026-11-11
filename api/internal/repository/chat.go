@@ -122,6 +122,10 @@ func (r *ChatRepository) Messages(ctx context.Context, conversationID uuid.UUID)
 					return nil, fmt.Errorf("assistant meta %s: %w", m.ID, err)
 				}
 				m.Citations = am.Citations
+				if am.Thinking != "" {
+					thinking, ms := am.Thinking, am.ThinkingMs
+					m.Thinking, m.ThinkingMs = &thinking, &ms
+				}
 			}
 			if m.Citations == nil {
 				m.Citations = []model.ChatCitation{}
@@ -145,8 +149,18 @@ func (r *ChatRepository) AppendMessages(ctx context.Context, conversationID uuid
 		var meta any
 		if len(m.ToolMeta) > 0 {
 			meta = []byte(m.ToolMeta)
-		} else if m.Role == model.MsgRoleAssistant && m.Citations != nil {
-			b, err := json.Marshal(model.AssistantMeta{Citations: m.Citations})
+		} else if m.Role == model.MsgRoleAssistant && (m.Citations != nil || m.Thinking != nil) {
+			am := model.AssistantMeta{Citations: m.Citations}
+			if am.Citations == nil {
+				am.Citations = []model.ChatCitation{}
+			}
+			if m.Thinking != nil {
+				am.Thinking = *m.Thinking
+			}
+			if m.ThinkingMs != nil {
+				am.ThinkingMs = *m.ThinkingMs
+			}
+			b, err := json.Marshal(am)
 			if err != nil {
 				return fmt.Errorf("assistant meta: %w", err)
 			}
