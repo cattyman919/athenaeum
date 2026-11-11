@@ -118,7 +118,7 @@ flowchart TD
 
 | Config | Value |
 | --- | --- |
-| Max tool iterations | 4 per turn |
+| Max tool iterations | 4 per turn; the next model call is forced to answer: `tool_choice=none`, an appended system instruction ("the tool budget is used up — write your final answer now"), and any tool call it still emits is dropped (Gemini can ignore `tool_choice=none`, which used to end the turn in `UPSTREAM_ERROR` "exceeds max steps") |
 | Per-tool timeout | 5 s; failure → tool observations with error text (agent retries or answers without) |
 | Turn token window | ~8K tokens of message history (oldest-first-drop; never drops the system prompt or current turn) |
 | Temperature / top_p | 0.3 / 0.9 |

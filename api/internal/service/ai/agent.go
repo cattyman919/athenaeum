@@ -150,9 +150,16 @@ func (s *turnState) addUsage(u *schema.TokenUsage) {
 	s.out += u.CompletionTokens
 }
 
+// finalAnswerNudge is appended to the forced final call. tool_choice=none alone is
+// advisory: Gemini (with or without reasoning) sometimes still emits tool calls, and
+// the agent then exceeds its step budget and the turn fails.
+const finalAnswerNudge = "The tool budget for this turn is used up. Write your final answer now from the " +
+	"tool results above. Do not call any tools."
+
 // cappedModel enforces MaxToolIterations: once the input holds that many tool rounds
-// the model is called with tool_choice=forbidden so it must answer. It also collects
-// token usage into the turn state.
+// the model is called with tool_choice=forbidden plus finalAnswerNudge, and any tool
+// call it still emits is dropped, so that round always ends the turn with an answer.
+// It also collects token usage into the turn state.
 type cappedModel struct {
 	inner einomodel.ToolCallingChatModel
 	max   int
@@ -166,29 +173,40 @@ func (m *cappedModel) WithTools(tools []*schema.ToolInfo) (einomodel.ToolCalling
 	return &cappedModel{inner: inner, max: m.max}, nil
 }
 
-func (m *cappedModel) opts(input []*schema.Message, opts []einomodel.Option) []einomodel.Option {
+// prepare returns the call's input and options; final reports the forced last round.
+func (m *cappedModel) prepare(input []*schema.Message, opts []einomodel.Option) ([]*schema.Message, []einomodel.Option, bool) {
 	rounds := 0
 	for _, msg := range input {
 		if msg.Role == schema.Assistant && len(msg.ToolCalls) > 0 {
 			rounds++
 		}
 	}
-	if rounds >= m.max {
-		return append(opts, einomodel.WithToolChoice(schema.ToolChoiceForbidden))
+	if rounds < m.max {
+		return input, opts, false
 	}
-	return opts
+	nudged := make([]*schema.Message, len(input), len(input)+1)
+	copy(nudged, input) // never mutate the agent's own message list
+	nudged = append(nudged, schema.SystemMessage(finalAnswerNudge))
+	return nudged, append(opts, einomodel.WithToolChoice(schema.ToolChoiceForbidden)), true
 }
 
 func (m *cappedModel) Generate(ctx context.Context, input []*schema.Message, opts ...einomodel.Option) (*schema.Message, error) {
-	out, err := m.inner.Generate(ctx, input, m.opts(input, opts)...)
-	if err == nil && out != nil && out.ResponseMeta != nil {
-		turnFrom(ctx).addUsage(out.ResponseMeta.Usage)
+	in, o, final := m.prepare(input, opts)
+	out, err := m.inner.Generate(ctx, in, o...)
+	if err == nil && out != nil {
+		if final {
+			out.ToolCalls = nil
+		}
+		if out.ResponseMeta != nil {
+			turnFrom(ctx).addUsage(out.ResponseMeta.Usage)
+		}
 	}
 	return out, err
 }
 
 func (m *cappedModel) Stream(ctx context.Context, input []*schema.Message, opts ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
-	sr, err := m.inner.Stream(ctx, input, m.opts(input, opts)...)
+	in, o, final := m.prepare(input, opts)
+	sr, err := m.inner.Stream(ctx, in, o...)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +219,9 @@ func (m *cappedModel) Stream(ctx context.Context, input []*schema.Message, opts 
 	return schema.StreamReaderWithConvert(sr, func(msg *schema.Message) (*schema.Message, error) {
 		if msg == nil {
 			return msg, nil
+		}
+		if final {
+			msg.ToolCalls = nil // the budget is spent: this round must be the answer
 		}
 		if msg.ResponseMeta != nil {
 			st.addUsage(msg.ResponseMeta.Usage)

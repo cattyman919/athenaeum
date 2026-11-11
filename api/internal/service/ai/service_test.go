@@ -346,6 +346,45 @@ func TestToolIterationCap(t *testing.T) {
 	}
 }
 
+// Gemini sometimes calls a tool even with tool_choice=none. The forced final round must
+// still end the turn with an answer instead of exceeding the agent's step budget.
+func TestFinalRoundIgnoresStrayToolCalls(t *testing.T) {
+	stray := toolStep("call_late", ToolSearchCatalog, `{"query":"more"}`)
+	stray.tokens = []string{"Dune has 2 of 3 copies available."}
+	m := &scriptedModel{
+		steps:    []step{toolStep("call_x", ToolCheckAvailability, `{"book_id":"`+duneID.String()+`"}`)},
+		repeat:   true,
+		toolless: stray, // ignores tool_choice=forbidden
+	}
+	svc := newTestService(t, m, &fakeCatalog{}, newMemRepo(), fakeEmb{})
+	turn, err := svc.Prepare(context.Background(), uuid.New(), ChatRequest{Message: "Is Dune in?"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := &recSink{}
+	turn.Run(context.Background(), sink)
+	names := sink.names()
+	if names[len(names)-1] != EventDone {
+		t.Fatalf("the final round must answer, got %v", names)
+	}
+	calls := 0
+	for _, n := range names {
+		if n == EventToolCall {
+			calls++
+		}
+	}
+	if calls != MaxToolIterations {
+		t.Fatalf("stray tool call must not run: %d calls", calls)
+	}
+	last := m.inputs[len(m.inputs)-1]
+	if nudge := last[len(last)-1]; nudge.Role != schema.System || nudge.Content != finalAnswerNudge {
+		t.Fatalf("final call must carry the answer-now instruction, got %+v", nudge)
+	}
+	if prev := m.inputs[len(m.inputs)-2]; prev[len(prev)-1].Content == finalAnswerNudge {
+		t.Fatal("the instruction belongs only to the forced final call")
+	}
+}
+
 func TestToolTimeoutBecomesObservation(t *testing.T) {
 	old := toolTimeout
 	toolTimeout = 30 * time.Millisecond
