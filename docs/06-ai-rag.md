@@ -193,17 +193,24 @@ embedding:
 ## 6. SSE Event Contract
 
 `POST /api/chat` (auth + rate limits: [03 §7.1](03-api-spec.md#71-sse-stream)). Event order in
-one turn is fixed:
+one turn is `meta → (token* → tool_call → tool_result)* → token* → citations → done`:
 
 | # | event | data payload | Emitted |
 | --- | --- | --- | --- |
 | 1 | `meta` | `{"conversation_id":"c0f1…","turn":7,"model":"anthropic/claude-3.5-s","locale":"en"}` | always, first |
 | 2 | `tool_call` | `{"id":"call_1","name":"search_catalog","args":{"query":"babylonian math","mode":"semantic"}}` | each invocation |
 | 3 | `tool_result` | `{"id":"call_1","summary":"5 books found"}` | after each tool |
-| 4 | `token` | `{"text":"The Babylonian"}` | N streaming deltas |
+| 4 | `token` | `{"text":"The Babylonian"}` | N streaming deltas, live as the model writes them |
 | 5 | `citations` | `{"citations":[{"book_id","title","path","snippet","score","cover_url"}]}` | before done |
 | 6 | `done` | `{"message_id":"m9c…","tokens_in":842,"tokens_out":210,"finish_reason":"stop"}` | last |
 | — | `error` | `{"code":"RATE_LIMITED","message":…}` | replaces remaining flow, then terminates |
+
+- `token` events are forwarded the moment each delta arrives from the model — the server
+  never buffers a model round. Text a model writes *before* calling a tool (e.g. Claude's
+  "Let me check the catalog.") is therefore streamed ahead of that round's `tool_call`;
+  the next round's text starts with a blank line (`\n\n`). The client appends every
+  `token` to the answer regardless of position, and the persisted assistant message holds
+  the same concatenated text.
 
 ```text
 event: meta

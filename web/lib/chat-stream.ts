@@ -1,6 +1,7 @@
 // Pure chat-turn state machine for the /chat SSE client (docs/06 §6, docs/07 §6).
-// Event order within one turn is fixed: meta → (tool_call → tool_result)* → token* →
-// citations → done; `error` replaces the remaining flow. The hook feeds parsed frames
+// Event order within one turn: meta → (token* → tool_call → tool_result)* → token* →
+// citations → done; `error` replaces the remaining flow. Tokens stream live, so text a
+// model writes before a tool call can arrive ahead of it. The hook feeds parsed frames
 // here so the logic stays unit-testable without a browser.
 
 import type {

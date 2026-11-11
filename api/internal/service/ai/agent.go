@@ -40,8 +40,9 @@ type EngineResult struct {
 }
 
 // Engine runs the agent loop. It calls emit for tool_call/tool_result events and
-// onToken for every raw answer delta. The Eino implementation is EinoEngine; tests
-// may use it with a scripted ToolCallingChatModel.
+// onToken for every raw text delta as soon as the model produces it — including text
+// a model writes before a tool call (docs/06 §6). The Eino implementation is
+// EinoEngine; tests may use it with a scripted ToolCallingChatModel.
 type Engine interface {
 	Run(ctx context.Context, userID uuid.UUID, in EngineInput, emit func(Event), onToken func(string)) (EngineResult, error)
 }
@@ -51,14 +52,16 @@ type Engine interface {
 type turnKey struct{}
 
 type turnState struct {
-	userID uuid.UUID
-	mu     sync.Mutex
-	emitFn func(Event)
-	tools  []model.ToolMeta
-	hits   []Citation
-	seen   map[uuid.UUID]int
-	in     int
-	out    int
+	userID  uuid.UUID
+	mu      sync.Mutex
+	emitFn  func(Event)
+	tokenFn func(string)
+	sent    bool // any text forwarded yet this turn
+	tools   []model.ToolMeta
+	hits    []Citation
+	seen    map[uuid.UUID]int
+	in      int
+	out     int
 }
 
 func turnFrom(ctx context.Context) *turnState {
@@ -74,6 +77,25 @@ func (s *turnState) emit(e Event) {
 	if s.emitFn != nil {
 		s.emitFn(e)
 	}
+}
+
+// roundSeparator starts a later model round on a new paragraph, so text written
+// before a tool call ("Let me check the catalog.") does not run into the answer.
+const roundSeparator = "\n\n"
+
+// token forwards one model text delta live. firstInRound marks the first non-empty
+// delta of a model call; it gets roundSeparator when earlier rounds already sent text.
+func (s *turnState) token(text string, firstInRound bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.tokenFn == nil || text == "" {
+		return
+	}
+	if firstInRound && s.sent {
+		text = roundSeparator + text
+	}
+	s.sent = true
+	s.tokenFn(text)
 }
 
 func (s *turnState) addRecord(m model.ToolMeta) {
@@ -155,16 +177,29 @@ func (m *cappedModel) Stream(ctx context.Context, input []*schema.Message, opts 
 		return nil, err
 	}
 	st := turnFrom(ctx)
+	firstInRound := true
+	// The converter runs once per chunk, as the agent first reads it from OpenRouter
+	// (the tool-call checker drives that read). Forwarding text here streams it live;
+	// the agent's own output only arrives after the checker has drained the round.
 	return schema.StreamReaderWithConvert(sr, func(msg *schema.Message) (*schema.Message, error) {
-		if msg != nil && msg.ResponseMeta != nil {
+		if msg == nil {
+			return msg, nil
+		}
+		if msg.ResponseMeta != nil {
 			st.addUsage(msg.ResponseMeta.Usage)
+		}
+		if msg.Content != "" {
+			st.token(msg.Content, firstInRound)
+			firstInRound = false
 		}
 		return msg, nil
 	}), nil
 }
 
 // anyChunkToolCallChecker scans the whole chunk stream for tool calls: Claude emits
-// text before tool calls, so the first-chunk default is unreliable (Eino docs).
+// text before tool calls, so the first-chunk default is unreliable (Eino docs). It
+// drains each round before the agent continues, which is why text is streamed from
+// cappedModel.Stream rather than from the agent's output.
 func anyChunkToolCallChecker(_ context.Context, sr *schema.StreamReader[*schema.Message]) (bool, error) {
 	defer sr.Close()
 	for {
@@ -208,9 +243,10 @@ func unknownTool(_ context.Context, name, _ string) (string, error) {
 	return `{"error":"unknown tool ` + name + `"}`, nil
 }
 
-// Run executes one turn, streaming the final answer deltas to onToken.
+// Run executes one turn. Text reaches onToken live from cappedModel.Stream; the
+// agent's output stream is only drained here for completion and errors.
 func (e *EinoEngine) Run(ctx context.Context, userID uuid.UUID, in EngineInput, emit func(Event), onToken func(string)) (EngineResult, error) {
-	st := &turnState{userID: userID, emitFn: emit, seen: map[uuid.UUID]int{}}
+	st := &turnState{userID: userID, emitFn: emit, tokenFn: onToken, seen: map[uuid.UUID]int{}}
 	ctx = context.WithValue(ctx, turnKey{}, st)
 
 	msgs := make([]*schema.Message, 0, len(in.History)+2)
@@ -230,15 +266,12 @@ func (e *EinoEngine) Run(ctx context.Context, userID uuid.UUID, in EngineInput, 
 	}
 	defer sr.Close()
 	for {
-		msg, err := sr.Recv()
+		_, err := sr.Recv()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			return EngineResult{}, asUpstream(err)
-		}
-		if msg.Content != "" {
-			onToken(msg.Content)
 		}
 	}
 	st.mu.Lock()

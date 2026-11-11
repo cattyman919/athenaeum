@@ -147,6 +147,7 @@ func (c *fakeCatalog) Detail(_ context.Context, id string, _ uuid.UUID) (model.B
 type step struct {
 	tool   *schema.ToolCall // emit this tool call (split across chunks)
 	tokens []string         // or stream these deltas
+	hold   <-chan struct{}  // if set, pause after the first token until closed
 	err    error            // then fail mid-stream
 }
 
@@ -214,8 +215,11 @@ func (m *scriptedModel) Stream(_ context.Context, in []*schema.Message, opts ...
 			sw.Send(&schema.Message{Role: schema.Assistant, ToolCalls: []schema.ToolCall{{Index: &idx,
 				Function: schema.FunctionCall{Arguments: s.tool.Function.Arguments}}}}, nil)
 		}
-		for _, t := range s.tokens {
+		for i, t := range s.tokens {
 			sw.Send(&schema.Message{Role: schema.Assistant, Content: t}, nil)
+			if i == 0 && s.hold != nil {
+				<-s.hold // the model is "still generating"
+			}
 		}
 		if s.err != nil {
 			sw.Send(nil, s.err)

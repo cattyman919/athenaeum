@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -53,7 +54,8 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 	sink := &recSink{}
 	turn.Run(context.Background(), sink)
 
-	if got, want := sequence(sink.names()), "meta,tool_call,tool_result,token+,citations,done"; got != want {
+	// The text the model writes before its tool call streams live, ahead of tool_call.
+	if got, want := sequence(sink.names()), "meta,token,tool_call,tool_result,token+,citations,done"; got != want {
 		t.Fatalf("event order\n got %s\nwant %s", got, want)
 	}
 	ev := sink.events
@@ -61,8 +63,8 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 	if meta.Turn != 1 || meta.Locale != LocaleEN || meta.Model != "anthropic/claude-3.5-sonnet" || meta.ConversationID != turn.ConversationID() {
 		t.Fatalf("meta %+v", meta)
 	}
-	call := ev[1].Data.(ToolCallData)
-	res := ev[2].Data.(ToolResultData)
+	call := ev[2].Data.(ToolCallData)
+	res := ev[3].Data.(ToolResultData)
 	if call.ID != "call_1" || call.Name != ToolSearchCatalog || res.ID != "call_1" || res.Summary != "1 book found" {
 		t.Fatalf("tool events %+v %+v", call, res)
 	}
@@ -80,8 +82,10 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 			text.WriteString(e.Data.(TokenData).Text)
 		}
 	}
-	if text.String() != "Try Dune  on shelf S-2." {
-		t.Fatalf("tokens %q (markers must be stripped)", text.String())
+	// Markers are stripped; the answer round starts on a new paragraph after the preface.
+	const answer = "Let me check the catalog.\n\nTry Dune  on shelf S-2."
+	if text.String() != answer {
+		t.Fatalf("tokens %q", text.String())
 	}
 	cits := ev[len(ev)-2].Data.(CitationsData).Citations
 	if len(cits) != 1 || cits[0].BookID != duneID || *cits[0].Path != "MAIN/3F/SF/A-1/S-2" || cits[0].Score != 0.86 || cits[0].Snippet == "" ||
@@ -113,7 +117,7 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 	if err := json.Unmarshal(msgs[1].ToolMeta, &tm); err != nil || tm.ToolCallID != "call_1" || tm.Name != ToolSearchCatalog || tm.Result == "" {
 		t.Fatalf("tool_meta %s", msgs[1].ToolMeta)
 	}
-	if *msgs[2].Content != "Try Dune  on shelf S-2." || msgs[2].ID != done.MessageID {
+	if *msgs[2].Content != answer || msgs[2].ID != done.MessageID {
 		t.Fatalf("assistant %+v", msgs[2])
 	}
 	// The streamed citation cards persist on the assistant message (docs/06 §7).
@@ -141,6 +145,59 @@ func TestTurnSSEOrderAndPersistence(t *testing.T) {
 	in := m.inputs[len(m.inputs)-1]
 	if len(in) != 4 || in[1].Content != "Any novels about a desert planet with spice trade?" || in[2].Role != schema.Assistant {
 		t.Fatalf("history window %d", len(in))
+	}
+}
+
+// firstTokenSink records events and signals when the first token arrives.
+type firstTokenSink struct {
+	recSink
+	once  sync.Once
+	first chan struct{}
+}
+
+func (s *firstTokenSink) Send(e Event) error {
+	if e.Name == EventToken {
+		s.once.Do(func() { close(s.first) })
+	}
+	return s.recSink.Send(e)
+}
+
+// Tokens must reach the client while the model is still generating, not after the
+// whole answer is buffered by the agent's tool-call checker.
+func TestTokensStreamBeforeModelFinishes(t *testing.T) {
+	release := make(chan struct{})
+	m := &scriptedModel{steps: []step{{tokens: []string{"First ", "second."}, hold: release}}}
+	svc := newTestService(t, m, &fakeCatalog{}, newMemRepo(), fakeEmb{})
+	turn, err := svc.Prepare(context.Background(), uuid.New(), ChatRequest{Message: "stream please"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sink := &firstTokenSink{first: make(chan struct{})}
+	finished := make(chan struct{})
+	go func() {
+		turn.Run(context.Background(), sink)
+		close(finished)
+	}()
+	select {
+	case <-sink.first:
+	case <-time.After(2 * time.Second):
+		close(release)
+		<-finished
+		t.Fatal("no token streamed while the model was still generating (answer is buffered)")
+	}
+	close(release)
+	<-finished
+	if got := sequence(sink.names()); got != "meta,token+,citations,done" {
+		t.Fatalf("order %s", got)
+	}
+	var text strings.Builder
+	for _, e := range sink.events {
+		if e.Name == EventToken {
+			text.WriteString(e.Data.(TokenData).Text)
+		}
+	}
+	if text.String() != "First second." {
+		t.Fatalf("text %q", text.String())
 	}
 }
 
@@ -234,10 +291,10 @@ func TestToolTimeoutBecomesObservation(t *testing.T) {
 	turn, _ := svc.Prepare(context.Background(), uuid.New(), ChatRequest{Message: "dune?"})
 	sink := &recSink{}
 	turn.Run(context.Background(), sink)
-	if got := sequence(sink.names()); got != "meta,tool_call,tool_result,token,citations,done" {
+	if got := sequence(sink.names()); got != "meta,token,tool_call,tool_result,token,citations,done" {
 		t.Fatalf("order %s", got)
 	}
-	if s := sink.events[2].Data.(ToolResultData).Summary; s != "error: tool timed out" {
+	if s := sink.events[3].Data.(ToolResultData).Summary; s != "error: tool timed out" {
 		t.Fatalf("summary %q", s)
 	}
 	last := m.inputs[1]
