@@ -17,5 +17,10 @@ COPY --from=build /src/package.json ./package.json
 COPY --from=build /src/.next ./.next
 COPY --from=build /src/public ./public
 COPY --from=build /src/node_modules ./node_modules
+# `next start` re-reads next.config.ts at runtime; without it Next falls back to
+# compress: true and gzip buffers the SSE chat stream. The next-intl plugin it
+# loads points at i18n/request.ts.
+COPY --from=build /src/next.config.ts ./next.config.ts
+COPY --from=build /src/i18n ./i18n
 EXPOSE 3000
 ENTRYPOINT ["node_modules/.bin/next", "start"]
